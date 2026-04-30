@@ -129,12 +129,35 @@ export const usePaperStore = create<PaperStoreState>()(
           ),
 
         // ─── Position Actions ───────────────────────────
+
+        /**
+         * Lock collateral when opening a position.
+         * GMX deducts the full collateral from your available balance.
+         * The position fee is taken from collateral within the protocol,
+         * so we deduct the full collateral amount here.
+         */
+        lockCollateral: (amount: USD) =>
+          set(
+            (state) => {
+              if (amount > state.balance) {
+                console.warn(
+                  `[PaperGMX] lockCollateral: ${amount} exceeds balance ${state.balance}. Clamping.`
+                );
+              }
+              return {
+                balance: usd(Math.max(0, state.balance - amount)),
+              };
+            },
+            false,
+            "lockCollateral"
+          ),
+
         setActivePosition: (position: Position | null) =>
           set({ activePosition: position }, false, "setActivePosition"),
 
         setOrderStatus: (status: OrderStatus) => {
           const current = get().orderStatus;
-          if (current !== "idle" && !isValidTransition(current, status)) {
+          if (!isValidTransition(current, status)) {
             console.warn(
               `Invalid order transition: ${current} → ${status}. Forcing.`
             );
@@ -211,6 +234,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 balance: usd(state.balance + result.returnedCollateral),
                 tradeHistory: [closedTrade, ...state.tradeHistory],
               };
+              // Note: orderStatus resets to "idle" so the user can open a new position.
             },
             false,
             "closePosition"

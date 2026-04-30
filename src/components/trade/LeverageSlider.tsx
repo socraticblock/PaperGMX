@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useState, useEffect } from "react";
-import { MARKETS } from "@/lib/constants";
+import { MARKETS, LEVERAGE_PRESETS } from "@/lib/constants";
 import type { MarketSlug } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────
@@ -12,10 +12,6 @@ export interface LeverageSliderProps {
   onChange: (leverage: number) => void;
   disabled?: boolean;
 }
-
-// ─── Presets ──────────────────────────────────────────────
-
-const LEVERAGE_PRESETS = [2, 5, 10, 25, 50] as const;
 
 // ─── Component ────────────────────────────────────────────
 
@@ -67,6 +63,7 @@ function LeverageSliderInner({
   const sliderPercent = ((leverage - 1) / (maxLeverage - 1)) * 100;
 
   // Leverage danger level for color coding
+  const isHighRisk = leverage >= 25;
   const dangerLevel =
     leverage <= 5 ? "low" : leverage <= 15 ? "medium" : "high";
 
@@ -105,6 +102,20 @@ function LeverageSliderInner({
         </div>
       </div>
 
+      {/* Risk badge for high leverage (spec 3.3) */}
+      {isHighRisk && (
+        <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-red-bg px-2 py-1">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-red-primary flex-shrink-0">
+            <path d="M6 1L11 10H1L6 1Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+            <path d="M6 4.5V6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <circle cx="6" cy="8.5" r="0.5" fill="currentColor"/>
+          </svg>
+          <span className="text-[10px] font-semibold text-red-primary">
+            High risk — liquidation within {dangerLevel === "high" ? (leverage >= 40 ? "2-3%" : "4-8%") : "8-15%"} price move
+          </span>
+        </div>
+      )}
+
       {/* Slider */}
       <div className="relative">
         <input
@@ -133,7 +144,7 @@ function LeverageSliderInner({
         />
       </div>
 
-      {/* Preset buttons */}
+      {/* Preset buttons — uses LEVERAGE_PRESETS from constants.ts */}
       <div className="mt-2 flex gap-2">
         {LEVERAGE_PRESETS.map((preset) => {
           const isActive = leverage === preset;

@@ -2,10 +2,13 @@ import type { MarketSlug } from "@/types";
 import { bps } from "@/lib/branded";
 
 // ─── GMX Color Constants ──────────────────────────────────
+// NOTE: These color constants are for reference only.
+// The actual theme is defined in globals.css via CSS custom properties.
+// Keep both in sync.
 export const COLORS = {
   bgPrimary: "#0a0a0f",
-  bgCard: "#14141f",
-  bgCardHover: "#1a1a2e",
+  bgCard: "#1a1a2e",
+  bgCardHover: "#222240",
   bgInput: "#0f0f1a",
   borderPrimary: "#2a2a3e",
   borderHover: "#3a3a4e",

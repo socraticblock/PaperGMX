@@ -61,7 +61,8 @@ function runOrderEntryScenario({
     collateralUsd,
     sizeUsd,
     bps(maintenanceMarginBps),
-    usd(0)
+    positionFee, // Position fee reduces effective collateral
+    usd(0)       // No accrued fees at open
   );
   const hourlyBorrowFee = calculateHourlyBorrowFee(sizeUsd, borrowRatePerSecond);
 
@@ -110,11 +111,11 @@ describe("Order Entry Integration", () => {
       expect(result.liquidationPrice).toBeLessThan(result.fillPrice);
     });
 
-    it("liquidation price is roughly 9.4% below entry", () => {
-      // collateral=1000, size=10000, fee=6, maintenanceMargin=50bps
-      // effectiveCollateral = 1000 - 6 - 10000 * 0.005 = 1000 - 6 - 50 = 944
-      // liqPrice = 3001 * (1 - 944/10000) = 3001 * 0.9056
-      expect(result.liquidationPrice).toBeCloseTo(2715.9, 0);
+    it("liquidation price is roughly 9.3% below entry", () => {
+      // collateral=1000, size=10000, positionFee=6, maintenanceMargin=50bps
+      // effectiveCollateral = 1000 - 6 - 0 - 10000*0.005 = 1000 - 6 - 50 = 944
+      // liqPrice = 3001 * (1 - 944/10000) = 3001 * 0.9056 = 2717.7
+      expect(result.liquidationPrice).toBeCloseTo(2717.7, 0);
     });
 
     it("estimates hourly borrow fee", () => {

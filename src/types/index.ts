@@ -183,6 +183,7 @@ export interface PaperStoreState {
   topUpBalance: (amount: number) => void;
   resetWallet: () => void;
   approveToken: (token: string) => void;
+  lockCollateral: (amount: USD) => void;
   setActivePosition: (position: Position | null) => void;
   setOrderStatus: (status: OrderStatus) => void;
   addClosedTrade: (trade: ClosedTrade) => void;

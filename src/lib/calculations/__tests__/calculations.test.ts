@@ -81,28 +81,56 @@ describe("calculateBorrowFee", () => {
 });
 
 describe("calculateLiquidationPrice", () => {
-  it("calculates long liquidation price for BTC/ETH (0.5% maintenance)", () => {
+  it("calculates long liquidation price for BTC/ETH (0.5% maintenance, no fees)", () => {
     const liqPrice = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0)
+      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
     );
     expect(liqPrice).toBeCloseTo(1610, 0);
   });
 
   it("calculates short liquidation price", () => {
     const liqPrice = calculateLiquidationPrice(
-      "short", price(2000), usd(1000), usd(5000), bps(50), usd(0)
+      "short", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
     );
     expect(liqPrice).toBeCloseTo(2390, 0);
   });
 
   it("liquidation price moves closer with accrued fees", () => {
     const liqPriceNoFees = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0)
+      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
     );
     const liqPriceWithFees = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(50)
+      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(50)
     );
     expect(liqPriceWithFees).toBeGreaterThan(liqPriceNoFees);
+  });
+
+  it("liquidation price moves closer with position fee", () => {
+    const liqPriceNoPositionFee = calculateLiquidationPrice(
+      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
+    );
+    const liqPriceWithPositionFee = calculateLiquidationPrice(
+      "long", price(2000), usd(1000), usd(5000), bps(50), usd(3), usd(0)
+    );
+    // Position fee reduces effective collateral, moving liq price closer
+    expect(liqPriceWithPositionFee).toBeGreaterThan(liqPriceNoPositionFee);
+  });
+
+  it("short liquidation returns sentinel when underwater (negative effective collateral)", () => {
+    // effectiveCollateral = 100 - 0 - 500 - 10000*0.005 = 100 - 500 - 50 = -450
+    // For short: liqPrice = 2000 * (1 + (-450)/10000) = 2000 * 0.955 = 1910
+    // This is still positive — need even more extreme values
+    // effectiveCollateral = 100 - 0 - 2000 - 10000*0.005 = -1950
+    // liqPrice = 2000 * (1 + (-1950)/10000) = 2000 * 0.805 = 1610 — still positive
+    // For liqPrice to go negative: effectiveCollateral/sizeUsd < -1
+    // i.e., collateral - positionFee - accruedFees - size*maintMargin < -sizeUsd
+    // e.g., accruedFees > sizeUsd + collateral - sizeUsd*maintMargin
+    const liqPrice = calculateLiquidationPrice(
+      "short", price(2000), usd(100), usd(10000), bps(50), usd(0), usd(15000)
+    );
+    // effectiveCollateral = 100 - 0 - 15000 - 50 = -14950
+    // liqPrice = 2000 * (1 + (-14950)/10000) = 2000 * (-0.495) = -990 → sentinel 0.01
+    expect(liqPrice).toBe(0.01);
   });
 });
 
