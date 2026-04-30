@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { usePaperStore } from "@/store/usePaperStore";
 
 // ─── Test the wallet simulation flow via the store ────────

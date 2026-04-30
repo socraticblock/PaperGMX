@@ -22,8 +22,6 @@ export interface WalletSimulationResult {
   showSigning: boolean;
   /** Processing state for the currently visible popup */
   processing: PopupProcessingState;
-  /** Whether USDC is already approved (skip approval popup) */
-  isAlreadyApproved: boolean;
   /** Handle user clicking Approve in approval popup */
   handleApprove: () => void;
   /** Handle user clicking Reject in approval popup */
@@ -36,19 +34,19 @@ export interface WalletSimulationResult {
 
 // ─── Timing constants ────────────────────────────────────
 
-const APPROVAL_PROCESSING_MS = 1200; // Simulated on-chain approval tx
-const APPROVAL_SUCCESS_MS = 600;     // Green checkmark display time
-const SIGNING_PROCESSING_MS = 800;   // Simulated on-chain order tx
-const SIGNING_SUCCESS_MS = 500;      // Green checkmark before keeper
+// Spec 4.8: spinner → success checkmark (1s total)
+const APPROVAL_PROCESSING_MS = 700;  // Spinner phase
+const APPROVAL_SUCCESS_MS = 300;     // Green checkmark phase
+const SIGNING_PROCESSING_MS = 700;   // Spinner phase
+const SIGNING_SUCCESS_MS = 300;      // Green checkmark phase
 
 // ─── Hook ────────────────────────────────────────────────
 
 export function useWalletSimulation(): WalletSimulationResult {
-  const { orderStatus, approvedTokens, approveToken, setOrderStatus } =
+  const { orderStatus, approveToken, setOrderStatus } =
     usePaperStore(
       useShallow((s) => ({
         orderStatus: s.orderStatus,
-        approvedTokens: s.approvedTokens,
         approveToken: s.approveToken,
         setOrderStatus: s.setOrderStatus,
       }))
@@ -63,8 +61,6 @@ export function useWalletSimulation(): WalletSimulationResult {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const isAlreadyApproved = approvedTokens.includes("USDC");
-
   const showApproval =
     orderStatus === "approving" || orderStatus === "approved";
   const showSigning = orderStatus === "signing";
@@ -76,13 +72,18 @@ export function useWalletSimulation(): WalletSimulationResult {
     if (processing !== "idle") return; // Prevent double-click
 
     setProcessing("processing");
-    setOrderStatus("approved"); // State machine: approving → approved
+    // NOTE: We do NOT set orderStatus to "approved" yet.
+    // The approval hasn't actually completed — we're still simulating
+    // the on-chain tx. Setting "approved" prematurely means if the
+    // component unmounts during the delay, the store is stuck in
+    // "approved" with no way to continue.
 
     // Simulate on-chain approval tx
     setTimeout(() => {
       if (!mountedRef.current) return;
       approveToken("USDC"); // Persist approval
       setProcessing("success"); // Show green checkmark
+      setOrderStatus("approved"); // NOW the approval is confirmed
 
       // Brief success display, then auto-transition to signing
       setTimeout(() => {
@@ -105,19 +106,21 @@ export function useWalletSimulation(): WalletSimulationResult {
     if (processing !== "idle") return;
 
     setProcessing("processing");
-    setOrderStatus("submitted"); // signing → submitted
+    // NOTE: We do NOT set orderStatus to "submitted" yet.
+    // The signing popup needs to show its success animation first.
+    // Setting "submitted" immediately would dismiss the popup
+    // (since isVisible only checks approving/approved/signing)
+    // before the user sees the green checkmark.
 
-    // Brief success animation, then SubmitOrderButton picks up
-    // keeper steps via useEffect watching orderStatus === "submitted"
     setTimeout(() => {
       if (!mountedRef.current) return;
-      setProcessing("success");
+      setProcessing("success"); // Show green checkmark
 
       setTimeout(() => {
         if (!mountedRef.current) return;
         setProcessing("idle");
-        // Note: we do NOT set orderStatus here — the SubmitOrderButton's
-        // useEffect takes over from "submitted" and drives keeper steps.
+        // NOW transition to submitted — this triggers the keeper useEffect
+        setOrderStatus("submitted"); // signing → submitted
       }, SIGNING_SUCCESS_MS);
     }, SIGNING_PROCESSING_MS);
   }, [processing, setOrderStatus]);
@@ -133,7 +136,6 @@ export function useWalletSimulation(): WalletSimulationResult {
     showApproval,
     showSigning,
     processing,
-    isAlreadyApproved,
     handleApprove,
     handleRejectApproval,
     handleConfirm,
