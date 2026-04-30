@@ -1,10 +1,9 @@
 "use client";
 
-import { memo, useCallback, useRef } from "react";
-import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, PriceData, MarketInfo } from "@/types";
+import { memo, useCallback, useRef, useEffect } from "react";
+import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, PriceData, MarketInfo, Position } from "@/types";
 import { usd, timestamp } from "@/lib/branded";
 import { formatUSD } from "@/lib/format";
-import { isValidTransition } from "@/types";
 import {
   calculatePositionSize,
   calculatePositionFee,
@@ -12,7 +11,7 @@ import {
   calculateLiquidationPrice,
   determineFillPrice,
 } from "@/lib/calculations";
-import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, generatePositionId } from "@/lib/constants";
+import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, KEEPER_TIMING_WEIGHTS, generatePositionId } from "@/lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────
@@ -26,31 +25,23 @@ export interface SubmitOrderButtonProps {
   orderStatus: OrderStatus;
   priceData: PriceData | undefined;
   marketInfo: MarketInfo | undefined;
-  onSubmit: (position: import("@/types").Position) => void;
+  needsApproval: boolean;
+  onSubmit: (position: Position) => void;
   onStatusChange: (status: OrderStatus) => void;
   simulateKeeperDelay: boolean;
 }
 
-// ─── Keeper delay weights (same as GMX V2) ───────────────
-
-const KEEPER_DELAYS = [
-  { seconds: 2, weight: 15 },
-  { seconds: 3, weight: 30 },
-  { seconds: 4, weight: 25 },
-  { seconds: 5, weight: 15 },
-  { seconds: 6, weight: 10 },
-  { seconds: 7, weight: 5 },
-] as const;
+// ─── Keeper delay sampling (uses KEEPER_TIMING_WEIGHTS from constants) ──
 
 function sampleKeeperDelay(): number {
-  const totalWeight = KEEPER_DELAYS.reduce((sum, d) => sum + d.weight, 0);
+  const totalWeight = KEEPER_TIMING_WEIGHTS.reduce((sum, d) => sum + d.weight, 0);
   let random = Math.random() * totalWeight;
 
-  for (const delay of KEEPER_DELAYS) {
+  for (const delay of KEEPER_TIMING_WEIGHTS) {
     random -= delay.weight;
     if (random <= 0) return delay.seconds * 1000;
   }
-  return 3000; // fallback
+  return 3000;
 }
 
 // ─── Component ────────────────────────────────────────────
@@ -64,6 +55,7 @@ function SubmitOrderButtonInner({
   orderStatus,
   priceData,
   marketInfo,
+  needsApproval,
   onSubmit,
   onStatusChange,
   simulateKeeperDelay,
@@ -72,12 +64,29 @@ function SubmitOrderButtonInner({
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
   const isLong = direction === "long";
 
-  // ─── Ref to track current order status inside async callback ──
-  // The async handleSubmit captures `orderStatus` from the closure,
-  // which goes stale after the first `await`. We track the real-time
-  // status via a ref that's updated by onStatusChange.
-  const statusRef = useRef<OrderStatus>(orderStatus);
-  statusRef.current = orderStatus;
+  // ─── Refs for latest values in async keeper execution ────
+  // The keeper useEffect captures values from the closure, which go stale
+  // after the first `await`. We track the real-time values via refs.
+  const priceDataRef = useRef(priceData);
+  priceDataRef.current = priceData;
+  const marketInfoRef = useRef(marketInfo);
+  marketInfoRef.current = marketInfo;
+  const directionRef = useRef(direction);
+  directionRef.current = direction;
+  const collateralUsdRef = useRef(collateralUsd);
+  collateralUsdRef.current = collateralUsd;
+  const leverageRef = useRef(leverage);
+  leverageRef.current = leverage;
+  const marketRef = useRef(market);
+  marketRef.current = market;
+  const sizeUsdRef = useRef(sizeUsd);
+  sizeUsdRef.current = sizeUsd;
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
+  const simulateKeeperDelayRef = useRef(simulateKeeperDelay);
+  simulateKeeperDelayRef.current = simulateKeeperDelay;
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
@@ -90,107 +99,123 @@ function SubmitOrderButtonInner({
     collateralUsd > 0 &&
     (orderStatus === "idle" || orderStatus === "failed");
 
-  // ─── Safe status transition helper ──────────────────────
-  // Uses the ref (current state) instead of stale closure value
-  const tryTransition = useCallback(
-    (to: OrderStatus) => {
-      if (isValidTransition(statusRef.current, to)) {
-        onStatusChange(to);
-        return true;
-      }
-      console.warn(
-        `[SubmitOrder] Invalid transition: ${statusRef.current} → ${to}. Skipping.`
-      );
-      return false;
-    },
-    [onStatusChange]
-  );
+  // ─── Button click: start the wallet flow ────────────────
+  // Phase 4: approval and signing are handled by wallet popups,
+  // not inline in this handler. We just set the initial status.
+  const handleClick = useCallback(() => {
+    if (!canSubmit) return;
 
-  // ─── Submit handler ─────────────────────────────────────
-  const handleSubmit = useCallback(async () => {
-    if (!canSubmit || !priceData || priceData.last <= 0) return;
-
-    // Step 1: Approving (simulated — we auto-approve in paper trading)
-    tryTransition("approving");
-    await new Promise((r) => setTimeout(r, 500));
-
-    // Step 2: Approved
-    tryTransition("approved");
-
-    // Step 3: Signing (simulated)
-    tryTransition("signing");
-    await new Promise((r) => setTimeout(r, 300));
-
-    // Step 4: Submitted
-    tryTransition("submitted");
-
-    // Step 5: Keeper steps (simulated)
-    if (simulateKeeperDelay) {
-      const delay = sampleKeeperDelay();
-      const stepDelay = delay / 4;
-
-      for (let step = 1; step <= 4; step++) {
-        await new Promise((r) => setTimeout(r, stepDelay));
-        tryTransition(`keeper_step_${step}` as OrderStatus);
-      }
+    if (needsApproval) {
+      onStatusChange("approving"); // Triggers ApprovalPopup
     } else {
-      // No delay — instant keeper steps
-      for (let step = 1; step <= 4; step++) {
-        tryTransition(`keeper_step_${step}` as OrderStatus);
-      }
+      onStatusChange("signing"); // Skip approval, go to signing
     }
+  }, [canSubmit, needsApproval, onStatusChange]);
 
-    // Step 6: Filled — calculate and store position
-    const fillPrice = determineFillPrice(priceData.min, priceData.max, direction, false);
-    const acceptablePrice = calculateAcceptablePrice(fillPrice, SLIPPAGE_OPEN_BPS, direction, false);
-    const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
-    const positionFeePaid = calculatePositionFee(sizeUsd, feeBps);
+  // ─── Keeper execution after signing is confirmed ────────
+  // When orderStatus becomes "submitted", the wallet signing popup
+  // was confirmed. Now we run the keeper steps and fill the order.
+  const keeperStartedRef = useRef(false);
 
-    // Calculate liquidation price at open (position fee reduces effective collateral)
-    const liquidationPrice = calculateLiquidationPrice(
-      direction,
-      fillPrice,
-      collateralUsd,
-      sizeUsd,
-      marketConfig.maintenanceMarginBps,
-      positionFeePaid, // Position fee reduces effective collateral
-      usd(0)           // No accrued fees at open
-    );
+  useEffect(() => {
+    if (orderStatus !== "submitted") {
+      keeperStartedRef.current = false;
+      return;
+    }
+    // Prevent double-execution (React StrictMode calls effects twice in dev)
+    if (keeperStartedRef.current) return;
+    keeperStartedRef.current = true;
 
-    const position: import("@/types").Position = {
-      id: generatePositionId(market, direction),
-      market,
-      direction,
-      collateralUsd,
-      leverage,
-      sizeUsd,
-      entryPrice: fillPrice,
-      acceptablePrice,
-      liquidationPrice,
-      positionFeeBps: feeBps,
-      positionFeePaid,
-      borrowFeeAccrued: usd(0),
-      fundingFeeAccrued: usd(0),
-      openedAt: timestamp(Date.now()),
-      confirmedAt: timestamp(Date.now()), // Keeper confirmed the fill
-      status: "active",
+    let cancelled = false;
+
+    const runKeeper = async () => {
+      // Step 1: Keeper steps (simulated delay)
+      if (simulateKeeperDelayRef.current) {
+        const delay = sampleKeeperDelay();
+        const stepDelay = delay / 4;
+
+        for (let step = 1; step <= 4; step++) {
+          await new Promise((r) => setTimeout(r, stepDelay));
+          if (cancelled) return;
+          onStatusChangeRef.current(`keeper_step_${step}` as OrderStatus);
+        }
+      } else {
+        for (let step = 1; step <= 4; step++) {
+          onStatusChangeRef.current(`keeper_step_${step}` as OrderStatus);
+        }
+      }
+
+      if (cancelled) return;
+
+      // Step 2: Fill price from oracle (using CURRENT prices, not stale)
+      const currentPriceData = priceDataRef.current;
+      const currentMarketInfo = marketInfoRef.current;
+      if (!currentPriceData || currentPriceData.last <= 0) {
+        onStatusChangeRef.current("failed");
+        return;
+      }
+
+      const fillPrice = determineFillPrice(
+        currentPriceData.min,
+        currentPriceData.max,
+        directionRef.current,
+        false
+      );
+      const acceptablePrice = calculateAcceptablePrice(
+        fillPrice,
+        SLIPPAGE_OPEN_BPS,
+        directionRef.current,
+        false
+      );
+      const feeBps: BPS = currentMarketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
+      const positionFeePaid = calculatePositionFee(sizeUsdRef.current, feeBps);
+      const currentMarketConfig = MARKETS[marketRef.current];
+
+      // Calculate liquidation price at open
+      const liquidationPrice = calculateLiquidationPrice(
+        directionRef.current,
+        fillPrice,
+        collateralUsdRef.current,
+        sizeUsdRef.current,
+        currentMarketConfig.maintenanceMarginBps,
+        positionFeePaid,
+        usd(0) // No accrued fees at open
+      );
+
+      // Step 3: Create position
+      const position: Position = {
+        id: generatePositionId(marketRef.current, directionRef.current),
+        market: marketRef.current,
+        direction: directionRef.current,
+        collateralUsd: collateralUsdRef.current,
+        leverage: leverageRef.current,
+        sizeUsd: sizeUsdRef.current,
+        entryPrice: fillPrice,
+        acceptablePrice,
+        liquidationPrice,
+        positionFeeBps: feeBps,
+        positionFeePaid,
+        borrowFeeAccrued: usd(0),
+        fundingFeeAccrued: usd(0),
+        openedAt: timestamp(Date.now()),
+        confirmedAt: timestamp(Date.now()),
+        status: "active",
+      };
+
+      onSubmitRef.current(position);
+      onStatusChangeRef.current("filled");
     };
 
-    onSubmit(position);
-    tryTransition("filled");
-  }, [
-    canSubmit,
-    priceData,
-    direction,
-    market,
-    collateralUsd,
-    sizeUsd,
-    marketInfo,
-    marketConfig.maintenanceMarginBps,
-    simulateKeeperDelay,
-    tryTransition,
-    onSubmit,
-  ]);
+    runKeeper();
+
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally only depend on orderStatus so this effect
+    // only fires when the status transitions to "submitted".
+    // All other values are accessed via refs to avoid re-triggering.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderStatus]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -204,7 +229,7 @@ function SubmitOrderButtonInner({
         };
       case "signing":
         return {
-          text: "Confirming Order...",
+          text: "Confirm in Wallet...",
           bgClass: "bg-blue-primary",
           showSpinner: true,
         };
@@ -230,8 +255,14 @@ function SubmitOrderButtonInner({
           bgClass: "bg-red-primary",
           showSpinner: false,
         };
+      case "cancelled":
+        return {
+          text: "Order Cancelled",
+          bgClass: "bg-border-primary",
+          showSpinner: false,
+        };
       default: {
-        // Spec 3.6 states: "Enter amount" → "Approve USDC first" → "Open Long $500"
+        // idle or other — show actionable states
         if (collateralUsd <= 0) {
           return {
             text: "Enter Amount",
@@ -260,6 +291,13 @@ function SubmitOrderButtonInner({
             showSpinner: false,
           };
         }
+        if (needsApproval) {
+          return {
+            text: "Approve USDC",
+            bgClass: "bg-yellow-primary",
+            showSpinner: false,
+          };
+        }
         return {
           text: `${isLong ? "Long" : "Short"} ${marketConfig.symbol} — ${formatUSD(sizeUsd)}`,
           bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
@@ -274,7 +312,7 @@ function SubmitOrderButtonInner({
       <motion.button
         whileHover={canSubmit ? { scale: 1.01 } : {}}
         whileTap={canSubmit ? { scale: 0.99 } : {}}
-        onClick={handleSubmit}
+        onClick={handleClick}
         disabled={!canSubmit}
         className={`w-full rounded-xl py-4 text-base font-bold text-white transition-all ${buttonConfig.bgClass} ${
           canSubmit ? "hover:brightness-110 active:brightness-90" : "cursor-not-allowed"
