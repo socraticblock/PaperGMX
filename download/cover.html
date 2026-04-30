@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=794px, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+  @page { size: 794px 1123px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 794px; height: 1123px; overflow: hidden; background: #fafafa; }
+  
+  .cover {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    background: #fafafa;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Layer 1: Background grid */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 1;
+  }
+  .bg-grid::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(61,89,102,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,89,102,0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+
+  /* Layer 2: Structure */
+  .vline {
+    position: absolute;
+    left: 95px;
+    top: 112px;
+    width: 6px;
+    height: 900px;
+    background: #3d5966;
+    z-index: 2;
+  }
+
+  /* Layer 3: Content */
+  .content {
+    position: absolute;
+    left: 141px;
+    z-index: 3;
+  }
+
+  .kicker {
+    top: 168px;
+    font-size: 16px;
+    font-weight: 400;
+    letter-spacing: 3px;
+    color: rgba(33,35,37,0.6);
+    text-transform: uppercase;
+  }
+
+  .hero-title {
+    top: 220px;
+    width: 520px;
+  }
+  .hero-title h1 {
+    font-size: 58px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #212325;
+    letter-spacing: -0.5px;
+  }
+
+  .summary {
+    top: 440px;
+    width: 480px;
+    font-size: 17px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: rgba(33,35,37,0.85);
+  }
+
+  .meta-separator {
+    position: absolute;
+    left: 141px;
+    top: 640px;
+    width: 280px;
+    height: 1px;
+    background: rgba(61,89,102,0.4);
+    z-index: 2;
+  }
+
+  .meta {
+    top: 660px;
+    font-size: 18px;
+    font-weight: 400;
+    color: rgba(33,35,37,0.75);
+    line-height: 2.0;
+  }
+  .meta .label {
+    color: #7f8589;
+    font-size: 14px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .accent-dot {
+    position: absolute;
+    right: 80px;
+    bottom: 80px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #b24825;
+    z-index: 3;
+  }
+
+  .version-tag {
+    position: absolute;
+    right: 80px;
+    top: 80px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: #7f8589;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="bg-grid"></div>
+  <div class="vline"></div>
+  
+  <div class="content kicker">TECHNICAL ROADMAP</div>
+  <div class="content hero-title">
+    <h1>EasyGMX</h1>
+  </div>
+  <div class="content summary">
+    A comprehensive technical roadmap for building a simplified, mobile-first trading frontend for GMX V2 on Arbitrum. From static prototype to gasless one-click trading, with full smart contract integration details.
+  </div>
+  
+  <div class="meta-separator"></div>
+  
+  <div class="content meta">
+    <span class="label">Platform</span><br>
+    GMX V2 (Arbitrum)
+    <br><br>
+    <span class="label">Date</span><br>
+    April 2026
+    <br><br>
+    <span class="label">Status</span><br>
+    Planning Phase
+  </div>
+  
+  <div class="accent-dot"></div>
+  <div class="version-tag">v1.0</div>
+</div>
+</body>
+</html>
