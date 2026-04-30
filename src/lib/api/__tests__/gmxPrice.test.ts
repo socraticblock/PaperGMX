@@ -5,28 +5,88 @@ import {
   parseGmxAnnualRate,
   parseGmxPerSecondRate,
   calculateSpreadPercent,
+  calculatePriceChangePercent,
 } from "../gmxPrice";
 import { price } from "../../branded";
 
+// ─── Realistic API values ────────────────────────────────────
+// These match the format returned by the GMX Arbitrum API
+// (arbitrum-api.gmxinfra.io).
+//
+// The GMX API returns prices in 30-decimal USD format, meaning:
+//   actualUSD = BigInt(rawValue) / 10^(30 - tokenDecimals)
+//
+// So the string length varies by token:
+//   ETH (18 decimals): ~16 chars  (divisor = 10^12)
+//   BTC (8 decimals):  ~27 chars  (divisor = 10^22)
+//   SOL (9 decimals):  ~24 chars  (divisor = 10^21)
+//   ARB (18 decimals): ~13 chars  (divisor = 10^12)
+//
+// Rates (borrow/funding) use 30-decimal format directly:
+//   per-second rate * 10^30 → typically 20-30 chars
+
+// ─── Realistic price values ──────────────────────────────────
+
+// ETH (18 decimals) at ~$2,263.37 — truncated API format
+const API_ETH_MIN = "2263370644399128";  // ~$2263.37
+
+// BTC (8 decimals) at ~$76,285
+const API_BTC_MIN = "762852859759876100000000000";  // ~$76285.29
+
+// SOL (9 decimals) at ~$152.34
+const API_SOL_MIN = "152340000000000000000000";  // ~$152.34
+
+// ARB (18 decimals) at ~$0.382
+const API_ARB_MIN = "382000000000";  // ~$0.382
+
+// ─── Realistic rate values ───────────────────────────────────
+// Borrow rates from /markets/info are 30-decimal per-second rates.
+// A ~45% annual rate → per-second ≈ 45/100/31536000 ≈ 1.427e-8
+// In 30-decimal: 1.427e-8 * 10^30 = 1.427e22
+
+// ~45% annual BTC borrow rate
+const REAL_BORROW_RATE_BTC = "14270000000000000000000";  // ~1.427e-8 per-second
+// ~180% annual ETH borrow rate
+const REAL_BORROW_RATE_ETH = "57080000000000000000000";  // ~5.708e-8 per-second
+// ~1% annual funding rate
+const REAL_FUNDING_RATE = "317000000000000000000";       // ~3.17e-10 per-second
+
 describe("parseGmxUsdValue", () => {
-  it("parses ETH price correctly (18 decimals)", () => {
-    // ETH at ~$2,263.21 → raw = "2263212401601249" (value * 10^12)
-    // But the actual raw value from API is much larger because it's 30-decimal
-    // Real API: ETH minPrice = "2263370644399128" means 2263.37 * 10^12
-    const result = parseGmxUsdValue("2263370644399128", 18);
+  it("parses ETH price with truncated API format (18 decimals)", () => {
+    const result = parseGmxUsdValue(API_ETH_MIN, 18);
     expect(result).toBeCloseTo(2263.37, 0);
   });
 
-  it("parses BTC price correctly (8 decimals)", () => {
-    // BTC at ~$76,285 → raw = 762852859759876100000000000 (value * 10^22)
-    const result = parseGmxUsdValue("762852859759876100000000000", 8);
-    expect(result).toBeCloseTo(76285, 0);
+  it("parses BTC price correctly with API format (8 decimals)", () => {
+    const result = parseGmxUsdValue(API_BTC_MIN, 8);
+    expect(result).toBeCloseTo(76285, -1);
+  });
+
+  it("parses SOL price correctly with API format (9 decimals)", () => {
+    const result = parseGmxUsdValue(API_SOL_MIN, 9);
+    expect(result).toBeCloseTo(152, 0);
+  });
+
+  it("parses ARB price correctly with API format (18 decimals)", () => {
+    const result = parseGmxUsdValue(API_ARB_MIN, 18);
+    expect(result).toBeCloseTo(0.382, 2);
   });
 
   it("parses USDC price correctly (6 decimals)", () => {
-    // USDC at ~$0.9998 → raw = 999752679814197900000000 (value * 10^24)
+    // USDC at ~$0.9998
     const result = parseGmxUsdValue("999752679814197900000000", 6);
     expect(result).toBeCloseTo(0.9998, 3);
+  });
+
+  it("truncated and padded formats produce consistent results for ETH", () => {
+    const truncated = parseGmxUsdValue(API_ETH_MIN, 18);
+    // Padded with trailing zeros gives a scaled-up value
+    // (API typically returns the truncated format without trailing zeros)
+    const padded = parseGmxUsdValue(API_ETH_MIN + "000000000000", 18);
+    expect(truncated).toBeGreaterThan(0);
+    expect(padded).toBeGreaterThan(0);
+    // Padded should be 10^12 times larger (12 trailing zeros added)
+    expect(padded / truncated).toBeCloseTo(1e12, -8);
   });
 
   it("returns 0 for empty string", () => {
@@ -40,12 +100,25 @@ describe("parseGmxUsdValue", () => {
   it("returns 0 for zero", () => {
     expect(parseGmxUsdValue("0", 18)).toBe(0);
   });
+
+  it("handles leading zeros in raw value", () => {
+    // ARB price with leading zero: 0.382 → "0382000000000" (with leading 0)
+    // BigInt treats leading zeros as insignificant
+    const result = parseGmxUsdValue("0382000000000", 18);
+    expect(result).toBeCloseTo(0.382, 2); // Same as without leading zero
+  });
 });
 
 describe("parseGmxPrice", () => {
-  it("returns positive Price for valid input", () => {
-    const result = parseGmxPrice("2263370644399128", 18);
-    expect(result).toBeGreaterThan(0);
+  it("returns positive Price for valid ETH input", () => {
+    const result = parseGmxPrice(API_ETH_MIN, 18);
+    expect(result).toBeGreaterThan(2200);
+    expect(result).toBeLessThan(2300);
+  });
+
+  it("returns positive Price for valid BTC input", () => {
+    const result = parseGmxPrice(API_BTC_MIN, 8);
+    expect(result).toBeGreaterThan(70000);
   });
 
   it("returns minimum price for zero input", () => {
@@ -63,12 +136,18 @@ describe("parseGmxPerSecondRate", () => {
     expect(parseGmxPerSecondRate("")).toBe(0);
   });
 
-  it("parses a positive rate to a per-second decimal", () => {
-    // Even a small rate should parse to something
-    const result = parseGmxPerSecondRate("50652112006367956795278240000");
+  it("parses a realistic BTC borrow rate (~45% annual)", () => {
+    const result = parseGmxPerSecondRate(REAL_BORROW_RATE_BTC);
     expect(result).toBeGreaterThan(0);
-    // Per-second rate should be small (annual rate / seconds per year)
-    expect(result).toBeLessThan(1);
+    // Per-second rate should be ~1.43e-8
+    expect(result).toBeLessThan(0.0001);
+    expect(result).toBeGreaterThan(1e-9);
+  });
+
+  it("parses a realistic ETH borrow rate (~180% annual)", () => {
+    const result = parseGmxPerSecondRate(REAL_BORROW_RATE_ETH);
+    expect(result).toBeGreaterThan(0);
+    expect(result).toBeLessThan(0.001);
   });
 });
 
@@ -81,10 +160,32 @@ describe("parseGmxAnnualRate", () => {
     expect(parseGmxAnnualRate("")).toBe(0);
   });
 
-  it("parses a rate to an annualized percentage", () => {
-    const result = parseGmxAnnualRate("50652112006367956795278240000");
-    // Should be a positive annualized percentage
+  it("parses realistic BTC borrow rate to ~45% annualized", () => {
+    const result = parseGmxAnnualRate(REAL_BORROW_RATE_BTC);
+    // 1.427e-8 per-second * 31536000 seconds/year * 100 ≈ 45%
+    expect(result).toBeGreaterThan(30);
+    expect(result).toBeLessThan(60);
+  });
+
+  it("parses realistic ETH borrow rate to ~180% annualized", () => {
+    const result = parseGmxAnnualRate(REAL_BORROW_RATE_ETH);
+    // 5.708e-8 per-second * 31536000 * 100 ≈ 180%
+    expect(result).toBeGreaterThan(100);
+    expect(result).toBeLessThan(250);
+  });
+
+  it("parses realistic funding rate to ~1% annualized", () => {
+    const result = parseGmxAnnualRate(REAL_FUNDING_RATE);
     expect(result).toBeGreaterThan(0);
+    expect(result).toBeLessThan(10);
+  });
+
+  it("annualized rate is consistent with per-second rate", () => {
+    // Manual annualization should match parseGmxAnnualRate within 1%
+    const perSecond = parseGmxPerSecondRate(REAL_BORROW_RATE_BTC);
+    const manualAnnual = perSecond * 31536000 * 100;
+    const parsedAnnual = parseGmxAnnualRate(REAL_BORROW_RATE_BTC);
+    expect(Math.abs(manualAnnual - parsedAnnual) / parsedAnnual).toBeLessThan(0.01);
   });
 });
 
@@ -99,10 +200,33 @@ describe("calculateSpreadPercent", () => {
     expect(spread).toBeCloseTo(1, 1);
   });
 
+  it("calculates spread for realistic ETH oracle prices", () => {
+    const minP = parseGmxPrice(API_ETH_MIN, 18);
+    const maxP = parseGmxPrice("2263510367473508", 18); // slightly higher
+    const spread = calculateSpreadPercent(price(minP), price(maxP));
+    // ETH spread should be very small (< 0.5%)
+    expect(spread).toBeGreaterThan(0);
+    expect(spread).toBeLessThan(1);
+  });
+
   it("returns 0 for very small min price (edge case)", () => {
-    // price() constructor requires positive values, so we use the minimum
     const spread = calculateSpreadPercent(price(0.01), price(2010));
-    // With such extreme price difference, spread is very large
     expect(spread).toBeGreaterThan(100); // >100% spread
+  });
+});
+
+describe("calculatePriceChangePercent", () => {
+  it("returns 0 for identical prices", () => {
+    expect(calculatePriceChangePercent(price(2000), price(2000))).toBeCloseTo(0, 4);
+  });
+
+  it("calculates positive change correctly", () => {
+    const change = calculatePriceChangePercent(price(2100), price(2000));
+    expect(change).toBeCloseTo(5, 1); // +5%
+  });
+
+  it("calculates negative change correctly", () => {
+    const change = calculatePriceChangePercent(price(1900), price(2000));
+    expect(change).toBeCloseTo(-5, 1); // -5%
   });
 });

@@ -54,7 +54,10 @@ export function usePriceService(): void {
             shortOi: usd(data.shortOiUsd),
             borrowRateLong: data.borrowRateLongPerSecond,
             borrowRateShort: data.borrowRateShortPerSecond,
+            borrowRateLongAnnualized: data.borrowRateLongAnnualized,
+            borrowRateShortAnnualized: data.borrowRateShortAnnualized,
             fundingRate: data.fundingRatePerSecond,
+            fundingRateAnnualized: data.fundingRateAnnualized,
             positionFeeBps: bps(data.positionFeeBps),
           };
         }

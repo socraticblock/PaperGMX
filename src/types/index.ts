@@ -112,6 +112,7 @@ export interface PriceData {
   min: Price;
   max: Price;
   last: Price;
+  // TODO: Phase 4 — implement price history tracking to compute real 24h change
   change24h: Percent;
 }
 
@@ -119,9 +120,12 @@ export interface MarketInfo {
   slug: MarketSlug;
   longOi: USD;
   shortOi: USD;
-  borrowRateLong: number;   // per-second
-  borrowRateShort: number;  // per-second
-  fundingRate: number;      // per-second
+  borrowRateLong: number;   // per-second (for calculations)
+  borrowRateShort: number;  // per-second (for calculations)
+  borrowRateLongAnnualized: number;   // annualized % (for display)
+  borrowRateShortAnnualized: number;  // annualized % (for display)
+  fundingRate: number;      // per-second (for calculations)
+  fundingRateAnnualized: number;      // annualized % (for display)
   positionFeeBps: BPS;     // 4 or 6 BPS depending on OI balance
 }
 

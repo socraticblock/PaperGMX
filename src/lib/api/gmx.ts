@@ -16,7 +16,7 @@ import type {
   ParsedMarketPrice,
   ParsedMarketInfo,
 } from "./types";
-import { parseGmxPrice, parseGmxUsdValue, parseGmxPerSecondRate } from "./gmxPrice";
+import { parseGmxPrice, parseGmxUsdValue, parseGmxPerSecondRate, parseGmxAnnualRate } from "./gmxPrice";
 import { usd } from "@/lib/branded";
 import type { MarketSlug } from "@/types";
 
@@ -232,6 +232,21 @@ export async function fetchMarketPrices(): Promise<Record<MarketSlug, ParsedMark
     };
   }
 
+  // Runtime validation: warn if BTC price is missing while other markets have data
+  // This catches address mismatches between our hardcoded TOKEN_INFO and the live API
+  const fetchedSlugs = Object.keys(result);
+  if (
+    fetchedSlugs.includes("eth") &&
+    fetchedSlugs.includes("sol") &&
+    !fetchedSlugs.includes("btc")
+  ) {
+    console.warn(
+      `[GmxApi] BTC price missing while ETH/SOL fetched. ` +
+      `Check BTC index token address: ${MARKET_INDEX_TOKENS.btc}. ` +
+      `Verify against /prices/tickers response field tokenAddress.`
+    );
+  }
+
   return result as Record<MarketSlug, ParsedMarketPrice>;
 }
 
@@ -269,9 +284,15 @@ export async function fetchMarketInfo(): Promise<Record<MarketSlug, ParsedMarket
     const borrowRateShort = parseGmxPerSecondRate(validated.borrowingRateShort);
     const fundingRate = parseGmxPerSecondRate(validated.fundingRateLong);
 
+    // Annualized rates for display — uses parseGmxAnnualRate for
+    // precise conversion from raw 30-decimal API strings
+    const borrowRateLongAnnualized = parseGmxAnnualRate(validated.borrowingRateLong);
+    const borrowRateShortAnnualized = parseGmxAnnualRate(validated.borrowingRateShort);
+    const fundingRateAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
+
     // Determine position fee BPS based on OI balance
     // Conservative default: 6 BPS (imbalancing fee)
-    // Actual fee determined at execution time based on OI balance
+    // TODO: Actual fee determined at execution time based on OI balance
     const positionFeeBps = 6;
 
     result[slug] = {
@@ -283,7 +304,10 @@ export async function fetchMarketInfo(): Promise<Record<MarketSlug, ParsedMarket
       totalOiUsd: usd(longOi + shortOi),
       borrowRateLongPerSecond: borrowRateLong,
       borrowRateShortPerSecond: borrowRateShort,
+      borrowRateLongAnnualized,
+      borrowRateShortAnnualized,
       fundingRatePerSecond: fundingRate,
+      fundingRateAnnualized,
       positionFeeBps,
     };
   }

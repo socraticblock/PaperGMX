@@ -24,17 +24,15 @@ function MarketCardInner({ slug, onClick }: MarketCardProps) {
   const currentPrice = priceData?.last ?? 0;
   const change24h = priceData?.change24h ?? 0;
   const totalOi = info ? (info.longOi + info.shortOi) : 0;
-  const borrowRate = info
-    ? Math.max(info.borrowRateLong, info.borrowRateShort)
-    : 0;
 
-  // Annualize borrow rate for display
+  // Pre-computed annualized borrow rate for display (from parseGmxAnnualRate)
   const borrowRateAnnualized = useMemo(() => {
-    if (borrowRate <= 0) return "—";
-    const annual = borrowRate * 31536000 * 100; // per-second * seconds/year * 100
+    if (!info) return "—";
+    const annual = Math.max(info.borrowRateLongAnnualized, info.borrowRateShortAnnualized);
+    if (annual <= 0) return "—";
     if (annual > 1000) return ">1000%";
     return `${annual.toFixed(0)}%`;
-  }, [borrowRate]);
+  }, [info]);
 
   const isPositive = change24h >= 0;
 

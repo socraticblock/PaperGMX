@@ -65,8 +65,11 @@ export interface ParsedMarketInfo {
   totalOiUsd: number;
   borrowRateLongPerSecond: number;
   borrowRateShortPerSecond: number;
+  borrowRateLongAnnualized: number; // annualized % for display (e.g., 45.2)
+  borrowRateShortAnnualized: number; // annualized % for display
   fundingRatePerSecond: number;
-  positionFeeBps: number; // 4 or 6 BPS
+  fundingRateAnnualized: number; // annualized % for display
+  positionFeeBps: number; // 4 or 6 BPS — TODO: dynamic at execution time based on OI balance
 }
 
 /** API connection status */
