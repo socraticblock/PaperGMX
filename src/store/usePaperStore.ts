@@ -1,23 +1,31 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, devtools } from "zustand/middleware";
 import type {
   PaperStoreState,
   Position,
   ClosedTrade,
   TradingMode,
   OrderStatus,
+  USD,
+  Price,
+  Timestamp,
 } from "@/types";
+import { usd, timestamp } from "@/lib/branded";
+import { isValidTransition } from "@/types";
+import { validateBalanceAmount } from "@/lib/validation";
+import { calculateClosePosition } from "@/lib/calculations";
 import {
-  DEFAULT_BALANCE,
   ONE_CLICK_MAX_ACTIONS,
   ONE_CLICK_DURATION_DAYS,
 } from "@/lib/constants";
 
+// ─── Initial State ────────────────────────────────────────
+
 const initialState = {
   // Wallet
-  balance: DEFAULT_BALANCE,
+  balance: usd(0),
   isInitialized: false,
   approvedTokens: [] as string[],
 
@@ -38,211 +46,295 @@ const initialState = {
   // 1CT
   oneClickTrading: {
     enabled: false,
-    activatedAt: null as number | null,
+    activatedAt: null as Timestamp | null,
     actionsRemaining: ONE_CLICK_MAX_ACTIONS,
-    expiresAt: null as number | null,
+    expiresAt: null as Timestamp | null,
   },
 
   // UI
   settingsOpen: false,
 };
 
+// ─── Store Version (for migrations) ───────────────────────
+
+const STORE_VERSION = 1;
+
+function migrateStore(persistedState: unknown, version: number): Partial<PaperStoreState> {
+  if (version === 0) {
+    // Future: migrate from v0 to v1
+  }
+  return persistedState as Partial<PaperStoreState>;
+}
+
+// ─── Store ────────────────────────────────────────────────
+
 export const usePaperStore = create<PaperStoreState>()(
-  persist(
-    (set, get) => ({
-      ...initialState,
+  devtools(
+    persist(
+      (set, get) => ({
+        ...initialState,
 
-      // ─── Wallet Actions ─────────────────────────────
-      initializeBalance: (amount: number) =>
-        set({
-          balance: amount,
-          isInitialized: true,
-          approvedTokens: [],
-          activePosition: null,
-          orderStatus: "idle",
-          tradeHistory: [],
-          tutorialEnabled: true,
-          tutorialDismissed: {},
-          tradingMode: "classic",
-          showPnlAfterFees: true,
-          simulateKeeperDelay: true,
-          oneClickTrading: {
-            enabled: false,
-            activatedAt: null,
-            actionsRemaining: ONE_CLICK_MAX_ACTIONS,
-            expiresAt: null,
-          },
-        }),
-
-      topUpBalance: (amount: number) =>
-        set((state) => ({
-          balance: state.balance + amount,
-        })),
-
-      resetWallet: () =>
-        set({
-          ...initialState,
-          isInitialized: false,
-        }),
-
-      approveToken: (token: string) =>
-        set((state) => ({
-          approvedTokens: state.approvedTokens.includes(token)
-            ? state.approvedTokens
-            : [...state.approvedTokens, token],
-        })),
-
-      // ─── Position Actions ───────────────────────────
-      setActivePosition: (position: Position | null) =>
-        set({ activePosition: position }),
-
-      setOrderStatus: (status: OrderStatus) => set({ orderStatus: status }),
-
-      updatePositionFees: (borrowFeeDelta: number, fundingFeeDelta: number) =>
-        set((state) => {
-          if (!state.activePosition) return state;
-          return {
-            activePosition: {
-              ...state.activePosition,
-              borrowFeeAccrued:
-                state.activePosition.borrowFeeAccrued + borrowFeeDelta,
-              fundingFeeAccrued:
-                state.activePosition.fundingFeeAccrued + fundingFeeDelta,
+        // ─── Wallet Actions ─────────────────────────────
+        initializeBalance: (amount: number) => {
+          const validated = validateBalanceAmount(amount, "initial balance");
+          set(
+            {
+              ...initialState,
+              balance: validated,
+              isInitialized: true,
             },
-          };
-        }),
+            false,
+            "initializeBalance"
+          );
+        },
 
-      closePosition: (exitPrice: number, closeReason: ClosedTrade["closeReason"]) =>
-        set((state) => {
-          if (!state.activePosition) return state;
+        topUpBalance: (amount: number) => {
+          const validated = validateBalanceAmount(amount, "top-up amount");
+          set(
+            (state) => ({
+              balance: usd(state.balance + validated),
+            }),
+            false,
+            "topUpBalance"
+          );
+        },
 
-          const pos = state.activePosition;
-          const directionMultiplier = pos.direction === "long" ? 1 : -1;
-          const grossPnl =
-            directionMultiplier *
-            ((exitPrice - pos.entryPrice) / pos.entryPrice) *
-            pos.sizeUsd;
-          const positionFeeClose =
-            pos.sizeUsd * 0.0004; // Will be dynamically calculated later
-          const netPnl =
-            grossPnl -
-            pos.positionFeePaid -
-            positionFeeClose -
-            pos.borrowFeeAccrued -
-            pos.fundingFeeAccrued;
-          const returnedCollateral = pos.collateralUsd + netPnl;
+        resetWallet: () => {
+          set(
+            { ...initialState, isInitialized: false },
+            false,
+            "resetWallet"
+          );
+        },
 
-          const closedTrade: ClosedTrade = {
-            id: pos.id,
-            market: pos.market,
-            direction: pos.direction,
-            leverage: pos.leverage,
-            sizeUsd: pos.sizeUsd,
-            entryPrice: pos.entryPrice,
-            exitPrice,
-            collateralUsd: pos.collateralUsd,
-            positionFeeOpen: pos.positionFeePaid,
-            positionFeeClose,
-            borrowFeeTotal: pos.borrowFeeAccrued,
-            fundingFeeTotal: pos.fundingFeeAccrued,
-            netPnl,
-            grossPnl,
-            openedAt: pos.openedAt,
-            closedAt: Date.now(),
-            closeReason,
-          };
+        approveToken: (token: string) =>
+          set(
+            (state) => ({
+              approvedTokens: state.approvedTokens.includes(token)
+                ? state.approvedTokens
+                : [...state.approvedTokens, token],
+            }),
+            false,
+            "approveToken"
+          ),
 
-          return {
-            activePosition: null,
-            orderStatus: "idle" as OrderStatus,
-            balance: state.balance + Math.max(0, returnedCollateral),
-            tradeHistory: [closedTrade, ...state.tradeHistory],
-          };
-        }),
+        // ─── Position Actions ───────────────────────────
+        setActivePosition: (position: Position | null) =>
+          set({ activePosition: position }, false, "setActivePosition"),
 
-      addClosedTrade: (trade: ClosedTrade) =>
-        set((state) => ({
-          tradeHistory: [trade, ...state.tradeHistory],
-        })),
+        setOrderStatus: (status: OrderStatus) => {
+          const current = get().orderStatus;
+          if (current !== "idle" && !isValidTransition(current, status)) {
+            console.warn(
+              `Invalid order transition: ${current} → ${status}. Forcing.`
+            );
+          }
+          set({ orderStatus: status }, false, "setOrderStatus");
+        },
 
-      // ─── Settings Actions ───────────────────────────
-      setSettingsOpen: (open: boolean) => set({ settingsOpen: open }),
+        updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) =>
+          set(
+            (state) => {
+              if (!state.activePosition) return state;
+              return {
+                activePosition: {
+                  ...state.activePosition,
+                  borrowFeeAccrued: usd(
+                    state.activePosition.borrowFeeAccrued + borrowFeeDelta
+                  ),
+                  fundingFeeAccrued: usd(
+                    state.activePosition.fundingFeeAccrued + fundingFeeDelta
+                  ),
+                },
+              };
+            },
+            false,
+            "updatePositionFees"
+          ),
 
-      setTutorialEnabled: (enabled: boolean) =>
-        set({ tutorialEnabled: enabled }),
+        closePosition: (
+          exitPrice: Price,
+          closeReason: ClosedTrade["closeReason"]
+        ) =>
+          set(
+            (state) => {
+              if (!state.activePosition) return state;
 
-      dismissTutorial: (key: string) =>
-        set((state) => ({
-          tutorialDismissed: { ...state.tutorialDismissed, [key]: true },
-        })),
+              const pos = state.activePosition;
 
-      setTradingMode: (mode: TradingMode) => set({ tradingMode: mode }),
+              // Use pure calculation function — single source of truth
+              const result = calculateClosePosition(
+                pos.direction,
+                pos.entryPrice,
+                exitPrice,
+                pos.sizeUsd,
+                pos.collateralUsd,
+                pos.positionFeePaid,
+                pos.positionFeeBps, // Use the SAME fee rate as open
+                pos.borrowFeeAccrued,
+                pos.fundingFeeAccrued
+              );
 
-      setShowPnlAfterFees: (show: boolean) =>
-        set({ showPnlAfterFees: show }),
+              const closedTrade: ClosedTrade = {
+                id: pos.id,
+                market: pos.market,
+                direction: pos.direction,
+                leverage: pos.leverage,
+                sizeUsd: pos.sizeUsd,
+                entryPrice: pos.entryPrice,
+                exitPrice,
+                collateralUsd: pos.collateralUsd,
+                positionFeeOpen: pos.positionFeePaid,
+                positionFeeClose: result.positionFeeClose,
+                borrowFeeTotal: result.borrowFeeTotal,
+                fundingFeeTotal: result.fundingFeeTotal,
+                netPnl: result.netPnl,
+                grossPnl: result.grossPnl,
+                openedAt: pos.openedAt,
+                closedAt: timestamp(Date.now()),
+                closeReason,
+              };
 
-      setSimulateKeeperDelay: (simulate: boolean) =>
-        set({ simulateKeeperDelay: simulate }),
+              return {
+                activePosition: null,
+                orderStatus: "idle" as OrderStatus,
+                balance: usd(state.balance + result.returnedCollateral),
+                tradeHistory: [closedTrade, ...state.tradeHistory],
+              };
+            },
+            false,
+            "closePosition"
+          ),
 
-      // ─── 1CT Actions ───────────────────────────────
-      enableOneClickTrading: () =>
-        set({
-          oneClickTrading: {
-            enabled: true,
-            activatedAt: Date.now(),
-            actionsRemaining: ONE_CLICK_MAX_ACTIONS,
-            expiresAt:
-              Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000,
-          },
-        }),
+        addClosedTrade: (trade: ClosedTrade) =>
+          set(
+            (state) => ({
+              tradeHistory: [trade, ...state.tradeHistory],
+            }),
+            false,
+            "addClosedTrade"
+          ),
 
-      disableOneClickTrading: () =>
-        set({
-          oneClickTrading: {
-            enabled: false,
-            activatedAt: null,
-            actionsRemaining: ONE_CLICK_MAX_ACTIONS,
-            expiresAt: null,
-          },
-        }),
+        // ─── Settings Actions ───────────────────────────
+        setSettingsOpen: (open: boolean) =>
+          set({ settingsOpen: open }, false, "setSettingsOpen"),
 
-      decrementOneClickActions: () =>
-        set((state) => ({
-          oneClickTrading: {
-            ...state.oneClickTrading,
-            actionsRemaining: Math.max(
-              0,
-              state.oneClickTrading.actionsRemaining - 1
-            ),
-          },
-        })),
+        setTutorialEnabled: (enabled: boolean) =>
+          set({ tutorialEnabled: enabled }, false, "setTutorialEnabled"),
 
-      renewOneClickTrading: () =>
-        set({
-          oneClickTrading: {
-            enabled: true,
-            activatedAt: Date.now(),
-            actionsRemaining: ONE_CLICK_MAX_ACTIONS,
-            expiresAt:
-              Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000,
-          },
-        }),
-    }),
-    {
-      name: "papergmx-storage",
-      partialize: (state) => ({
-        balance: state.balance,
-        isInitialized: state.isInitialized,
-        approvedTokens: state.approvedTokens,
-        activePosition: state.activePosition,
-        tradeHistory: state.tradeHistory,
-        tutorialEnabled: state.tutorialEnabled,
-        tutorialDismissed: state.tutorialDismissed,
-        tradingMode: state.tradingMode,
-        showPnlAfterFees: state.showPnlAfterFees,
-        simulateKeeperDelay: state.simulateKeeperDelay,
-        oneClickTrading: state.oneClickTrading,
+        dismissTutorial: (key: string) =>
+          set(
+            (state) => ({
+              tutorialDismissed: { ...state.tutorialDismissed, [key]: true },
+            }),
+            false,
+            "dismissTutorial"
+          ),
+
+        setTradingMode: (mode: TradingMode) =>
+          set({ tradingMode: mode }, false, "setTradingMode"),
+
+        setShowPnlAfterFees: (show: boolean) =>
+          set({ showPnlAfterFees: show }, false, "setShowPnlAfterFees"),
+
+        setSimulateKeeperDelay: (simulate: boolean) =>
+          set(
+            { simulateKeeperDelay: simulate },
+            false,
+            "setSimulateKeeperDelay"
+          ),
+
+        // ─── 1CT Actions ───────────────────────────────
+        enableOneClickTrading: () =>
+          set(
+            {
+              oneClickTrading: {
+                enabled: true,
+                activatedAt: timestamp(Date.now()),
+                actionsRemaining: ONE_CLICK_MAX_ACTIONS,
+                expiresAt: timestamp(
+                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000
+                ),
+              },
+            },
+            false,
+            "enableOneClickTrading"
+          ),
+
+        disableOneClickTrading: () =>
+          set(
+            {
+              oneClickTrading: {
+                enabled: false,
+                activatedAt: null,
+                actionsRemaining: ONE_CLICK_MAX_ACTIONS,
+                expiresAt: null,
+              },
+            },
+            false,
+            "disableOneClickTrading"
+          ),
+
+        decrementOneClickActions: () =>
+          set(
+            (state) => ({
+              oneClickTrading: {
+                ...state.oneClickTrading,
+                actionsRemaining: Math.max(
+                  0,
+                  state.oneClickTrading.actionsRemaining - 1
+                ),
+              },
+            }),
+            false,
+            "decrementOneClickActions"
+          ),
+
+        renewOneClickTrading: () =>
+          set(
+            {
+              oneClickTrading: {
+                enabled: true,
+                activatedAt: timestamp(Date.now()),
+                actionsRemaining: ONE_CLICK_MAX_ACTIONS,
+                expiresAt: timestamp(
+                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000
+                ),
+              },
+            },
+            false,
+            "renewOneClickTrading"
+          ),
       }),
-    }
+      {
+        name: "papergmx-storage",
+        version: STORE_VERSION,
+        migrate: migrateStore,
+        onRehydrateStorage: () => (state, error) => {
+          if (error) {
+            console.error("[PaperGMX] Failed to rehydrate state:", error);
+          }
+          if (state && !Number.isFinite(state.balance)) {
+            console.warn("[PaperGMX] Corrupted balance detected, resetting");
+            state.balance = usd(0);
+            state.isInitialized = false;
+          }
+        },
+        partialize: (state) => ({
+          balance: state.balance,
+          isInitialized: state.isInitialized,
+          approvedTokens: state.approvedTokens,
+          activePosition: state.activePosition,
+          tradeHistory: state.tradeHistory,
+          tutorialEnabled: state.tutorialEnabled,
+          tutorialDismissed: state.tutorialDismissed,
+          tradingMode: state.tradingMode,
+          showPnlAfterFees: state.showPnlAfterFees,
+          simulateKeeperDelay: state.simulateKeeperDelay,
+          oneClickTrading: state.oneClickTrading,
+        }),
+      }
+    ),
+    { name: "PaperGMX", enabled: process.env.NODE_ENV === "development" }
   )
 );

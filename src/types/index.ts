@@ -1,4 +1,12 @@
 // ─── Core Types for PaperGMX ─────────────────────────────
+// All financial values use branded types from @/lib/branded
+// to prevent accidental mixing of USD, Price, BPS, etc.
+
+// Re-export branded types so consumers only need one import path
+export type { USD, Price, BPS, Percent, Timestamp } from "@/lib/branded";
+export { usd, price, bps, percent, timestamp, bpsToDecimal, applyBps, addUSD, subUSD, mulUSD } from "@/lib/branded";
+
+import type { USD, Price, BPS, Percent, Timestamp } from "@/lib/branded";
 
 export type TradingMode = "classic" | "1ct";
 
@@ -22,6 +30,29 @@ export type OrderStatus =
   | "cancelled"
   | "failed";
 
+// ─── Order State Machine ──────────────────────────────────
+
+export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  idle: ["approving", "signing"], // signing if already approved or 1CT
+  approving: ["approved", "failed", "cancelled"],
+  approved: ["signing", "failed"],
+  signing: ["submitted", "failed", "cancelled"],
+  submitted: ["keeper_step_1", "failed"],
+  keeper_step_1: ["keeper_step_2", "failed", "cancelled"],
+  keeper_step_2: ["keeper_step_3", "failed"],
+  keeper_step_3: ["keeper_step_4", "failed"],
+  keeper_step_4: ["filled"],
+  filled: [],
+  cancelled: ["idle"],
+  failed: ["idle"],
+} as const;
+
+export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return ORDER_TRANSITIONS[from].includes(to as never);
+}
+
+// ─── Market ───────────────────────────────────────────────
+
 export interface MarketConfig {
   slug: MarketSlug;
   name: string;
@@ -29,26 +60,29 @@ export interface MarketConfig {
   pair: string;
   decimals: number;
   icon: string;
-  maintenanceMarginPercent: number;
-  liquidationFeePercent: number;
+  maintenanceMarginBps: BPS; // 50 (0.5%) for BTC/ETH, 100 (1.0%) for SOL/ARB
+  liquidationFeeBps: BPS;    // 20 (0.2%) for BTC/ETH, 30 (0.3%) for SOL/ARB
   maxLeverage: number;
 }
 
+// ─── Position ─────────────────────────────────────────────
+
 export interface Position {
-  id: string;
+  id: string; // "{market}-{direction}-{timestamp}"
   market: MarketSlug;
   direction: OrderDirection;
-  collateralUsd: number;
+  collateralUsd: USD;
   leverage: number;
-  sizeUsd: number;
-  entryPrice: number;
-  acceptablePrice: number;
-  liquidationPrice: number;
-  positionFeePaid: number;
-  borrowFeeAccrued: number;
-  fundingFeeAccrued: number;
-  openedAt: number;
-  confirmedAt: number | null;
+  sizeUsd: USD;
+  entryPrice: Price;
+  acceptablePrice: Price;
+  liquidationPrice: Price;
+  positionFeeBps: BPS;
+  positionFeePaid: USD;
+  borrowFeeAccrued: USD;
+  fundingFeeAccrued: USD;
+  openedAt: Timestamp;
+  confirmedAt: Timestamp | null;
   status: "confirming" | "active" | "closed" | "liquidated";
 }
 
@@ -57,48 +91,54 @@ export interface ClosedTrade {
   market: MarketSlug;
   direction: OrderDirection;
   leverage: number;
-  sizeUsd: number;
-  entryPrice: number;
-  exitPrice: number;
-  collateralUsd: number;
-  positionFeeOpen: number;
-  positionFeeClose: number;
-  borrowFeeTotal: number;
-  fundingFeeTotal: number;
-  netPnl: number;
-  grossPnl: number;
-  openedAt: number;
-  closedAt: number;
+  sizeUsd: USD;
+  entryPrice: Price;
+  exitPrice: Price;
+  collateralUsd: USD;
+  positionFeeOpen: USD;
+  positionFeeClose: USD;
+  borrowFeeTotal: USD;
+  fundingFeeTotal: USD;
+  netPnl: USD;
+  grossPnl: USD;
+  openedAt: Timestamp;
+  closedAt: Timestamp;
   closeReason: "take_profit" | "cut_loss" | "liquidated";
 }
 
+// ─── Price Data ───────────────────────────────────────────
+
 export interface PriceData {
-  min: number;
-  max: number;
-  last: number;
-  change24h: number;
+  min: Price;
+  max: Price;
+  last: Price;
+  change24h: Percent;
 }
 
 export interface MarketInfo {
   slug: MarketSlug;
-  longOi: number;
-  shortOi: number;
-  borrowRateLong: number;
-  borrowRateShort: number;
-  fundingRate: number;
-  positionFeePercent: number;
+  longOi: USD;
+  shortOi: USD;
+  borrowRateLong: number;   // per-second
+  borrowRateShort: number;  // per-second
+  fundingRate: number;      // per-second
+  positionFeeBps: BPS;     // 4 or 6 BPS depending on OI balance
 }
+
+// ─── 1CT ──────────────────────────────────────────────────
 
 export interface OneClickTradingState {
   enabled: boolean;
-  activatedAt: number | null;
+  activatedAt: Timestamp | null;
   actionsRemaining: number;
-  expiresAt: number | null;
+  expiresAt: Timestamp | null;
 }
+
+// ─── Store ────────────────────────────────────────────────
 
 export interface PaperStoreState {
   // Wallet
-  balance: number;
+  balance: USD;
   isInitialized: boolean;
   approvedTokens: string[];
 
@@ -119,7 +159,7 @@ export interface PaperStoreState {
   // 1CT
   oneClickTrading: OneClickTradingState;
 
-  // Settings panel
+  // UI
   settingsOpen: boolean;
 
   // Actions
@@ -140,6 +180,6 @@ export interface PaperStoreState {
   disableOneClickTrading: () => void;
   decrementOneClickActions: () => void;
   renewOneClickTrading: () => void;
-  updatePositionFees: (borrowFeeDelta: number, fundingFeeDelta: number) => void;
-  closePosition: (exitPrice: number, closeReason: ClosedTrade["closeReason"]) => void;
+  updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) => void;
+  closePosition: (exitPrice: Price, closeReason: ClosedTrade["closeReason"]) => void;
 }

@@ -1,6 +1,8 @@
 "use client";
 
+import { memo, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
+import { useShallow } from "zustand/react/shallow";
 import {
   XMarkIcon,
   ArrowPathIcon,
@@ -10,28 +12,68 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatBalance, formatUSD } from "@/lib/format";
 import { BALANCE_PRESETS } from "@/lib/constants";
-import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function SettingsPanel() {
-  const settingsOpen = usePaperStore((s) => s.settingsOpen);
-  const setSettingsOpen = usePaperStore((s) => s.setSettingsOpen);
-  const balance = usePaperStore((s) => s.balance);
-  const topUpBalance = usePaperStore((s) => s.topUpBalance);
-  const resetWallet = usePaperStore((s) => s.resetWallet);
-  const tutorialEnabled = usePaperStore((s) => s.tutorialEnabled);
-  const setTutorialEnabled = usePaperStore((s) => s.setTutorialEnabled);
-  const tradingMode = usePaperStore((s) => s.tradingMode);
-  const setTradingMode = usePaperStore((s) => s.setTradingMode);
-  const showPnlAfterFees = usePaperStore((s) => s.showPnlAfterFees);
-  const setShowPnlAfterFees = usePaperStore((s) => s.setShowPnlAfterFees);
-  const simulateKeeperDelay = usePaperStore((s) => s.simulateKeeperDelay);
-  const setSimulateKeeperDelay = usePaperStore((s) => s.setSimulateKeeperDelay);
-  const oneClickTrading = usePaperStore((s) => s.oneClickTrading);
-  const tradeHistory = usePaperStore((s) => s.tradeHistory);
+function SettingsPanelInner() {
+  const {
+    settingsOpen,
+    setSettingsOpen,
+    balance,
+    topUpBalance,
+    resetWallet,
+    tutorialEnabled,
+    setTutorialEnabled,
+    tradingMode,
+    setTradingMode,
+    showPnlAfterFees,
+    setShowPnlAfterFees,
+    simulateKeeperDelay,
+    setSimulateKeeperDelay,
+    oneClickTrading,
+    tradeHistory,
+  } = usePaperStore(
+    useShallow((s) => ({
+      settingsOpen: s.settingsOpen,
+      setSettingsOpen: s.setSettingsOpen,
+      balance: s.balance,
+      topUpBalance: s.topUpBalance,
+      resetWallet: s.resetWallet,
+      tutorialEnabled: s.tutorialEnabled,
+      setTutorialEnabled: s.setTutorialEnabled,
+      tradingMode: s.tradingMode,
+      setTradingMode: s.setTradingMode,
+      showPnlAfterFees: s.showPnlAfterFees,
+      setShowPnlAfterFees: s.setShowPnlAfterFees,
+      simulateKeeperDelay: s.simulateKeeperDelay,
+      setSimulateKeeperDelay: s.setSimulateKeeperDelay,
+      oneClickTrading: s.oneClickTrading,
+      tradeHistory: s.tradeHistory,
+    }))
+  );
 
   const [topUpAmount, setTopUpAmount] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Memoize recent trades to avoid re-creating array on every render
+  const recentTrades = useMemo(() => tradeHistory.slice(0, 10), [tradeHistory]);
+
+  // Focus trap: focus the panel when it opens, restore when it closes
+  useEffect(() => {
+    if (settingsOpen) {
+      panelRef.current?.focus();
+    }
+  }, [settingsOpen]);
+
+  // Escape key handler
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSettingsOpen(false);
+      }
+    },
+    [setSettingsOpen]
+  );
 
   const handleTopUp = () => {
     const amount = parseFloat(topUpAmount);
@@ -59,24 +101,37 @@ export default function SettingsPanel() {
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             onClick={() => setSettingsOpen(false)}
+            aria-hidden="true"
           />
 
           {/* Panel */}
           <motion.div
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+            tabIndex={-1}
+            onKeyDown={handleKeyDown}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border-primary bg-bg-primary"
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border-primary bg-bg-primary outline-none"
           >
             {/* Panel Header */}
             <div className="flex items-center justify-between border-b border-border-primary px-6 py-4">
-              <h2 className="text-lg font-bold text-text-primary">Settings</h2>
+              <h2
+                id="settings-title"
+                className="text-lg font-bold text-text-primary"
+              >
+                Settings
+              </h2>
               <button
                 onClick={() => setSettingsOpen(false)}
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
+                aria-label="Close settings"
               >
-                <XMarkIcon className="h-5 w-5" />
+                <XMarkIcon className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
 
@@ -86,20 +141,25 @@ export default function SettingsPanel() {
                 {/* ─── Balance Section ───────────────── */}
                 <section>
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                    <InformationCircleIcon className="h-4 w-4" />
+                    <InformationCircleIcon className="h-4 w-4" aria-hidden="true" />
                     Balance
                   </h3>
                   <div className="rounded-xl border border-border-primary bg-bg-card p-4">
-                    <p className="text-2xl font-bold text-text-primary">
+                    <p
+                      className="text-2xl font-bold text-text-primary"
+                      aria-live="polite"
+                    >
                       {formatBalance(balance)}
                     </p>
 
                     <div className="mt-3 flex gap-2">
                       <input
+                        id="topup-amount"
                         type="number"
                         value={topUpAmount}
                         onChange={(e) => setTopUpAmount(e.target.value)}
                         placeholder="Amount..."
+                        aria-label="Top-up amount in USDC"
                         className="flex-1 rounded-lg border border-border-primary bg-bg-input px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:border-blue-primary focus:outline-none"
                       />
                       <button
@@ -130,11 +190,13 @@ export default function SettingsPanel() {
                 {/* ─── Trading Mode ──────────────────── */}
                 <section>
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                    <BoltIcon className="h-4 w-4" />
+                    <BoltIcon className="h-4 w-4" aria-hidden="true" />
                     Trading Mode
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" role="radiogroup" aria-label="Trading mode">
                     <button
+                      role="radio"
+                      aria-checked={tradingMode === "classic"}
                       onClick={() => setTradingMode("classic")}
                       className={`flex-1 rounded-xl border p-3 text-center transition-colors ${
                         tradingMode === "classic"
@@ -146,6 +208,8 @@ export default function SettingsPanel() {
                       <p className="mt-1 text-xs opacity-70">Full wallet flow</p>
                     </button>
                     <button
+                      role="radio"
+                      aria-checked={tradingMode === "1ct"}
                       onClick={() => setTradingMode("1ct")}
                       className={`flex-1 rounded-xl border p-3 text-center transition-colors ${
                         tradingMode === "1ct"
@@ -153,9 +217,7 @@ export default function SettingsPanel() {
                           : "border-border-primary bg-bg-card text-text-secondary hover:border-border-hover"
                       }`}
                     >
-                      <p className="text-sm font-semibold">
-                        One-Click ⚡
-                      </p>
+                      <p className="text-sm font-semibold">One-Click ⚡</p>
                       <p className="mt-1 text-xs opacity-70">
                         {oneClickTrading.enabled
                           ? `${oneClickTrading.actionsRemaining}/90 actions`
@@ -168,21 +230,25 @@ export default function SettingsPanel() {
                 {/* ─── Preferences ────────────────────── */}
                 <section>
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                    <BookOpenIcon className="h-4 w-4" />
+                    <BookOpenIcon className="h-4 w-4" aria-hidden="true" />
                     Preferences
                   </h3>
                   <div className="space-y-3 rounded-xl border border-border-primary bg-bg-card p-4">
                     {/* Tutorial Toggle */}
                     <div className="flex items-center justify-between">
-                      <div>
+                      <label htmlFor="toggle-tutorial" className="cursor-pointer">
                         <p className="text-sm font-medium text-text-primary">
                           Tutorial Mode
                         </p>
                         <p className="text-xs text-text-muted">
                           Show helpful tooltips
                         </p>
-                      </div>
+                      </label>
                       <button
+                        id="toggle-tutorial"
+                        role="switch"
+                        aria-checked={tutorialEnabled}
+                        aria-label="Tutorial Mode"
                         onClick={() => setTutorialEnabled(!tutorialEnabled)}
                         className={`relative h-6 w-11 rounded-full transition-colors ${
                           tutorialEnabled ? "bg-blue-primary" : "bg-border-primary"
@@ -198,15 +264,19 @@ export default function SettingsPanel() {
 
                     {/* P&L After Fees Toggle */}
                     <div className="flex items-center justify-between">
-                      <div>
+                      <label htmlFor="toggle-pnl-fees" className="cursor-pointer">
                         <p className="text-sm font-medium text-text-primary">
                           P&L After Fees
                         </p>
                         <p className="text-xs text-text-muted">
                           Show net profit including fees
                         </p>
-                      </div>
+                      </label>
                       <button
+                        id="toggle-pnl-fees"
+                        role="switch"
+                        aria-checked={showPnlAfterFees}
+                        aria-label="Show P&L after fees"
                         onClick={() => setShowPnlAfterFees(!showPnlAfterFees)}
                         className={`relative h-6 w-11 rounded-full transition-colors ${
                           showPnlAfterFees ? "bg-blue-primary" : "bg-border-primary"
@@ -222,15 +292,19 @@ export default function SettingsPanel() {
 
                     {/* Keeper Delay Toggle */}
                     <div className="flex items-center justify-between">
-                      <div>
+                      <label htmlFor="toggle-keeper-delay" className="cursor-pointer">
                         <p className="text-sm font-medium text-text-primary">
                           Keeper Delay
                         </p>
                         <p className="text-xs text-text-muted">
                           Simulate 2-8s execution delay
                         </p>
-                      </div>
+                      </label>
                       <button
+                        id="toggle-keeper-delay"
+                        role="switch"
+                        aria-checked={simulateKeeperDelay}
+                        aria-label="Simulate keeper delay"
                         onClick={() =>
                           setSimulateKeeperDelay(!simulateKeeperDelay)
                         }
@@ -255,10 +329,10 @@ export default function SettingsPanel() {
                 {/* ─── Trade History ──────────────────── */}
                 <section>
                   <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                    <ArrowPathIcon className="h-4 w-4" />
+                    <ArrowPathIcon className="h-4 w-4" aria-hidden="true" />
                     Trade History ({tradeHistory.length})
                   </h3>
-                  {tradeHistory.length === 0 ? (
+                  {recentTrades.length === 0 ? (
                     <div className="rounded-xl border border-border-primary bg-bg-card p-4 text-center">
                       <p className="text-sm text-text-muted">
                         No trades yet. Make your first trade!
@@ -266,7 +340,7 @@ export default function SettingsPanel() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {tradeHistory.slice(0, 10).map((trade) => (
+                      {recentTrades.map((trade) => (
                         <div
                           key={trade.id}
                           className="flex items-center justify-between rounded-lg border border-border-primary bg-bg-card p-3"
@@ -310,7 +384,7 @@ export default function SettingsPanel() {
                       Reset & Start Over
                     </button>
                   ) : (
-                    <div className="rounded-xl border border-red-primary bg-red-bg p-4">
+                    <div className="rounded-xl border border-red-primary bg-red-bg p-4" role="alertdialog" aria-label="Confirm reset">
                       <p className="mb-3 text-sm text-red-primary">
                         This will erase all data and return to the landing page.
                         Are you sure?
@@ -360,3 +434,6 @@ export default function SettingsPanel() {
     </AnimatePresence>
   );
 }
+
+export const SettingsPanel = memo(SettingsPanelInner);
+export default SettingsPanel;

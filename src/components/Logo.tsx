@@ -1,6 +1,12 @@
 "use client";
 
-export default function Logo({ size = "default" }: { size?: "small" | "default" | "large" }) {
+import { memo } from "react";
+
+export interface LogoProps {
+  size?: "small" | "default" | "large";
+}
+
+function LogoInner({ size = "default" }: LogoProps) {
   const sizeClasses = {
     small: "h-6 w-6 text-xs",
     default: "h-8 w-8 text-sm",
@@ -11,6 +17,7 @@ export default function Logo({ size = "default" }: { size?: "small" | "default" 
     <div className="flex items-center gap-2">
       <div
         className={`${sizeClasses[size]} flex items-center justify-center rounded-xl bg-blue-primary font-bold text-white`}
+        aria-hidden="true"
       >
         P
       </div>
@@ -26,3 +33,6 @@ export default function Logo({ size = "default" }: { size?: "small" | "default" 
     </div>
   );
 }
+
+export const Logo = memo(LogoInner);
+export default Logo;

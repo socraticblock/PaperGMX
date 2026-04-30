@@ -1,4 +1,5 @@
-import type { MarketConfig } from "@/types";
+import type { MarketSlug } from "@/types";
+import { bps } from "@/lib/branded";
 
 // ─── GMX Color Constants ──────────────────────────────────
 export const COLORS = {
@@ -23,7 +24,7 @@ export const COLORS = {
 } as const;
 
 // ─── Market Configurations ────────────────────────────────
-export const MARKETS: Record<string, MarketConfig> = {
+export const MARKETS: Record<MarketSlug, import("@/types").MarketConfig> = {
   eth: {
     slug: "eth",
     name: "Ethereum",
@@ -31,8 +32,8 @@ export const MARKETS: Record<string, MarketConfig> = {
     pair: "ETH/USD",
     decimals: 2,
     icon: "⟠",
-    maintenanceMarginPercent: 0.5,
-    liquidationFeePercent: 0.2,
+    maintenanceMarginBps: bps(50),    // 0.5%
+    liquidationFeeBps: bps(20),       // 0.2%
     maxLeverage: 50,
   },
   btc: {
@@ -42,8 +43,8 @@ export const MARKETS: Record<string, MarketConfig> = {
     pair: "BTC/USD",
     decimals: 2,
     icon: "₿",
-    maintenanceMarginPercent: 0.5,
-    liquidationFeePercent: 0.2,
+    maintenanceMarginBps: bps(50),    // 0.5%
+    liquidationFeeBps: bps(20),       // 0.2%
     maxLeverage: 50,
   },
   sol: {
@@ -53,8 +54,8 @@ export const MARKETS: Record<string, MarketConfig> = {
     pair: "SOL/USD",
     decimals: 4,
     icon: "◎",
-    maintenanceMarginPercent: 1.0,
-    liquidationFeePercent: 0.3,
+    maintenanceMarginBps: bps(100),   // 1.0%
+    liquidationFeeBps: bps(30),       // 0.3%
     maxLeverage: 25,
   },
   arb: {
@@ -64,13 +65,13 @@ export const MARKETS: Record<string, MarketConfig> = {
     pair: "ARB/USD",
     decimals: 4,
     icon: "◆",
-    maintenanceMarginPercent: 1.0,
-    liquidationFeePercent: 0.3,
+    maintenanceMarginBps: bps(100),   // 1.0%
+    liquidationFeeBps: bps(30),       // 0.3%
     maxLeverage: 25,
   },
 };
 
-export const MARKET_SLUGS = Object.keys(MARKETS) as string[];
+export const MARKET_SLUGS = Object.keys(MARKETS) as MarketSlug[];
 
 // ─── Balance Presets ──────────────────────────────────────
 export const BALANCE_PRESETS = [
@@ -91,9 +92,15 @@ export const DEFAULT_LEVERAGE = 5;
 export const MIN_TRADE_AMOUNT = 1;
 export const MAX_BALANCE = 10_000_000;
 
-// ─── Slippage ─────────────────────────────────────────────
-export const SLIPPAGE_OPEN = 0.005; // 0.5% for open
-export const SLIPPAGE_CLOSE = 0.03; // 3% for close
+// ─── Fee Rates (in BPS) ───────────────────────────────────
+// GMX V2: 4 BPS (0.04%) if trade balances pool, 6 BPS (0.06%) if it imbalances
+export const POSITION_FEE_BALANCING_BPS = bps(4);   // 0.04%
+export const POSITION_FEE_IMBALANCING_BPS = bps(6);  // 0.06%
+export const DEFAULT_POSITION_FEE_BPS = bps(6);      // Default to imbalancing (conservative)
+
+// ─── Slippage (in BPS) ────────────────────────────────────
+export const SLIPPAGE_OPEN_BPS = bps(50);   // 0.5% for open
+export const SLIPPAGE_CLOSE_BPS = bps(300);  // 3% for close
 
 // ─── Keeper Timing Weights (seconds) ─────────────────────
 export const KEEPER_TIMING_WEIGHTS = [
@@ -127,3 +134,8 @@ export const GMX_CONTRACTS = {
 
 // ─── Fake Wallet Address (for display) ────────────────────
 export const FAKE_WALLET_ADDRESS = "0x7a3b...4f2e";
+
+// ─── Position ID Generation ───────────────────────────────
+export function generatePositionId(market: MarketSlug, direction: string): string {
+  return `${market}-${direction}-${Date.now()}`;
+}
