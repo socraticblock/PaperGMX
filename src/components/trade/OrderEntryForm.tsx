@@ -11,6 +11,11 @@ import CollateralInput from "./CollateralInput";
 import LeverageSlider from "./LeverageSlider";
 import OrderSummary from "./OrderSummary";
 import SubmitOrderButton from "./SubmitOrderButton";
+import { useWalletSimulation } from "@/hooks/useWalletSimulation";
+import { WalletOverlay } from "@/components/wallet/WalletOverlay";
+import { WalletAnimator } from "@/components/wallet/WalletAnimator";
+import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
+import { SigningPopup } from "@/components/wallet/SigningPopup";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -29,6 +34,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     prices,
     marketInfo,
     simulateKeeperDelay,
+    approvedTokens,
     lockCollateral,
     setActivePosition,
     setOrderStatus,
@@ -40,11 +46,15 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       prices: s.prices,
       marketInfo: s.marketInfo,
       simulateKeeperDelay: s.simulateKeeperDelay,
+      approvedTokens: s.approvedTokens,
       lockCollateral: s.lockCollateral,
       setActivePosition: s.setActivePosition,
       setOrderStatus: s.setOrderStatus,
     }))
   );
+
+  // ─── Wallet simulation hook ─────────────────────────────
+  const wallet = useWalletSimulation();
 
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");
@@ -55,6 +65,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const priceData = prices[market];
   const info = marketInfo[market];
   const hasActivePosition = activePosition !== null;
+  const needsApproval = !approvedTokens.includes("USDC");
 
   // ─── Handlers ───────────────────────────────────────────
   const handleCollateralChange = useCallback((value: USD) => {
@@ -97,59 +108,93 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     );
   }
 
+  // ─── Form is disabled during wallet flow ────────────────
+  const formDisabled = orderStatus !== "idle" && orderStatus !== "failed";
+
   return (
-    <div className="space-y-5">
-      {/* Direction Toggle */}
-      <DirectionToggle
-        direction={direction}
-        onChange={setDirection}
-        disabled={orderStatus !== "idle" && orderStatus !== "failed"}
-      />
+    <>
+      <div className="space-y-5">
+        {/* Direction Toggle */}
+        <DirectionToggle
+          direction={direction}
+          onChange={setDirection}
+          disabled={formDisabled}
+        />
 
-      {/* Collateral Input */}
-      <CollateralInput
-        value={collateralUsd}
-        balance={balance}
-        onChange={handleCollateralChange}
-        disabled={orderStatus !== "idle" && orderStatus !== "failed"}
-      />
+        {/* Collateral Input */}
+        <CollateralInput
+          value={collateralUsd}
+          balance={balance}
+          onChange={handleCollateralChange}
+          disabled={formDisabled}
+        />
 
-      {/* Leverage Slider */}
-      <LeverageSlider
-        leverage={leverage}
-        market={market}
-        onChange={handleLeverageChange}
-        disabled={orderStatus !== "idle" && orderStatus !== "failed"}
-      />
+        {/* Leverage Slider */}
+        <LeverageSlider
+          leverage={leverage}
+          market={market}
+          onChange={handleLeverageChange}
+          disabled={formDisabled}
+        />
 
-      {/* Separator */}
-      <div className="h-px bg-border-primary" aria-hidden="true" />
+        {/* Separator */}
+        <div className="h-px bg-border-primary" aria-hidden="true" />
 
-      {/* Order Summary */}
-      <OrderSummary
-        direction={direction}
-        collateralUsd={collateralUsd}
-        leverage={leverage}
-        market={market}
-        priceData={priceData}
-        marketInfo={info}
-      />
+        {/* Order Summary */}
+        <OrderSummary
+          direction={direction}
+          collateralUsd={collateralUsd}
+          leverage={leverage}
+          market={market}
+          priceData={priceData}
+          marketInfo={info}
+        />
 
-      {/* Submit Button */}
-      <SubmitOrderButton
-        direction={direction}
-        collateralUsd={collateralUsd}
-        leverage={leverage}
-        market={market}
-        balance={balance}
-        orderStatus={orderStatus}
-        priceData={priceData}
-        marketInfo={info}
-        onSubmit={handleSubmit}
-        onStatusChange={handleStatusChange}
-        simulateKeeperDelay={simulateKeeperDelay}
-      />
-    </div>
+        {/* Submit Button */}
+        <SubmitOrderButton
+          direction={direction}
+          collateralUsd={collateralUsd}
+          leverage={leverage}
+          market={market}
+          balance={balance}
+          orderStatus={orderStatus}
+          priceData={priceData}
+          marketInfo={info}
+          needsApproval={needsApproval}
+          onSubmit={handleSubmit}
+          onStatusChange={handleStatusChange}
+          simulateKeeperDelay={simulateKeeperDelay}
+        />
+      </div>
+
+      {/* ─── Wallet Popup Layer ──────────────────────────── */}
+      {/* Dark overlay behind the popup */}
+      <WalletOverlay visible={wallet.isVisible} />
+
+      {/* Single animator switches between approval and signing
+          to avoid two simultaneous slide animations */}
+      <WalletAnimator visible={wallet.isVisible}>
+        {wallet.showApproval ? (
+          <ApprovalPopup
+            processing={wallet.processing}
+            onApprove={wallet.handleApprove}
+            onReject={wallet.handleRejectApproval}
+          />
+        ) : wallet.showSigning ? (
+          <SigningPopup
+            direction={direction}
+            collateralUsd={collateralUsd}
+            leverage={leverage}
+            market={market}
+            priceData={priceData}
+            marketInfo={info}
+            processing={wallet.processing}
+            onConfirm={wallet.handleConfirm}
+            onReject={wallet.handleRejectSigning}
+          />
+        ) : null}
+      </WalletAnimator>
+    </>
   );
 }
 
