@@ -388,5 +388,3 @@ export const usePaperStore = create<PaperStoreState>()(
     { name: "PaperGMX", enabled: process.env.NODE_ENV === "development" }
   )
 );
-test
-test123
