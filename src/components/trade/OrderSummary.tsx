@@ -78,6 +78,8 @@ function OrderSummaryInner({
   const calculations = useMemo(() => {
     // If no price data, return null
     if (!priceData || priceData.last <= 0) return null;
+    // If no collateral entered, can't calculate position values
+    if (collateralUsd <= 0) return null;
 
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
     const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
@@ -137,18 +139,28 @@ function OrderSummaryInner({
 
   // ─── Loading state ──────────────────────────────────────
   if (!calculations) {
+    const reason = !priceData || priceData.last <= 0
+      ? "Waiting for price data..."
+      : collateralUsd <= 0
+      ? "Enter collateral to see order details"
+      : null;
+
     return (
       <div className="rounded-xl border border-border-primary bg-bg-card p-4">
         <h3 className="mb-3 text-sm font-semibold text-text-secondary uppercase tracking-wider">
           Order Summary
         </h3>
         <div className="space-y-2">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="flex items-center justify-between">
-              <div className="h-3 w-20 animate-pulse rounded bg-bg-input" />
-              <div className="h-3 w-16 animate-pulse rounded bg-bg-input" />
-            </div>
-          ))}
+          {reason ? (
+            <p className="text-xs text-text-muted text-center py-3">{reason}</p>
+          ) : (
+            [1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="h-3 w-20 animate-pulse rounded bg-bg-input" />
+                <div className="h-3 w-16 animate-pulse rounded bg-bg-input" />
+              </div>
+            ))
+          )}
         </div>
       </div>
     );
