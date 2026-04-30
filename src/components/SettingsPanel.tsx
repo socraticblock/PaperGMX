@@ -1,0 +1,362 @@
+"use client";
+
+import { usePaperStore } from "@/store/usePaperStore";
+import {
+  XMarkIcon,
+  ArrowPathIcon,
+  BoltIcon,
+  BookOpenIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
+import { formatBalance, formatUSD } from "@/lib/format";
+import { BALANCE_PRESETS } from "@/lib/constants";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+export default function SettingsPanel() {
+  const settingsOpen = usePaperStore((s) => s.settingsOpen);
+  const setSettingsOpen = usePaperStore((s) => s.setSettingsOpen);
+  const balance = usePaperStore((s) => s.balance);
+  const topUpBalance = usePaperStore((s) => s.topUpBalance);
+  const resetWallet = usePaperStore((s) => s.resetWallet);
+  const tutorialEnabled = usePaperStore((s) => s.tutorialEnabled);
+  const setTutorialEnabled = usePaperStore((s) => s.setTutorialEnabled);
+  const tradingMode = usePaperStore((s) => s.tradingMode);
+  const setTradingMode = usePaperStore((s) => s.setTradingMode);
+  const showPnlAfterFees = usePaperStore((s) => s.showPnlAfterFees);
+  const setShowPnlAfterFees = usePaperStore((s) => s.setShowPnlAfterFees);
+  const simulateKeeperDelay = usePaperStore((s) => s.simulateKeeperDelay);
+  const setSimulateKeeperDelay = usePaperStore((s) => s.setSimulateKeeperDelay);
+  const oneClickTrading = usePaperStore((s) => s.oneClickTrading);
+  const tradeHistory = usePaperStore((s) => s.tradeHistory);
+
+  const [topUpAmount, setTopUpAmount] = useState("");
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const handleTopUp = () => {
+    const amount = parseFloat(topUpAmount);
+    if (amount > 0) {
+      topUpBalance(amount);
+      setTopUpAmount("");
+    }
+  };
+
+  const handleReset = () => {
+    resetWallet();
+    setSettingsOpen(false);
+    setShowResetConfirm(false);
+  };
+
+  return (
+    <AnimatePresence>
+      {settingsOpen && (
+        <>
+          {/* Overlay */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSettingsOpen(false)}
+          />
+
+          {/* Panel */}
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-border-primary bg-bg-primary"
+          >
+            {/* Panel Header */}
+            <div className="flex items-center justify-between border-b border-border-primary px-6 py-4">
+              <h2 className="text-lg font-bold text-text-primary">Settings</h2>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:text-text-primary"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Panel Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-6">
+                {/* ─── Balance Section ───────────────── */}
+                <section>
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
+                    <InformationCircleIcon className="h-4 w-4" />
+                    Balance
+                  </h3>
+                  <div className="rounded-xl border border-border-primary bg-bg-card p-4">
+                    <p className="text-2xl font-bold text-text-primary">
+                      {formatBalance(balance)}
+                    </p>
+
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="number"
+                        value={topUpAmount}
+                        onChange={(e) => setTopUpAmount(e.target.value)}
+                        placeholder="Amount..."
+                        className="flex-1 rounded-lg border border-border-primary bg-bg-input px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:border-blue-primary focus:outline-none"
+                      />
+                      <button
+                        onClick={handleTopUp}
+                        className="rounded-lg bg-blue-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-hover"
+                      >
+                        Top Up
+                      </button>
+                    </div>
+
+                    <div className="mt-2 flex gap-2">
+                      {BALANCE_PRESETS.map((preset) => (
+                        <button
+                          key={preset.value}
+                          onClick={() => {
+                            topUpBalance(preset.value);
+                            setTopUpAmount("");
+                          }}
+                          className="flex-1 rounded-lg border border-border-primary bg-bg-input px-2 py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-blue-primary hover:text-blue-primary"
+                        >
+                          +{preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+
+                {/* ─── Trading Mode ──────────────────── */}
+                <section>
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
+                    <BoltIcon className="h-4 w-4" />
+                    Trading Mode
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTradingMode("classic")}
+                      className={`flex-1 rounded-xl border p-3 text-center transition-colors ${
+                        tradingMode === "classic"
+                          ? "border-blue-primary bg-blue-primary/10 text-blue-primary"
+                          : "border-border-primary bg-bg-card text-text-secondary hover:border-border-hover"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">Classic</p>
+                      <p className="mt-1 text-xs opacity-70">Full wallet flow</p>
+                    </button>
+                    <button
+                      onClick={() => setTradingMode("1ct")}
+                      className={`flex-1 rounded-xl border p-3 text-center transition-colors ${
+                        tradingMode === "1ct"
+                          ? "border-purple-primary bg-purple-primary/10 text-purple-primary"
+                          : "border-border-primary bg-bg-card text-text-secondary hover:border-border-hover"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">
+                        One-Click ⚡
+                      </p>
+                      <p className="mt-1 text-xs opacity-70">
+                        {oneClickTrading.enabled
+                          ? `${oneClickTrading.actionsRemaining}/90 actions`
+                          : "Gasless trades"}
+                      </p>
+                    </button>
+                  </div>
+                </section>
+
+                {/* ─── Preferences ────────────────────── */}
+                <section>
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
+                    <BookOpenIcon className="h-4 w-4" />
+                    Preferences
+                  </h3>
+                  <div className="space-y-3 rounded-xl border border-border-primary bg-bg-card p-4">
+                    {/* Tutorial Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">
+                          Tutorial Mode
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          Show helpful tooltips
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setTutorialEnabled(!tutorialEnabled)}
+                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                          tutorialEnabled ? "bg-blue-primary" : "bg-border-primary"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                            tutorialEnabled ? "translate-x-5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* P&L After Fees Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">
+                          P&L After Fees
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          Show net profit including fees
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowPnlAfterFees(!showPnlAfterFees)}
+                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                          showPnlAfterFees ? "bg-blue-primary" : "bg-border-primary"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                            showPnlAfterFees ? "translate-x-5" : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Keeper Delay Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-text-primary">
+                          Keeper Delay
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          Simulate 2-8s execution delay
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setSimulateKeeperDelay(!simulateKeeperDelay)
+                        }
+                        className={`relative h-6 w-11 rounded-full transition-colors ${
+                          simulateKeeperDelay
+                            ? "bg-blue-primary"
+                            : "bg-border-primary"
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                            simulateKeeperDelay
+                              ? "translate-x-5"
+                              : "translate-x-0.5"
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                {/* ─── Trade History ──────────────────── */}
+                <section>
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
+                    <ArrowPathIcon className="h-4 w-4" />
+                    Trade History ({tradeHistory.length})
+                  </h3>
+                  {tradeHistory.length === 0 ? (
+                    <div className="rounded-xl border border-border-primary bg-bg-card p-4 text-center">
+                      <p className="text-sm text-text-muted">
+                        No trades yet. Make your first trade!
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {tradeHistory.slice(0, 10).map((trade) => (
+                        <div
+                          key={trade.id}
+                          className="flex items-center justify-between rounded-lg border border-border-primary bg-bg-card p-3"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-text-primary">
+                              {trade.leverage}x{" "}
+                              {trade.direction === "long" ? "Long" : "Short"}{" "}
+                              {trade.market.toUpperCase()}
+                            </p>
+                            <p className="text-xs text-text-muted">
+                              {new Date(trade.closedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <span
+                            className={`text-sm font-semibold ${
+                              trade.netPnl >= 0
+                                ? "text-green-primary"
+                                : "text-red-primary"
+                            }`}
+                          >
+                            {trade.netPnl >= 0 ? "+" : ""}
+                            {formatUSD(trade.netPnl)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                {/* ─── Danger Zone ────────────────────── */}
+                <section>
+                  <h3 className="mb-3 text-sm font-semibold text-red-primary uppercase tracking-wider">
+                    Danger Zone
+                  </h3>
+                  {!showResetConfirm ? (
+                    <button
+                      onClick={() => setShowResetConfirm(true)}
+                      className="w-full rounded-xl border border-red-primary/30 bg-red-bg p-3 text-sm font-medium text-red-primary transition-colors hover:border-red-primary hover:bg-red-primary/20"
+                    >
+                      Reset & Start Over
+                    </button>
+                  ) : (
+                    <div className="rounded-xl border border-red-primary bg-red-bg p-4">
+                      <p className="mb-3 text-sm text-red-primary">
+                        This will erase all data and return to the landing page.
+                        Are you sure?
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowResetConfirm(false)}
+                          className="flex-1 rounded-lg border border-border-primary bg-bg-card px-3 py-2 text-sm text-text-secondary"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleReset}
+                          className="flex-1 rounded-lg bg-red-primary px-3 py-2 text-sm font-medium text-white"
+                        >
+                          Yes, Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
+                {/* ─── About ──────────────────────────── */}
+                <section className="pb-6">
+                  <div className="rounded-xl border border-border-primary bg-bg-card p-4">
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      PaperGMX is a paper trading simulator for GMX V2 perpetual
+                      futures. It uses real market prices and fee structures but
+                      fake money. No wallet, no crypto, no risk. This is a
+                      simulation for educational purposes only.
+                    </p>
+                    <a
+                      href="https://app.gmx.io"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-xs font-medium text-blue-primary hover:underline"
+                    >
+                      Switch to Real GMX →
+                    </a>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
