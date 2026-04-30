@@ -8,13 +8,13 @@ import { motion, AnimatePresence } from "framer-motion";
 interface WalletOverlayProps {
   /** Whether the overlay is visible */
   visible: boolean;
-  /** Called when user clicks the dark backdrop (dismiss) */
-  onDismiss?: () => void;
+  // Note: intentionally no onDismiss — MetaMask doesn't allow
+  // dismissing by clicking the backdrop. User must use Reject.
 }
 
 // ─── Component ───────────────────────────────────────────
 
-function WalletOverlayInner({ visible, onDismiss }: WalletOverlayProps) {
+function WalletOverlayInner({ visible }: WalletOverlayProps) {
   return (
     <AnimatePresence>
       {visible && (
@@ -25,7 +25,6 @@ function WalletOverlayInner({ visible, onDismiss }: WalletOverlayProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          onClick={onDismiss}
           aria-hidden="true"
         />
       )}

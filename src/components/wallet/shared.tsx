@@ -1,5 +1,3 @@
-"use client";
-
 // ─── Shared wallet popup utilities ───────────────────────
 
 interface DetailRowProps {
