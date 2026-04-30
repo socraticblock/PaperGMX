@@ -11,6 +11,10 @@ import type {
   USD,
   Price,
   Timestamp,
+  MarketSlug,
+  PriceData,
+  MarketInfo,
+  ApiConnectionStatus,
 } from "@/types";
 import { usd, timestamp } from "@/lib/branded";
 import { isValidTransition } from "@/types";
@@ -53,6 +57,12 @@ const initialState = {
 
   // UI
   settingsOpen: false,
+
+  // Prices (not persisted — always fresh from API)
+  prices: {} as Record<MarketSlug, PriceData>,
+  marketInfo: {} as Record<MarketSlug, MarketInfo>,
+  connectionStatus: "disconnected" as ApiConnectionStatus,
+  pricesLoaded: false,
 };
 
 // ─── Store Version (for migrations) ───────────────────────
@@ -304,6 +314,28 @@ export const usePaperStore = create<PaperStoreState>()(
             },
             false,
             "renewOneClickTrading"
+          ),
+
+        // ─── Price Actions ─────────────────────────────
+        setPrices: (prices: Record<MarketSlug, PriceData>) =>
+          set(
+            { prices, pricesLoaded: true },
+            false,
+            "setPrices"
+          ),
+
+        setMarketInfo: (info: Record<MarketSlug, MarketInfo>) =>
+          set(
+            { marketInfo: info },
+            false,
+            "setMarketInfo"
+          ),
+
+        setConnectionStatus: (status: ApiConnectionStatus) =>
+          set(
+            { connectionStatus: status },
+            false,
+            "setConnectionStatus"
           ),
       }),
       {

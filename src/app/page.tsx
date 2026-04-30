@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { usePaperStore } from "@/store/usePaperStore";
 import Header from "@/components/Header";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -34,10 +36,25 @@ const features = [
 ];
 
 export default function Home() {
+  const router = useRouter();
   const isInitialized = usePaperStore((s) => s.isInitialized);
 
-  // If already initialized, show the landing with option to continue
-  // (In Phase 2, this will auto-redirect to market selection)
+  // If already initialized, redirect to market selection
+  useEffect(() => {
+    if (isInitialized) {
+      router.push("/markets");
+    }
+  }, [isInitialized, router]);
+
+  // Don't render landing if redirecting
+  if (isInitialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-text-muted">Redirecting to markets...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
@@ -90,9 +107,7 @@ export default function Home() {
             className="mt-10"
           >
             <p className="mb-4 text-sm font-medium text-text-secondary">
-              {isInitialized
-                ? "Choose a new starting balance or continue with your current one"
-                : "Choose your starting balance to begin"}
+              Choose your starting balance to begin
             </p>
             <BalanceSelector />
           </motion.div>
@@ -112,7 +127,7 @@ export default function Home() {
                 transition={{ delay: 0.6 + i * 0.1, duration: 0.4 }}
                 className="rounded-xl border border-border-primary bg-bg-card p-5 text-left"
               >
-                <feature.icon className="h-6 w-6 text-blue-primary" />
+                <feature.icon className="h-6 w-6 text-blue-primary" aria-hidden="true" />
                 <h3 className="mt-3 text-sm font-semibold text-text-primary">
                   {feature.title}
                 </h3>

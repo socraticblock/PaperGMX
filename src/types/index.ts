@@ -136,11 +136,23 @@ export interface OneClickTradingState {
 
 // ─── Store ────────────────────────────────────────────────
 
+export type ApiConnectionStatus =
+  | "connected"       // GMX API responding normally
+  | "degraded"        // GMX API slow or partially failing
+  | "fallback"        // Using Binance fallback
+  | "disconnected";   // All sources failing
+
 export interface PaperStoreState {
   // Wallet
   balance: USD;
   isInitialized: boolean;
   approvedTokens: string[];
+
+  // Prices (not persisted — always fresh from API)
+  prices: Record<MarketSlug, PriceData>;
+  marketInfo: Record<MarketSlug, MarketInfo>;
+  connectionStatus: ApiConnectionStatus;
+  pricesLoaded: boolean;
 
   // Position
   activePosition: Position | null;
@@ -182,4 +194,7 @@ export interface PaperStoreState {
   renewOneClickTrading: () => void;
   updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) => void;
   closePosition: (exitPrice: Price, closeReason: ClosedTrade["closeReason"]) => void;
+  setPrices: (prices: Record<MarketSlug, PriceData>) => void;
+  setMarketInfo: (info: Record<MarketSlug, MarketInfo>) => void;
+  setConnectionStatus: (status: ApiConnectionStatus) => void;
 }
