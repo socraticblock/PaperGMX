@@ -16,8 +16,8 @@ import {
   calculateGrossPnl,
   calculateNetPnl,
 } from "../index";
-import { usd, price, bps, percent, timestamp } from "@/lib/branded";
-import type { OrderDirection, BPS } from "@/types";
+import { usd, price, bps } from "@/lib/branded";
+import type { OrderDirection } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -214,7 +214,6 @@ describe("Order Entry Integration", () => {
     const entryPrice = price(3000);
     const exitPrice = price(3300); // +10%
     const sizeUsd = usd(10000);
-    const collateralUsd = usd(1000);
     const positionFeeOpen = usd(6);
     const positionFeeClose = usd(6);
 

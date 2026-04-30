@@ -72,9 +72,5 @@ export interface ParsedMarketInfo {
   positionFeeBps: number; // 4 or 6 BPS — TODO: dynamic at execution time based on OI balance
 }
 
-/** API connection status */
-export type ApiConnectionStatus =
-  | "connected"       // GMX API responding normally
-  | "degraded"        // GMX API slow or partially failing
-  | "fallback"        // Using Binance fallback
-  | "disconnected";   // All sources failing
+// Re-export ApiConnectionStatus from the central types module
+export type { ApiConnectionStatus } from "@/types";

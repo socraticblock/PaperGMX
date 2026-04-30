@@ -159,8 +159,9 @@ export const usePaperStore = create<PaperStoreState>()(
           const current = get().orderStatus;
           if (!isValidTransition(current, status)) {
             console.warn(
-              `Invalid order transition: ${current} → ${status}. Forcing.`
+              `[PaperGMX] Invalid order transition: ${current} → ${status}. Rejected.`
             );
+            return; // Reject invalid transition — prevents corrupted state
           }
           set({ orderStatus: status }, false, "setOrderStatus");
         },

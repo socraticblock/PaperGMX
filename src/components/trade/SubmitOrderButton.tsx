@@ -172,7 +172,7 @@ function SubmitOrderButtonInner({
       borrowFeeAccrued: usd(0),
       fundingFeeAccrued: usd(0),
       openedAt: timestamp(Date.now()),
-      confirmedAt: null, // Not confirmed yet — keeper just filled
+      confirmedAt: timestamp(Date.now()), // Keeper confirmed the fill
       status: "active",
     };
 

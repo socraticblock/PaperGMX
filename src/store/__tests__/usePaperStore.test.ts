@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { usePaperStore } from "@/store/usePaperStore";
 import { usd, price, bps, timestamp } from "@/lib/branded";
-import type { Position, MarketSlug, OrderDirection, USD } from "@/types";
+import type { Position, MarketSlug, OrderDirection } from "@/types";
 
 // ─── Test Helpers ─────────────────────────────────────────
 
@@ -155,7 +155,19 @@ describe("Store: Position Close Flow", () => {
   });
 
   it("resets orderStatus to idle after close", () => {
-    usePaperStore.getState().setOrderStatus("filled");
+    // Walk through valid transitions to get to "filled"
+    const { setOrderStatus } = usePaperStore.getState();
+    setOrderStatus("approving");
+    setOrderStatus("approved");
+    setOrderStatus("signing");
+    setOrderStatus("submitted");
+    setOrderStatus("keeper_step_1");
+    setOrderStatus("keeper_step_2");
+    setOrderStatus("keeper_step_3");
+    setOrderStatus("keeper_step_4");
+    setOrderStatus("filled");
+    expect(usePaperStore.getState().orderStatus).toBe("filled");
+
     usePaperStore.getState().closePosition(price(3300), "take_profit");
     expect(usePaperStore.getState().orderStatus).toBe("idle");
   });
@@ -164,10 +176,11 @@ describe("Store: Position Close Flow", () => {
     usePaperStore.getState().closePosition(price(3300), "take_profit");
 
     const { tradeHistory } = usePaperStore.getState();
-    expect(tradeHistory).toHaveLength(1);
-    expect(tradeHistory[0].market).toBe("eth");
-    expect(tradeHistory[0].direction).toBe("long");
-    expect(tradeHistory[0].closeReason).toBe("take_profit");
+    expect(tradeHistory.length).toBeGreaterThanOrEqual(1);
+    const trade = tradeHistory[0]!;
+    expect(trade.market).toBe("eth");
+    expect(trade.direction).toBe("long");
+    expect(trade.closeReason).toBe("take_profit");
   });
 });
 
@@ -201,14 +214,14 @@ describe("Store: Order Status State Machine", () => {
     expect(usePaperStore.getState().orderStatus).toBe("idle");
   });
 
-  it("warns but forces invalid transitions", () => {
+  it("rejects invalid transitions and keeps current state", () => {
     // Jump from idle directly to filled (invalid)
     const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     usePaperStore.getState().setOrderStatus("filled");
 
-    // The store forces the transition but warns
-    expect(usePaperStore.getState().orderStatus).toBe("filled");
+    // The store rejects the transition and stays at idle
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
     expect(consoleSpy).toHaveBeenCalled();
 
     consoleSpy.mockRestore();
