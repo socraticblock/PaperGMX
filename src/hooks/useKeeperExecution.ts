@@ -215,7 +215,7 @@ export function useKeeperExecution(
     if (!runningRef.current) return;
     cancelledRef.current = true;
     runningRef.current = false;
-    setOrderStatusRef.current("idle");
+    setOrderStatusRef.current("cancelled");
   }, []);
 
   return { start, cancel };

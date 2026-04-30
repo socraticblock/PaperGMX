@@ -12,7 +12,8 @@ const KEEPER_STEPS = [
   { key: "submitted", label: "Order Submitted" },
   { key: "keeper_step_1", label: "Oracle Confirming Price" },
   { key: "keeper_step_2", label: "Keeper Executing" },
-  { key: "keeper_step_3", label: "Position Opened" },
+  { key: "keeper_step_3", label: "Position Opening" },
+  { key: "keeper_step_4", label: "Position Confirmed" },
 ] as const;
 
 // ─── Props ───────────────────────────────────────────────
@@ -63,11 +64,13 @@ function KeeperWaitScreenInner({
     (s) => s.key === orderStatus
   );
 
-  // Can cancel during steps 0-1 (submitted, keeper_step_1)
+  // Can cancel during steps 0-2 (submitted, keeper_step_1, keeper_step_2)
   // Spec 5.4: "Cancel button during wait — Visible during steps 1-2"
+  // State machine allows cancelled from submitted, keeper_step_1, keeper_step_2
   const canCancel =
     orderStatus === "submitted" ||
-    orderStatus === "keeper_step_1";
+    orderStatus === "keeper_step_1" ||
+    orderStatus === "keeper_step_2";
 
   const handleCancel = () => {
     keeper.cancel();

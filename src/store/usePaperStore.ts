@@ -129,39 +129,33 @@ export const usePaperStore = create<PaperStoreState>()(
           ),
 
         // ─── Position Actions ───────────────────────────
+        setActivePosition: (position: Position | null) =>
+          set({ activePosition: position }, false, "setActivePosition"),
 
-        /**
-         * Lock collateral when opening a position.
-         * GMX deducts the full collateral from your available balance.
-         * The position fee is taken from collateral within the protocol,
-         * so we deduct the full collateral amount here.
-         */
         lockCollateral: (amount: USD) =>
           set(
             (state) => {
               if (amount > state.balance) {
                 console.warn(
-                  `[PaperGMX] lockCollateral: ${amount} exceeds balance ${state.balance}. Clamping.`
+                  `[PaperGMX] Cannot lock $${amount} — balance is $${state.balance}`
                 );
+                return state; // No change
               }
-              return {
-                balance: usd(Math.max(0, state.balance - amount)),
-              };
+              return { balance: usd(state.balance - amount) };
             },
             false,
             "lockCollateral"
           ),
 
-        setActivePosition: (position: Position | null) =>
-          set({ activePosition: position }, false, "setActivePosition"),
-
         setOrderStatus: (status: OrderStatus) => {
           const current = get().orderStatus;
-          if (!isValidTransition(current, status)) {
+          // Allow idle → anything (form is idle, user can start any flow)
+          // Block invalid transitions — state machine is enforced
+          if (current !== "idle" && !isValidTransition(current, status)) {
             console.warn(
-              `[PaperGMX] Invalid order transition: ${current} → ${status}. Rejected.`
+              `[PaperGMX] Blocked invalid transition: ${current} → ${status}`
             );
-            return; // Reject invalid transition — prevents corrupted state
+            return; // Do NOT apply the transition
           }
           set({ orderStatus: status }, false, "setOrderStatus");
         },
@@ -235,7 +229,6 @@ export const usePaperStore = create<PaperStoreState>()(
                 balance: usd(state.balance + result.returnedCollateral),
                 tradeHistory: [closedTrade, ...state.tradeHistory],
               };
-              // Note: orderStatus resets to "idle" so the user can open a new position.
             },
             false,
             "closePosition"
@@ -395,3 +388,5 @@ export const usePaperStore = create<PaperStoreState>()(
     { name: "PaperGMX", enabled: process.env.NODE_ENV === "development" }
   )
 );
+test
+test123

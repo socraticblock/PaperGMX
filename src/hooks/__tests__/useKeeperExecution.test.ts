@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { usePaperStore } from "@/store/usePaperStore";
+import { usd, price, bps, timestamp } from "@/lib/branded";
+import type { Position } from "@/types";
 
 // ─── Helper: walk through wallet flow to reach "submitted" ──
 function reachSubmitted() {
@@ -10,14 +12,37 @@ function reachSubmitted() {
   return usePaperStore.getState().orderStatus;
 }
 
+// ─── Helper: create a test position ──────────────────────
+function makeTestPosition(overrides?: Partial<Position>): Position {
+  return {
+    id: "eth-long-123",
+    market: "eth",
+    direction: "long",
+    collateralUsd: usd(1000),
+    leverage: 5,
+    sizeUsd: usd(5000),
+    entryPrice: price(3000),
+    acceptablePrice: price(3015),
+    liquidationPrice: price(2410),
+    positionFeeBps: bps(6),
+    positionFeePaid: usd(3),
+    borrowFeeAccrued: usd(0),
+    fundingFeeAccrued: usd(0),
+    openedAt: timestamp(Date.now()),
+    confirmedAt: null,
+    status: "confirming",
+    ...overrides,
+  };
+}
+
 describe("Keeper Execution Flow", () => {
   beforeEach(() => {
     usePaperStore.setState({
-      balance: 10000,
+      balance: usd(10000),
       isInitialized: true,
       approvedTokens: ["USDC"], // Already approved
       activePosition: null,
-      orderStatus: "idle",
+      orderStatus: "idle" as const,
       tradeHistory: [],
     });
   });
@@ -52,62 +77,62 @@ describe("Keeper Execution Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("filled");
     });
 
-    it("allows keeper_step_4 → failed", () => {
+    it("blocks keeper_step_4 → failed (only filled is valid from step_4)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
       store.setOrderStatus("keeper_step_2");
       store.setOrderStatus("keeper_step_3");
       store.setOrderStatus("keeper_step_4");
-      store.setOrderStatus("failed");
-      expect(usePaperStore.getState().orderStatus).toBe("failed");
+      store.setOrderStatus("failed"); // Should be blocked
+      expect(usePaperStore.getState().orderStatus).toBe("keeper_step_4"); // Stays
     });
   });
 
   // ─── Cancel during keeper steps ───────────────────────
 
   describe("Cancel During Keeper", () => {
-    it("allows submitted → idle (cancel before keeper starts)", () => {
+    it("allows submitted → cancelled (cancel before keeper starts)", () => {
       reachSubmitted();
-      usePaperStore.getState().setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      usePaperStore.getState().setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
     });
 
-    it("allows keeper_step_1 → idle (cancel during step 1)", () => {
+    it("allows keeper_step_1 → cancelled (cancel during step 1)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
-      store.setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      store.setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
     });
 
-    it("allows keeper_step_2 → idle (cancel during step 2)", () => {
+    it("allows keeper_step_2 → cancelled (cancel during step 2)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
       store.setOrderStatus("keeper_step_2");
-      store.setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      store.setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
     });
 
-    it("rejects cancel at keeper_step_3 (too late)", () => {
+    it("blocks cancel at keeper_step_3 (too late)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
       store.setOrderStatus("keeper_step_2");
       store.setOrderStatus("keeper_step_3");
-      store.setOrderStatus("idle"); // Should be rejected
+      store.setOrderStatus("cancelled"); // Should be blocked
       expect(usePaperStore.getState().orderStatus).toBe("keeper_step_3");
     });
 
-    it("rejects cancel at keeper_step_4 (too late)", () => {
+    it("blocks cancel at keeper_step_4 (too late)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
       store.setOrderStatus("keeper_step_2");
       store.setOrderStatus("keeper_step_3");
       store.setOrderStatus("keeper_step_4");
-      store.setOrderStatus("idle"); // Should be rejected
+      store.setOrderStatus("cancelled"); // Should be blocked
       expect(usePaperStore.getState().orderStatus).toBe("keeper_step_4");
     });
   });
@@ -152,24 +177,7 @@ describe("Keeper Execution Flow", () => {
 
   describe("Position Confirmation", () => {
     it("position starts with status 'confirming' and null confirmedAt", () => {
-      usePaperStore.getState().setActivePosition({
-        id: "eth-long-123",
-        market: "eth",
-        direction: "long",
-        collateralUsd: 1000,
-        leverage: 5,
-        sizeUsd: 5000,
-        entryPrice: 3000,
-        acceptablePrice: 3015,
-        liquidationPrice: 2410,
-        positionFeeBps: 6,
-        positionFeePaid: 3,
-        borrowFeeAccrued: 0,
-        fundingFeeAccrued: 0,
-        openedAt: Date.now(),
-        confirmedAt: null,
-        status: "confirming",
-      });
+      usePaperStore.getState().setActivePosition(makeTestPosition());
 
       const pos = usePaperStore.getState().activePosition;
       expect(pos).not.toBeNull();
@@ -178,29 +186,12 @@ describe("Keeper Execution Flow", () => {
     });
 
     it("position transitions from confirming to active", () => {
-      usePaperStore.getState().setActivePosition({
-        id: "eth-long-123",
-        market: "eth",
-        direction: "long",
-        collateralUsd: 1000,
-        leverage: 5,
-        sizeUsd: 5000,
-        entryPrice: 3000,
-        acceptablePrice: 3015,
-        liquidationPrice: 2410,
-        positionFeeBps: 6,
-        positionFeePaid: 3,
-        borrowFeeAccrued: 0,
-        fundingFeeAccrued: 0,
-        openedAt: Date.now(),
-        confirmedAt: null,
-        status: "confirming",
-      });
+      usePaperStore.getState().setActivePosition(makeTestPosition());
 
       usePaperStore.setState({
         activePosition: {
           ...usePaperStore.getState().activePosition!,
-          confirmedAt: Date.now(),
+          confirmedAt: timestamp(Date.now()),
           status: "active",
         },
       });

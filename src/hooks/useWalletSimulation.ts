@@ -56,10 +56,33 @@ export function useWalletSimulation(): WalletSimulationResult {
 
   // Track mount state so setTimeout callbacks don't set state after unmount
   const mountedRef = useRef(true);
+  // Track timer IDs for cleanup on unmount
+  const timerRefs = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+      // Clean up all pending timers
+      for (const id of timerRefs.current) {
+        clearTimeout(id);
+      }
+      timerRefs.current.clear();
+    };
   }, []);
+
+  // Helper: schedule a timeout that's tracked for cleanup
+  const scheduleTimeout = useCallback(
+    (fn: () => void, delay: number) => {
+      const id = setTimeout(() => {
+        timerRefs.current.delete(id);
+        fn();
+      }, delay);
+      timerRefs.current.add(id);
+      return id;
+    },
+    []
+  );
 
   const showApproval =
     orderStatus === "approving" || orderStatus === "approved";
@@ -79,25 +102,25 @@ export function useWalletSimulation(): WalletSimulationResult {
     // "approved" with no way to continue.
 
     // Simulate on-chain approval tx
-    setTimeout(() => {
+    scheduleTimeout(() => {
       if (!mountedRef.current) return;
       approveToken("USDC"); // Persist approval
       setProcessing("success"); // Show green checkmark
       setOrderStatus("approved"); // NOW the approval is confirmed
 
       // Brief success display, then auto-transition to signing
-      setTimeout(() => {
+      scheduleTimeout(() => {
         if (!mountedRef.current) return;
         setProcessing("idle");
         setOrderStatus("signing"); // approved → signing
       }, APPROVAL_SUCCESS_MS);
     }, APPROVAL_PROCESSING_MS);
-  }, [processing, approveToken, setOrderStatus]);
+  }, [processing, approveToken, setOrderStatus, scheduleTimeout]);
 
   const handleRejectApproval = useCallback(() => {
     // User rejected — no on-chain action happened, go back to idle
     setProcessing("idle");
-    setOrderStatus("idle"); // approving → idle (valid per state machine)
+    setOrderStatus("cancelled"); // approving → cancelled
   }, [setOrderStatus]);
 
   // ─── Signing flow ─────────────────────────────────────
@@ -112,23 +135,23 @@ export function useWalletSimulation(): WalletSimulationResult {
     // (since isVisible only checks approving/approved/signing)
     // before the user sees the green checkmark.
 
-    setTimeout(() => {
+    scheduleTimeout(() => {
       if (!mountedRef.current) return;
       setProcessing("success"); // Show green checkmark
 
-      setTimeout(() => {
+      scheduleTimeout(() => {
         if (!mountedRef.current) return;
         setProcessing("idle");
         // NOW transition to submitted — this triggers the keeper useEffect
         setOrderStatus("submitted"); // signing → submitted
       }, SIGNING_SUCCESS_MS);
     }, SIGNING_PROCESSING_MS);
-  }, [processing, setOrderStatus]);
+  }, [processing, setOrderStatus, scheduleTimeout]);
 
   const handleRejectSigning = useCallback(() => {
     // User rejected signing — no on-chain action, go back to idle
     setProcessing("idle");
-    setOrderStatus("idle"); // signing → idle
+    setOrderStatus("cancelled"); // signing → cancelled
   }, [setOrderStatus]);
 
   return {

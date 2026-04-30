@@ -34,14 +34,14 @@ export type OrderStatus =
 
 export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   idle: ["approving", "signing"], // signing if already approved or 1CT
-  approving: ["approved", "failed", "cancelled", "idle"], // +idle: wallet rejection (no on-chain action)
+  approving: ["approved", "failed", "cancelled"],
   approved: ["signing", "failed"],
-  signing: ["submitted", "failed", "cancelled", "idle"], // +idle: wallet rejection (no on-chain action)
-  submitted: ["keeper_step_1", "failed", "idle"], // +idle: cancel before keeper starts
-  keeper_step_1: ["keeper_step_2", "failed", "idle"], // +idle: user cancel (spec 5.4)
-  keeper_step_2: ["keeper_step_3", "failed", "idle"], // +idle: user cancel (spec 5.4)
+  signing: ["submitted", "failed", "cancelled"],
+  submitted: ["keeper_step_1", "failed", "cancelled"],
+  keeper_step_1: ["keeper_step_2", "failed", "cancelled"],
+  keeper_step_2: ["keeper_step_3", "failed", "cancelled"],
   keeper_step_3: ["keeper_step_4", "failed"],
-  keeper_step_4: ["filled", "failed"],
+  keeper_step_4: ["filled"],
   filled: [],
   cancelled: ["idle"],
   failed: ["idle"],

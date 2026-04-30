@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { usePaperStore } from "@/store/usePaperStore";
+import { usd, price, bps, timestamp } from "@/lib/branded";
 
 // ─── Test the wallet simulation flow via the store ────────
 // The hook uses Zustand store, so we test the integration
@@ -9,11 +10,11 @@ describe("Wallet Simulation Flow", () => {
   beforeEach(() => {
     // Reset store to clean state
     usePaperStore.setState({
-      balance: 10000,
+      balance: usd(10000),
       isInitialized: true,
       approvedTokens: [],
       activePosition: null,
-      orderStatus: "idle",
+      orderStatus: "idle" as const,
       tradeHistory: [],
     });
   });
@@ -33,18 +34,18 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("signing");
     });
 
-    it("allows approving → idle (wallet rejection)", () => {
+    it("allows approving → cancelled (wallet rejection)", () => {
       const store = usePaperStore.getState();
       store.setOrderStatus("approving");
-      store.setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      store.setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
     });
 
-    it("allows signing → idle (wallet rejection)", () => {
+    it("allows signing → cancelled (wallet rejection)", () => {
       const store = usePaperStore.getState();
       store.setOrderStatus("signing");
-      store.setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      store.setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
     });
 
     it("allows approving → approved → signing → submitted", () => {
@@ -62,15 +63,30 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("submitted");
     });
 
-    it("rejects invalid transition: idle → approved", () => {
+    it("blocks invalid transition: idle → approved", () => {
       const store = usePaperStore.getState();
-      store.setOrderStatus("approved"); // Should be rejected
+      store.setOrderStatus("approved"); // Should be blocked
       expect(usePaperStore.getState().orderStatus).toBe("idle"); // Stays idle
     });
 
-    it("rejects invalid transition: idle → submitted", () => {
+    it("blocks invalid transition: idle → submitted", () => {
       const store = usePaperStore.getState();
-      store.setOrderStatus("submitted"); // Should be rejected
+      store.setOrderStatus("submitted"); // Should be blocked
+      expect(usePaperStore.getState().orderStatus).toBe("idle");
+    });
+
+    it("blocks invalid transition: approving → signing (must go through approved first)", () => {
+      const store = usePaperStore.getState();
+      store.setOrderStatus("approving");
+      store.setOrderStatus("signing"); // Should be blocked
+      expect(usePaperStore.getState().orderStatus).toBe("approving");
+    });
+
+    it("allows cancelled → idle (reset after rejection)", () => {
+      const store = usePaperStore.getState();
+      store.setOrderStatus("approving");
+      store.setOrderStatus("cancelled");
+      store.setOrderStatus("idle");
       expect(usePaperStore.getState().orderStatus).toBe("idle");
     });
   });
@@ -106,6 +122,22 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().approvedTokens.includes("USDC")).toBe(
         true
       );
+    });
+  });
+
+  // ─── lockCollateral Tests ─────────────────────────────────
+
+  describe("lockCollateral", () => {
+    it("deducts collateral from balance", () => {
+      usePaperStore.setState({ balance: usd(10000) });
+      usePaperStore.getState().lockCollateral(usd(1000));
+      expect(usePaperStore.getState().balance).toBe(9000);
+    });
+
+    it("does not deduct if amount exceeds balance", () => {
+      usePaperStore.setState({ balance: usd(500) });
+      usePaperStore.getState().lockCollateral(usd(1000));
+      expect(usePaperStore.getState().balance).toBe(500); // Unchanged
     });
   });
 
@@ -157,7 +189,7 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("submitted");
     });
 
-    it("allows retry after rejection: idle → approving → idle → approving", () => {
+    it("allows retry after rejection: idle → approving → cancelled → idle → approving", () => {
       const store = usePaperStore.getState();
 
       // First attempt
@@ -165,21 +197,25 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("approving");
 
       // User rejects
+      store.setOrderStatus("cancelled");
+      expect(usePaperStore.getState().orderStatus).toBe("cancelled");
+
+      // Reset to idle
       store.setOrderStatus("idle");
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
 
       // Retry
       store.setOrderStatus("approving");
       expect(usePaperStore.getState().orderStatus).toBe("approving");
     });
 
-    it("allows retry after signing rejection: idle → signing → idle → signing", () => {
+    it("allows retry after signing rejection: idle → signing → cancelled → idle → signing", () => {
       const store = usePaperStore.getState();
       store.approveToken("USDC"); // Already approved
 
       // First signing attempt
       store.setOrderStatus("signing");
-      store.setOrderStatus("idle"); // Reject
+      store.setOrderStatus("cancelled"); // Reject
+      store.setOrderStatus("idle");
       expect(usePaperStore.getState().orderStatus).toBe("idle");
 
       // Retry signing
