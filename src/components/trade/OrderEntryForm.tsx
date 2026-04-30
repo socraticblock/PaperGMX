@@ -16,11 +16,25 @@ import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
 import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
 import { SigningPopup } from "@/components/wallet/SigningPopup";
+import { KeeperWaitScreen } from "@/components/keeper/KeeperWaitScreen";
+import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
 
 // ─── Types ────────────────────────────────────────────────
 
 export interface OrderEntryFormProps {
   market: MarketSlug;
+}
+
+// ─── Helper: is order in keeper phase? ────────────────────
+
+function isKeeperPhase(status: string): boolean {
+  return (
+    status === "submitted" ||
+    status === "keeper_step_1" ||
+    status === "keeper_step_2" ||
+    status === "keeper_step_3" ||
+    status === "keeper_step_4"
+  );
 }
 
 // ─── Component ────────────────────────────────────────────
@@ -94,6 +108,10 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     [setOrderStatus]
   );
 
+  const handleResultDismiss = useCallback(() => {
+    setOrderStatus("idle"); // failed/cancelled → idle, back to form
+  }, [setOrderStatus]);
+
   // ─── Already have a position ────────────────────────────
   if (hasActivePosition) {
     return (
@@ -108,8 +126,40 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     );
   }
 
-  // ─── Form is disabled during wallet flow ────────────────
-  const formDisabled = orderStatus !== "idle" && orderStatus !== "failed";
+  // ─── Keeper wait screen (replaces form during execution) ──
+  if (isKeeperPhase(orderStatus)) {
+    return (
+      <KeeperWaitScreen
+        direction={direction}
+        collateralUsd={collateralUsd}
+        leverage={leverage}
+        market={market}
+        orderStatus={orderStatus}
+        simulateKeeperDelay={simulateKeeperDelay}
+        onSubmit={handleSubmit}
+      />
+    );
+  }
+
+  // ─── Order result screen (failed/cancelled) ────────────
+  if (orderStatus === "failed" || orderStatus === "cancelled") {
+    return (
+      <OrderResultScreen
+        resultType={orderStatus === "failed" ? "failed" : "cancelled"}
+        direction={direction}
+        collateralUsd={collateralUsd}
+        leverage={leverage}
+        market={market}
+        onDismiss={handleResultDismiss}
+      />
+    );
+  }
+
+  // ─── Form is disabled during wallet/approval/signing flow ───
+  // At this point in the code, orderStatus is one of:
+  // idle, failed, cancelled, approving, approved, signing, submitted, keeper_step_*, filled
+  // The form should only be interactive when idle (or after early returns handled above)
+  const formDisabled = orderStatus !== "idle";
 
   return (
     <>
@@ -161,18 +211,13 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           priceData={priceData}
           marketInfo={info}
           needsApproval={needsApproval}
-          onSubmit={handleSubmit}
           onStatusChange={handleStatusChange}
-          simulateKeeperDelay={simulateKeeperDelay}
         />
       </div>
 
       {/* ─── Wallet Popup Layer ──────────────────────────── */}
-      {/* Dark overlay behind the popup */}
       <WalletOverlay visible={wallet.isVisible} />
 
-      {/* Single animator switches between approval and signing
-          to avoid two simultaneous slide animations */}
       <WalletAnimator visible={wallet.isVisible}>
         {wallet.showApproval ? (
           <ApprovalPopup

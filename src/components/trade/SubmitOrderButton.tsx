@@ -1,17 +1,10 @@
 "use client";
 
-import { memo, useCallback, useRef, useEffect } from "react";
-import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, PriceData, MarketInfo, Position } from "@/types";
-import { usd, timestamp } from "@/lib/branded";
+import { memo, useCallback } from "react";
+import type { OrderDirection, OrderStatus, USD, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { formatUSD } from "@/lib/format";
-import {
-  calculatePositionSize,
-  calculatePositionFee,
-  calculateAcceptablePrice,
-  calculateLiquidationPrice,
-  determineFillPrice,
-} from "@/lib/calculations";
-import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, KEEPER_TIMING_WEIGHTS, generatePositionId } from "@/lib/constants";
+import { calculatePositionSize } from "@/lib/calculations";
+import { MARKETS } from "@/lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Types ────────────────────────────────────────────────
@@ -26,25 +19,13 @@ export interface SubmitOrderButtonProps {
   priceData: PriceData | undefined;
   marketInfo: MarketInfo | undefined;
   needsApproval: boolean;
-  onSubmit: (position: Position) => void;
   onStatusChange: (status: OrderStatus) => void;
-  simulateKeeperDelay: boolean;
-}
-
-// ─── Keeper delay sampling (uses KEEPER_TIMING_WEIGHTS from constants) ──
-
-function sampleKeeperDelay(): number {
-  const totalWeight = KEEPER_TIMING_WEIGHTS.reduce((sum, d) => sum + d.weight, 0);
-  let random = Math.random() * totalWeight;
-
-  for (const delay of KEEPER_TIMING_WEIGHTS) {
-    random -= delay.weight;
-    if (random <= 0) return delay.seconds * 1000;
-  }
-  return 3000;
 }
 
 // ─── Component ────────────────────────────────────────────
+// Phase 5: This button ONLY triggers the wallet flow.
+// Keeper execution is handled by useKeeperExecution hook
+// (used by KeeperWaitScreen), not here.
 
 function SubmitOrderButtonInner({
   direction,
@@ -56,37 +37,11 @@ function SubmitOrderButtonInner({
   priceData,
   marketInfo,
   needsApproval,
-  onSubmit,
   onStatusChange,
-  simulateKeeperDelay,
 }: SubmitOrderButtonProps) {
   const marketConfig = MARKETS[market];
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
   const isLong = direction === "long";
-
-  // ─── Refs for latest values in async keeper execution ────
-  // The keeper useEffect captures values from the closure, which go stale
-  // after the first `await`. We track the real-time values via refs.
-  const priceDataRef = useRef(priceData);
-  priceDataRef.current = priceData;
-  const marketInfoRef = useRef(marketInfo);
-  marketInfoRef.current = marketInfo;
-  const directionRef = useRef(direction);
-  directionRef.current = direction;
-  const collateralUsdRef = useRef(collateralUsd);
-  collateralUsdRef.current = collateralUsd;
-  const leverageRef = useRef(leverage);
-  leverageRef.current = leverage;
-  const marketRef = useRef(market);
-  marketRef.current = market;
-  const sizeUsdRef = useRef(sizeUsd);
-  sizeUsdRef.current = sizeUsd;
-  const onSubmitRef = useRef(onSubmit);
-  onSubmitRef.current = onSubmit;
-  const onStatusChangeRef = useRef(onStatusChange);
-  onStatusChangeRef.current = onStatusChange;
-  const simulateKeeperDelayRef = useRef(simulateKeeperDelay);
-  simulateKeeperDelayRef.current = simulateKeeperDelay;
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
@@ -100,8 +55,6 @@ function SubmitOrderButtonInner({
     (orderStatus === "idle" || orderStatus === "failed");
 
   // ─── Button click: start the wallet flow ────────────────
-  // Phase 4: approval and signing are handled by wallet popups,
-  // not inline in this handler. We just set the initial status.
   const handleClick = useCallback(() => {
     if (!canSubmit) return;
 
@@ -111,111 +64,6 @@ function SubmitOrderButtonInner({
       onStatusChange("signing"); // Skip approval, go to signing
     }
   }, [canSubmit, needsApproval, onStatusChange]);
-
-  // ─── Keeper execution after signing is confirmed ────────
-  // When orderStatus becomes "submitted", the wallet signing popup
-  // was confirmed. Now we run the keeper steps and fill the order.
-  const keeperStartedRef = useRef(false);
-
-  useEffect(() => {
-    if (orderStatus !== "submitted") {
-      keeperStartedRef.current = false;
-      return;
-    }
-    // Prevent double-execution (React StrictMode calls effects twice in dev)
-    if (keeperStartedRef.current) return;
-    keeperStartedRef.current = true;
-
-    let cancelled = false;
-
-    const runKeeper = async () => {
-      // Step 1: Keeper steps (simulated delay)
-      if (simulateKeeperDelayRef.current) {
-        const delay = sampleKeeperDelay();
-        const stepDelay = delay / 4;
-
-        for (let step = 1; step <= 4; step++) {
-          await new Promise((r) => setTimeout(r, stepDelay));
-          if (cancelled) return;
-          onStatusChangeRef.current(`keeper_step_${step}` as OrderStatus);
-        }
-      } else {
-        for (let step = 1; step <= 4; step++) {
-          onStatusChangeRef.current(`keeper_step_${step}` as OrderStatus);
-        }
-      }
-
-      if (cancelled) return;
-
-      // Step 2: Fill price from oracle (using CURRENT prices, not stale)
-      const currentPriceData = priceDataRef.current;
-      const currentMarketInfo = marketInfoRef.current;
-      if (!currentPriceData || currentPriceData.last <= 0) {
-        onStatusChangeRef.current("failed");
-        return;
-      }
-
-      const fillPrice = determineFillPrice(
-        currentPriceData.min,
-        currentPriceData.max,
-        directionRef.current,
-        false
-      );
-      const acceptablePrice = calculateAcceptablePrice(
-        fillPrice,
-        SLIPPAGE_OPEN_BPS,
-        directionRef.current,
-        false
-      );
-      const feeBps: BPS = currentMarketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
-      const positionFeePaid = calculatePositionFee(sizeUsdRef.current, feeBps);
-      const currentMarketConfig = MARKETS[marketRef.current];
-
-      // Calculate liquidation price at open
-      const liquidationPrice = calculateLiquidationPrice(
-        directionRef.current,
-        fillPrice,
-        collateralUsdRef.current,
-        sizeUsdRef.current,
-        currentMarketConfig.maintenanceMarginBps,
-        positionFeePaid,
-        usd(0) // No accrued fees at open
-      );
-
-      // Step 3: Create position
-      const position: Position = {
-        id: generatePositionId(marketRef.current, directionRef.current),
-        market: marketRef.current,
-        direction: directionRef.current,
-        collateralUsd: collateralUsdRef.current,
-        leverage: leverageRef.current,
-        sizeUsd: sizeUsdRef.current,
-        entryPrice: fillPrice,
-        acceptablePrice,
-        liquidationPrice,
-        positionFeeBps: feeBps,
-        positionFeePaid,
-        borrowFeeAccrued: usd(0),
-        fundingFeeAccrued: usd(0),
-        openedAt: timestamp(Date.now()),
-        confirmedAt: timestamp(Date.now()),
-        status: "active",
-      };
-
-      onSubmitRef.current(position);
-      onStatusChangeRef.current("filled");
-    };
-
-    runKeeper();
-
-    return () => {
-      cancelled = true;
-    };
-    // We intentionally only depend on orderStatus so this effect
-    // only fires when the status transitions to "submitted".
-    // All other values are accessed via refs to avoid re-triggering.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderStatus]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -233,6 +81,8 @@ function SubmitOrderButtonInner({
           bgClass: "bg-blue-primary",
           showSpinner: true,
         };
+      // Keeper states are handled by KeeperWaitScreen, not this button.
+      // But we still need fallback states in case the button is visible.
       case "submitted":
       case "keeper_step_1":
       case "keeper_step_2":
@@ -262,7 +112,6 @@ function SubmitOrderButtonInner({
           showSpinner: false,
         };
       default: {
-        // idle or other — show actionable states
         if (collateralUsd <= 0) {
           return {
             text: "Enter Amount",
