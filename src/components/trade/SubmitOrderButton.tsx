@@ -1,14 +1,15 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef } from "react";
 import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, PriceData, MarketInfo } from "@/types";
-import { usd, price, timestamp } from "@/lib/branded";
+import { usd, timestamp } from "@/lib/branded";
 import { formatUSD } from "@/lib/format";
 import { isValidTransition } from "@/types";
 import {
   calculatePositionSize,
   calculatePositionFee,
   calculateAcceptablePrice,
+  calculateLiquidationPrice,
   determineFillPrice,
 } from "@/lib/calculations";
 import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, generatePositionId } from "@/lib/constants";
@@ -71,6 +72,13 @@ function SubmitOrderButtonInner({
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
   const isLong = direction === "long";
 
+  // ─── Ref to track current order status inside async callback ──
+  // The async handleSubmit captures `orderStatus` from the closure,
+  // which goes stale after the first `await`. We track the real-time
+  // status via a ref that's updated by onStatusChange.
+  const statusRef = useRef<OrderStatus>(orderStatus);
+  statusRef.current = orderStatus;
+
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
   const insufficientBalance = collateralUsd > balance;
@@ -82,35 +90,39 @@ function SubmitOrderButtonInner({
     collateralUsd > 0 &&
     (orderStatus === "idle" || orderStatus === "failed");
 
+  // ─── Safe status transition helper ──────────────────────
+  // Uses the ref (current state) instead of stale closure value
+  const tryTransition = useCallback(
+    (to: OrderStatus) => {
+      if (isValidTransition(statusRef.current, to)) {
+        onStatusChange(to);
+        return true;
+      }
+      console.warn(
+        `[SubmitOrder] Invalid transition: ${statusRef.current} → ${to}. Skipping.`
+      );
+      return false;
+    },
+    [onStatusChange]
+  );
+
   // ─── Submit handler ─────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (!canSubmit || !priceData || priceData.last <= 0) return;
 
     // Step 1: Approving (simulated — we auto-approve in paper trading)
-    if (isValidTransition(orderStatus, "approving")) {
-      onStatusChange("approving");
-    }
-
-    // Simulate approval delay (500ms)
+    tryTransition("approving");
     await new Promise((r) => setTimeout(r, 500));
 
     // Step 2: Approved
-    if (isValidTransition(orderStatus, "approved")) {
-      onStatusChange("approved");
-    }
+    tryTransition("approved");
 
     // Step 3: Signing (simulated)
-    if (isValidTransition(orderStatus, "signing")) {
-      onStatusChange("signing");
-    }
-
-    // Simulate signing delay (300ms)
+    tryTransition("signing");
     await new Promise((r) => setTimeout(r, 300));
 
     // Step 4: Submitted
-    if (isValidTransition(orderStatus, "submitted")) {
-      onStatusChange("submitted");
-    }
+    tryTransition("submitted");
 
     // Step 5: Keeper steps (simulated)
     if (simulateKeeperDelay) {
@@ -119,18 +131,12 @@ function SubmitOrderButtonInner({
 
       for (let step = 1; step <= 4; step++) {
         await new Promise((r) => setTimeout(r, stepDelay));
-        const stepStatus = `keeper_step_${step}` as OrderStatus;
-        if (isValidTransition(orderStatus, stepStatus)) {
-          onStatusChange(stepStatus);
-        }
+        tryTransition(`keeper_step_${step}` as OrderStatus);
       }
     } else {
-      // No delay — instant keeper
+      // No delay — instant keeper steps
       for (let step = 1; step <= 4; step++) {
-        const stepStatus = `keeper_step_${step}` as OrderStatus;
-        if (isValidTransition(orderStatus, stepStatus)) {
-          onStatusChange(stepStatus);
-        }
+        tryTransition(`keeper_step_${step}` as OrderStatus);
       }
     }
 
@@ -139,6 +145,17 @@ function SubmitOrderButtonInner({
     const acceptablePrice = calculateAcceptablePrice(fillPrice, SLIPPAGE_OPEN_BPS, direction, false);
     const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
     const positionFeePaid = calculatePositionFee(sizeUsd, feeBps);
+
+    // Calculate liquidation price at open (position fee reduces effective collateral)
+    const liquidationPrice = calculateLiquidationPrice(
+      direction,
+      fillPrice,
+      collateralUsd,
+      sizeUsd,
+      marketConfig.maintenanceMarginBps,
+      positionFeePaid, // Position fee reduces effective collateral
+      usd(0)           // No accrued fees at open
+    );
 
     const position: import("@/types").Position = {
       id: generatePositionId(market, direction),
@@ -149,29 +166,29 @@ function SubmitOrderButtonInner({
       sizeUsd,
       entryPrice: fillPrice,
       acceptablePrice,
-      liquidationPrice: price(0), // Will be computed by the trade page using OrderSummary
+      liquidationPrice,
       positionFeeBps: feeBps,
       positionFeePaid,
       borrowFeeAccrued: usd(0),
       fundingFeeAccrued: usd(0),
       openedAt: timestamp(Date.now()),
-      confirmedAt: timestamp(Date.now()),
+      confirmedAt: timestamp(Date.now()), // Keeper confirmed the fill
       status: "active",
     };
 
     onSubmit(position);
-    onStatusChange("filled");
+    tryTransition("filled");
   }, [
     canSubmit,
     priceData,
-    orderStatus,
     direction,
     market,
     collateralUsd,
     sizeUsd,
     marketInfo,
+    marketConfig.maintenanceMarginBps,
     simulateKeeperDelay,
-    onStatusChange,
+    tryTransition,
     onSubmit,
   ]);
 
@@ -214,6 +231,14 @@ function SubmitOrderButtonInner({
           showSpinner: false,
         };
       default: {
+        // Spec 3.6 states: "Enter amount" → "Approve USDC first" → "Open Long $500"
+        if (collateralUsd <= 0) {
+          return {
+            text: "Enter Amount",
+            bgClass: "bg-border-primary cursor-not-allowed",
+            showSpinner: false,
+          };
+        }
         if (insufficientBalance) {
           return {
             text: "Insufficient Balance",

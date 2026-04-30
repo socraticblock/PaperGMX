@@ -133,6 +133,7 @@ export function calculateNetPnl(
  * @param collateralUsd - Collateral amount
  * @param sizeUsd - Position size
  * @param maintenanceMarginBps - Maintenance margin in BPS (50 or 100)
+ * @param positionFee - Position fee paid at open (deducted from effective collateral)
  * @param accruedFees - Total accrued fees (borrow + funding)
  */
 export function calculateLiquidationPrice(
@@ -141,6 +142,7 @@ export function calculateLiquidationPrice(
   collateralUsd: USD,
   sizeUsd: USD,
   maintenanceMarginBps: BPS,
+  positionFee: USD,
   accruedFees: USD
 ): Price {
   if (entryPrice <= 0) throw new Error(`Invalid entry price: ${entryPrice}`);
@@ -148,13 +150,22 @@ export function calculateLiquidationPrice(
   if (sizeUsd <= 0) throw new Error(`Invalid size: ${sizeUsd}`);
 
   const maintenanceMargin = bpsToDecimal(maintenanceMarginBps);
-  const effectiveCollateral = collateralUsd - accruedFees - sizeUsd * maintenanceMargin;
+  // GMX V2: effectiveCollateral = collateral - positionFee - accruedFees - maintenanceMargin
+  // Position fee is deducted from collateral at open in GMX V2
+  const effectiveCollateral = collateralUsd - positionFee - accruedFees - sizeUsd * maintenanceMargin;
 
   if (direction === "long") {
+    // Long liq: price drops so that collateral is wiped out
     const liqPrice = entryPrice * (1 - effectiveCollateral / sizeUsd);
-    return price(Math.max(0, liqPrice));
+    // If liqPrice <= 0, position is already underwater — return a tiny positive sentinel
+    // This shouldn't happen in normal trading but protects against crash
+    if (liqPrice <= 0) return price(0.01);
+    return price(liqPrice);
   } else {
+    // Short liq: price rises so that collateral is wiped out
     const liqPrice = entryPrice * (1 + effectiveCollateral / sizeUsd);
+    // If effectiveCollateral is very negative, liqPrice could be negative or 0
+    if (liqPrice <= 0) return price(0.01);
     return price(liqPrice);
   }
 }

@@ -16,6 +16,10 @@
  * - After 5 consecutive GMX API failures, circuit opens for 60 seconds
  * - During circuit open, Binance is the sole source
  * - After cooldown, GMX is retried automatically
+ * 
+ * Singleton guard:
+ * - Only one price service can run at a time across the entire app
+ * - Prevents duplicate intervals on React StrictMode or page transitions
  */
 
 import type { MarketSlug } from "@/types";
@@ -37,6 +41,8 @@ let binanceCleanup: (() => void) | null = null;
 
 let lastSuccessfulGmxFetch = 0;
 let isBinanceActive = false;
+let isServiceRunning = false; // Singleton guard
+let isPolling = false; // Prevent overlapping polls
 
 type PriceUpdateCallback = (prices: Record<MarketSlug, ParsedMarketPrice>) => void;
 type MarketInfoCallback = (info: Record<MarketSlug, ParsedMarketInfo>) => void;
@@ -51,17 +57,34 @@ let onStatusChange: StatusCallback | null = null;
 /**
  * Start the price service.
  * Begins polling GMX API and sets up Binance fallback.
+ * 
+ * SINGLETON: Only one instance can run at a time.
+ * Calling startPriceService while already running is a no-op
+ * but updates the callbacks to the latest caller.
  */
 export function startPriceService(callbacks: {
   onPriceUpdate: PriceUpdateCallback;
   onMarketInfoUpdate: MarketInfoCallback;
   onStatusChange: StatusCallback;
 }): () => void {
+  // Update callbacks even if already running (page transitions)
   onPriceUpdate = callbacks.onPriceUpdate;
   onMarketInfoUpdate = callbacks.onMarketInfoUpdate;
   onStatusChange = callbacks.onStatusChange;
 
+  // Singleton guard — prevent duplicate intervals
+  if (isServiceRunning) {
+    console.info("[PriceService] Already running, updating callbacks");
+    return stopPriceService;
+  }
+
+  isServiceRunning = true;
   console.info("[PriceService] Starting...");
+
+  // Initialize timestamp to now (not 0) to prevent "degraded" flash on cold start
+  if (lastSuccessfulGmxFetch === 0) {
+    lastSuccessfulGmxFetch = Date.now();
+  }
 
   // Initial fetch immediately
   pollPrices();
@@ -97,6 +120,7 @@ function stopPriceService(): void {
   }
 
   isBinanceActive = false;
+  isServiceRunning = false;
   onPriceUpdate = null;
   onMarketInfoUpdate = null;
   onStatusChange = null;
@@ -127,6 +151,10 @@ export function getConnectionStatus(): ApiConnectionStatus {
 // ─── Internal Polling ─────────────────────────────────────
 
 async function pollPrices(): Promise<void> {
+  // Prevent overlapping requests during slow API
+  if (isPolling) return;
+  isPolling = true;
+
   try {
     const prices = await fetchMarketPrices();
     lastSuccessfulGmxFetch = Date.now();
@@ -153,6 +181,8 @@ async function pollPrices(): Promise<void> {
     }
 
     onStatusChange?.(getConnectionStatus());
+  } finally {
+    isPolling = false;
   }
 }
 

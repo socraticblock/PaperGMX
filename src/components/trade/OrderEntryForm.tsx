@@ -5,7 +5,6 @@ import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import type { OrderDirection, MarketSlug, Position, USD } from "@/types";
 import { usd } from "@/lib/branded";
-import { calculateLiquidationPrice } from "@/lib/calculations";
 import { MARKETS } from "@/lib/constants";
 import DirectionToggle from "./DirectionToggle";
 import CollateralInput from "./CollateralInput";
@@ -30,6 +29,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     prices,
     marketInfo,
     simulateKeeperDelay,
+    lockCollateral,
     setActivePosition,
     setOrderStatus,
   } = usePaperStore(
@@ -40,6 +40,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       prices: s.prices,
       marketInfo: s.marketInfo,
       simulateKeeperDelay: s.simulateKeeperDelay,
+      lockCollateral: s.lockCollateral,
       setActivePosition: s.setActivePosition,
       setOrderStatus: s.setOrderStatus,
     }))
@@ -51,7 +52,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const [leverage, setLeverage] = useState(5);
 
   // ─── Derived data ───────────────────────────────────────
-  const marketConfig = MARKETS[market];
   const priceData = prices[market];
   const info = marketInfo[market];
   const hasActivePosition = activePosition !== null;
@@ -67,22 +67,13 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
 
   const handleSubmit = useCallback(
     (position: Position) => {
-      // Calculate liquidation price and store position
-      const liqPrice = calculateLiquidationPrice(
-        position.direction,
-        position.entryPrice,
-        position.collateralUsd,
-        position.sizeUsd,
-        marketConfig.maintenanceMarginBps,
-        usd(0) // No accrued fees at open
-      );
-
-      setActivePosition({
-        ...position,
-        liquidationPrice: liqPrice,
-      });
+      // Lock collateral (deduct from available balance)
+      // GMX deducts full collateral when position opens.
+      // Position fee is taken from collateral within the protocol.
+      lockCollateral(position.collateralUsd);
+      setActivePosition(position);
     },
-    [marketConfig.maintenanceMarginBps, setActivePosition]
+    [lockCollateral, setActivePosition]
   );
 
   const handleStatusChange = useCallback(

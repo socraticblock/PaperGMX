@@ -4,7 +4,7 @@ import { memo, useCallback } from "react";
 import type { USD } from "@/types";
 import { usd } from "@/lib/branded";
 import { formatUSD } from "@/lib/format";
-import { MIN_TRADE_AMOUNT } from "@/lib/constants";
+import { MIN_TRADE_AMOUNT, AMOUNT_PRESETS } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -14,15 +14,6 @@ export interface CollateralInputProps {
   onChange: (value: USD) => void;
   disabled?: boolean;
 }
-
-// ─── Percent Presets ──────────────────────────────────────
-
-const PERCENT_PRESETS = [
-  { label: "10%", fraction: 0.1 },
-  { label: "25%", fraction: 0.25 },
-  { label: "50%", fraction: 0.5 },
-  { label: "100%", fraction: 1.0 },
-] as const;
 
 // ─── Component ────────────────────────────────────────────
 
@@ -47,9 +38,9 @@ function CollateralInputInner({
     [onChange, balance]
   );
 
-  const handlePercentClick = useCallback(
-    (fraction: number) => {
-      onChange(usd(Math.floor(balance * fraction * 100) / 100));
+  const handlePresetClick = useCallback(
+    (amount: number) => {
+      onChange(usd(Math.min(amount, balance)));
     },
     [onChange, balance]
   );
@@ -121,16 +112,16 @@ function CollateralInputInner({
         </p>
       )}
 
-      {/* Percent preset buttons */}
+      {/* Dollar amount preset buttons — per spec 3.2 */}
       <div className="mt-2 flex gap-2">
-        {PERCENT_PRESETS.map((preset) => (
+        {AMOUNT_PRESETS.map((preset) => (
           <button
-            key={preset.label}
-            onClick={() => handlePercentClick(preset.fraction)}
-            disabled={disabled || balance <= 0}
+            key={preset}
+            onClick={() => handlePresetClick(preset)}
+            disabled={disabled || balance < preset}
             className="flex-1 rounded-lg border border-border-primary bg-bg-card py-1.5 text-xs font-medium text-text-secondary transition-colors hover:border-blue-primary/40 hover:text-blue-primary disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {preset.label}
+            ${preset}
           </button>
         ))}
       </div>

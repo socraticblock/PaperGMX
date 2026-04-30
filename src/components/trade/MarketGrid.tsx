@@ -18,6 +18,27 @@ const STATUS_CONFIG: Record<ApiConnectionStatus, { label: string; color: string 
   disconnected: { label: "Offline", color: "bg-red-primary" },
 };
 
+// ─── Skeleton Card ────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl border border-border-primary bg-bg-card p-5 animate-pulse">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="h-8 w-8 rounded-full bg-bg-input" />
+        <div>
+          <div className="h-4 w-20 rounded bg-bg-input mb-1" />
+          <div className="h-3 w-28 rounded bg-bg-input" />
+        </div>
+      </div>
+      <div className="h-7 w-32 rounded bg-bg-input mb-3" />
+      <div className="flex justify-between">
+        <div className="h-3 w-16 rounded bg-bg-input" />
+        <div className="h-3 w-16 rounded bg-bg-input" />
+      </div>
+    </div>
+  );
+}
+
 function MarketGridInner({ onSelectMarket }: MarketGridProps) {
   const connectionStatus = usePaperStore(useShallow((s) => s.connectionStatus));
   const pricesLoaded = usePaperStore(useShallow((s) => s.pricesLoaded));
@@ -38,7 +59,14 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
         </div>
       </div>
 
-      {/* Stale/Fallback warning */}
+      {/* Stale/Fallback/Disconnected warnings */}
+      {connectionStatus === "degraded" && (
+        <div className="mb-4 rounded-lg border border-yellow-primary/30 bg-yellow-bg p-3">
+          <p className="text-xs text-yellow-primary">
+            GMX API is responding slowly. Prices may be stale.
+          </p>
+        </div>
+      )}
       {connectionStatus === "fallback" && (
         <div className="mb-4 rounded-lg border border-yellow-primary/30 bg-yellow-bg p-3">
           <p className="text-xs text-yellow-primary">
@@ -54,23 +82,19 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
         </div>
       )}
 
-      {/* Market cards grid */}
+      {/* Market cards grid — skeleton while loading, real cards after */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {MARKET_SLUGS.map((slug) => (
-          <MarketCard
-            key={slug}
-            slug={slug as MarketSlug}
-            onClick={onSelectMarket}
-          />
-        ))}
+        {!pricesLoaded
+          ? MARKET_SLUGS.map((slug) => <SkeletonCard key={slug} />)
+          : MARKET_SLUGS.map((slug) => (
+              <MarketCard
+                key={slug}
+                slug={slug as MarketSlug}
+                onClick={onSelectMarket}
+              />
+            ))
+        }
       </div>
-
-      {/* Loading state */}
-      {!pricesLoaded && connectionStatus === "connected" && (
-        <div className="mt-4 text-center">
-          <p className="text-sm text-text-muted animate-pulse">Loading prices...</p>
-        </div>
-      )}
     </div>
   );
 }

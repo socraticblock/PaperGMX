@@ -6,18 +6,27 @@ import { startPriceService } from "@/lib/api/priceService";
 import type { MarketSlug } from "@/types";
 import type { ParsedMarketPrice, ParsedMarketInfo, ApiConnectionStatus } from "@/lib/api/types";
 import { price, usd, bps, percent } from "@/lib/branded";
+import { calculatePriceChangePercent } from "@/lib/api/gmxPrice";
 
 /**
  * Hook that manages the price service lifecycle.
  * Starts polling when mounted, stops when unmounted.
  * Updates the Zustand store with price data.
  * 
+ * Tracks 24h price change by storing the first price seen on each
+ * session and computing the percentage change from that baseline.
+ * 
  * Only ONE instance of this hook should be active at a time.
- * Use in the root layout or the market selection page.
+ * The priceService.ts singleton guard ensures this.
  */
 export function usePriceService(): void {
   const cleanupRef = useRef<(() => void) | null>(null);
   const isRunningRef = useRef(false);
+
+  // Store first-seen prices for 24h change calculation
+  // In a production app, this would use actual 24h-old prices from an API.
+  // Since GMX doesn't provide 24h change, we track from session start.
+  const sessionStartPrices = useRef<Partial<Record<MarketSlug, number>>>({});
 
   const setPrices = usePaperStore((s) => s.setPrices);
   const setMarketInfo = usePaperStore((s) => s.setMarketInfo);
@@ -33,11 +42,28 @@ export function usePriceService(): void {
         const brandedPrices = {} as Record<MarketSlug, import("@/types").PriceData>;
 
         for (const [slug, data] of Object.entries(rawPrices)) {
+          const midPrice = data.midPrice;
+
+          // Record first-seen price as baseline for change calculation
+          if (!(slug in sessionStartPrices.current) && midPrice > 0) {
+            sessionStartPrices.current[slug as MarketSlug] = midPrice;
+          }
+
+          // Calculate change from session start
+          let change24h = percent(0);
+          const startPrice = sessionStartPrices.current[slug as MarketSlug];
+          if (startPrice && startPrice > 0 && midPrice > 0) {
+            change24h = calculatePriceChangePercent(
+              price(midPrice),
+              price(startPrice)
+            );
+          }
+
           brandedPrices[slug as MarketSlug] = {
             min: price(data.minPrice),
             max: price(data.maxPrice),
-            last: price(data.midPrice),
-            change24h: percent(0), // Calculated from price history tracking
+            last: price(midPrice),
+            change24h,
           };
         }
 

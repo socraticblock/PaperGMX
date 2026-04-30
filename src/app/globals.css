@@ -3,8 +3,8 @@
 @theme inline {
   /* GMX Color Palette */
   --color-bg-primary: #0a0a0f;
-  --color-bg-card: #14141f;
-  --color-bg-card-hover: #1a1a2e;
+  --color-bg-card: #1a1a2e;
+  --color-bg-card-hover: #222240;
   --color-bg-input: #0f0f1a;
   --color-border-primary: #2a2a3e;
   --color-border-hover: #3a3a4e;

@@ -1,5 +1,5 @@
 import type { USD, Price } from "@/lib/branded";
-import { usd } from "@/lib/branded";
+import { usd, price } from "@/lib/branded";
 
 // ─── Input Validation ─────────────────────────────────────
 
@@ -63,7 +63,8 @@ export function validatePrice(value: number, context: string = "price"): Price {
   if (value <= 0) {
     throw new Error(`Invalid ${context}: must be positive (${value})`);
   }
-  return value as Price;
+  // Use the branded constructor for runtime validation consistency
+  return price(value);
 }
 
 /**

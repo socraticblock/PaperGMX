@@ -54,6 +54,8 @@ export function connectBinanceWs(callback: PriceCallback): () => void {
 
       ws.onopen = () => {
         isConnected = true;
+        // Clear stale prices from previous connection
+        lastPrices = {};
         console.info("[BinanceWS] Connected");
       };
 

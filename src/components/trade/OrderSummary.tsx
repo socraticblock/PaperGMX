@@ -107,7 +107,8 @@ function OrderSummaryInner({
       collateralUsd,
       sizeUsd,
       maintenanceMarginBps,
-      usd(0) // No accrued fees at open
+      positionFee, // Position fee reduces effective collateral
+      usd(0)       // No accrued fees at open
     );
 
     // Hourly borrow fee estimate
@@ -224,6 +225,21 @@ function OrderSummaryInner({
           value={formatPercent(calculations.spread)}
           tooltip="Difference between min/max oracle prices"
         />
+
+        {/* Total Cost (spec 3.4) */}
+        <SummaryRow
+          label="Total Cost"
+          value={formatUSD(collateralUsd + calculations.positionFee)}
+          tooltip={`Collateral (${formatUSD(collateralUsd)}) + Position Fee (${formatUSD(calculations.positionFee)})`}
+          valueColor="text-text-primary"
+        />
+      </div>
+
+      {/* Disclaimer banner (spec 3.12) */}
+      <div className="mt-3 rounded-lg border border-border-primary/50 bg-bg-input px-3 py-2">
+        <p className="text-[10px] text-text-muted leading-relaxed text-center">
+          This is a simulation. Same prices & fees as GMX V2, no real risk.
+        </p>
       </div>
     </div>
   );
