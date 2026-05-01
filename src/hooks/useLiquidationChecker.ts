@@ -47,18 +47,16 @@ export function useLiquidationChecker(
   // Ref to prevent double-liquidation
   const liquidationTriggered = useRef(false);
 
-  // Refs to access latest values inside callbacks without re-subscribing
+  // Refs to access latest values inside callbacks without re-subscribing.
+  // Updated during render (not in effect) to avoid stale-value gaps between
+  // the position changing and the effect running — same pattern as
+  // useKeeperExecution.
   const pnlRef = useRef(pnl);
+  // eslint-disable-next-line react-hooks/refs
+  pnlRef.current = pnl;
   const positionRef = useRef(position);
-
-  // Update refs in effects (not during render)
-  useEffect(() => {
-    pnlRef.current = pnl;
-  }, [pnl]);
-
-  useEffect(() => {
-    positionRef.current = position;
-  }, [position]);
+  // eslint-disable-next-line react-hooks/refs
+  positionRef.current = position;
 
   const triggerLiquidation = useCallback(() => {
     const pos = positionRef.current;

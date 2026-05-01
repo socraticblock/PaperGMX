@@ -183,15 +183,16 @@ export function calculateLiquidationPrice(
   if (direction === "long") {
     // Long liq: price drops so that collateral is wiped out
     const liqPrice = entryPrice * (1 - effectiveCollateral / sizeUsd);
-    // If liqPrice <= 0, position is already underwater — return a tiny positive sentinel
-    // This shouldn't happen in normal trading but protects against crash
-    if (liqPrice <= 0) return price(0.01);
+    // If liqPrice <= 0, position is already underwater — return 0 as "no
+    // valid liquidation price" signal. Downstream consumers check for <= 0.
+    // Longs with liqPrice <= 0 are overcollateralized (can't be liquidated).
+    if (liqPrice <= 0) return 0 as Price;
     return price(liqPrice);
   } else {
     // Short liq: price rises so that collateral is wiped out
     const liqPrice = entryPrice * (1 + effectiveCollateral / sizeUsd);
     // If effectiveCollateral is very negative, liqPrice could be negative or 0
-    if (liqPrice <= 0) return price(0.01);
+    if (liqPrice <= 0) return 0 as Price;
     return price(liqPrice);
   }
 }

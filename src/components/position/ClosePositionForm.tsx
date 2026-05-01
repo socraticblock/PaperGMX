@@ -177,18 +177,29 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     (reason: ClosedTrade["closeReason"]) => {
       setSelectedReason(reason);
       if (is1ctMode) {
-        // 1CT skips wallet signing entirely. Creating the close order consumes
-        // one action per the 90-action / 7-day session rule.
+        // 1CT skips wallet signing entirely. Go straight to submitted.
+        // NOTE: We do NOT decrement the 1CT action quota here — the quota
+        // should only burn when the close actually succeeds. A useEffect
+        // below handles the decrement when orderStatus reaches "filled".
         setOrderStatus("submitted");
-        decrementOneClickActions();
         return;
       }
 
       // Classic close doesn't require token approval — only signing.
       setOrderStatus("signing");
     },
-    [decrementOneClickActions, is1ctMode, setOrderStatus]
+    [is1ctMode, setOrderStatus]
   );
+
+  // Decrement 1CT action quota only after a successful close.
+  // This mirrors the same pattern used in SubmitOrderButton — the quota
+  // should only burn when the order actually fills, not on button click,
+  // so that failed/cancelled orders don't waste the action budget.
+  useEffect(() => {
+    if (orderStatus === "filled" && is1ctMode) {
+      decrementOneClickActions();
+    }
+  }, [orderStatus, is1ctMode, decrementOneClickActions]);
 
   const handleResultDismiss = useCallback(() => {
     dismissOrderResult(); // filled/failed/cancelled → idle

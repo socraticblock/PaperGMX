@@ -202,7 +202,7 @@ describe("calculateLiquidationPrice", () => {
     expect(liqPriceWithLiqFee).toBeGreaterThan(liqPriceNoLiqFee);
   });
 
-  it("short liquidation returns sentinel when underwater (negative effective collateral)", () => {
+  it("short liquidation returns 0 when underwater (negative effective collateral)", () => {
     const liqPrice = calculateLiquidationPrice(
       "short",
       price(2000),
@@ -215,8 +215,9 @@ describe("calculateLiquidationPrice", () => {
     );
     // effectiveCollateral = 100 - 0 - (10000*0.002) - 15000 - 10000*0.005
     //                     = 100 - 20 - 15000 - 50 = -14970
-    // liqPrice = 2000 * (1 + (-14970)/10000) = 2000 * (-0.497) = -994 → sentinel 0.01
-    expect(liqPrice).toBe(0.01);
+    // liqPrice = 2000 * (1 + (-14970)/10000) = 2000 * (-0.497) = -994 → returns 0
+    // Zero signals "no valid liquidation price" — position is deeply insolvent
+    expect(liqPrice).toBe(0);
   });
 });
 

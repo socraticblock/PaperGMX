@@ -121,9 +121,9 @@ describe("parseGmxPrice", () => {
     expect(result).toBeGreaterThan(70000);
   });
 
-  it("returns minimum price for zero input", () => {
+  it("returns 0 for zero input (invalid price signal)", () => {
     const result = parseGmxPrice("0", 18);
-    expect(result).toBe(0.01); // Fallback minimum
+    expect(result).toBe(0); // Zero signals "no valid price" to downstream guards
   });
 });
 

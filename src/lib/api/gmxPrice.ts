@@ -73,12 +73,19 @@ export function parseGmxUsdValue(rawValue: string, tokenDecimals: number): USD {
 
 /**
  * Parse a GMX price string (minPrice or maxPrice) to a Price branded type.
- * Same as parseGmxUsdValue but enforces positive price.
+ * Returns 0 for invalid/zero prices instead of a positive sentinel.
+ * Downstream consumers check `priceData.last <= 0` to reject stale/missing
+ * data — a sentinel of 0.01 would pass that check, allowing garbage data
+ * to be treated as valid.
+ *
+ * Note: price(0) would throw (Price must be > 0), so we use a type cast
+ * for the zero case. The zero value is always checked before use as a Price.
  */
 export function parseGmxPrice(rawValue: string, tokenDecimals: number): Price {
   const value = parseGmxUsdValue(rawValue, tokenDecimals);
-  // Price must be positive — if zero or negative, return a tiny positive value
-  return value > 0 ? price(value) : price(0.01);
+  // Return 0 for zero/negative prices — downstream checks will reject them
+  // Use type cast since Price brand requires > 0, but 0 is a valid "no data" signal
+  return value > 0 ? price(value) : (0 as Price);
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type {
   OrderDirection,
@@ -44,10 +44,11 @@ export interface KeeperExecutionResult {
 // the self-cancellation bug that occurs when orderStatus changes trigger
 // effect re-runs.
 //
-// IMPORTANT: This hook does NOT use useEffect. The keeper is started
-// explicitly via the `start()` callback. This avoids the React effect
-// cleanup race condition where changing orderStatus cancels the running
-// async function.
+// IMPORTANT: The keeper is started explicitly via the `start()` callback,
+// NOT by a useEffect that watches orderStatus. This avoids the React
+// effect cleanup race condition where changing orderStatus cancels the
+// running async function. The only useEffect in this hook is for
+// cleaning up the confirmation timeout on unmount.
 
 export function useKeeperExecution(
   direction: OrderDirection,
@@ -94,6 +95,17 @@ export function useKeeperExecution(
   const orderTimeAcceptablePriceRef = useRef<Price | null>(null);
   // Track confirmation timeout for cleanup on unmount
   const confirmationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up confirmation timeout on unmount to prevent stale state updates
+  // after the component is gone.
+  useEffect(() => {
+    return () => {
+      if (confirmationTimeoutRef.current) {
+        clearTimeout(confirmationTimeoutRef.current);
+        confirmationTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // ─── Start keeper execution ──────────────────────────────
   const start = useCallback((orderTimeAcceptablePrice: Price) => {

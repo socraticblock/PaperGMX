@@ -114,9 +114,20 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
 
   const handleLiquidationDismiss = useCallback(() => {
     if (lastTrade) {
-      setDismissedLiquidationIds((prev) => new Set([...prev, lastTrade.id]));
+      setDismissedLiquidationIds((prev) => {
+        const next = new Set([...prev, lastTrade.id]);
+        // Prune: only keep IDs that still exist in trade history to prevent
+        // unbounded growth over many sessions.
+        if (next.size > 20) {
+          const historyIds = new Set(tradeHistory.slice(0, 20).map((t) => t.id));
+          for (const id of next) {
+            if (!historyIds.has(id)) next.delete(id);
+          }
+        }
+        return next;
+      });
     }
-  }, [lastTrade]);
+  }, [lastTrade, tradeHistory]);
 
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");

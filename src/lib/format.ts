@@ -40,7 +40,8 @@ export function formatUSDCompact(amount: number): string {
  * Format a percentage value
  */
 export function formatPercent(value: number, decimals: number = 2): string {
-  const sign = value >= 0 ? "+" : "";
+  if (Math.abs(value) < 0.005) return `${(0).toFixed(decimals)}%`; // Show "0.00%" instead of "+0.00%"
+  const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(decimals)}%`;
 }
 

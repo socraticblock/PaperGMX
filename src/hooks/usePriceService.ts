@@ -105,13 +105,10 @@ export function usePriceService(): void {
           };
         }
 
-        const hasAllMarkets = MARKET_SLUGS.every((slug) => brandedInfo[slug]);
-        if (hasAllMarkets) {
-          setMarketInfo(brandedInfo);
-        } else {
-          const existing = usePaperStore.getState().marketInfo;
-          setMarketInfo({ ...existing, ...brandedInfo });
-        }
+        // Always merge with existing info — GMX API may return partial data
+        // for some markets, and Binance fallback never provides market info.
+        const existing = usePaperStore.getState().marketInfo;
+        setMarketInfo({ ...existing, ...brandedInfo });
       },
       onStatusChange: (status: ApiConnectionStatus) => {
         setConnectionStatus(status);

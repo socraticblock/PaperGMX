@@ -34,6 +34,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let priceCallback: PriceCallback | null = null;
 let lastPrices: Record<string, number> = {};
 let isConnected = false;
+let isCleanedUp = false; // Guard against zombie reconnects after cleanup
 
 /**
  * Connect to Binance combined stream WebSocket.
@@ -41,6 +42,7 @@ let isConnected = false;
  */
 export function connectBinanceWs(callback: PriceCallback): () => void {
   priceCallback = callback;
+  isCleanedUp = false; // Reset on new connection
 
   const streams = Object.values(BINANCE_SYMBOLS)
     .map((s) => `${s}@miniTicker`)
@@ -51,6 +53,9 @@ export function connectBinanceWs(callback: PriceCallback): () => void {
   const url = `wss://stream.binance.com:9443/stream?streams=${streams}`;
 
   function connect() {
+    // Don't reconnect if the connection was cleaned up
+    if (isCleanedUp) return;
+
     // Close any existing WebSocket before creating a new one
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       ws.onclose = null; // Prevent reconnect
@@ -96,7 +101,11 @@ export function connectBinanceWs(callback: PriceCallback): () => void {
 
   // Return cleanup function
   return () => {
-    if (reconnectTimer) clearTimeout(reconnectTimer);
+    isCleanedUp = true; // Prevent zombie reconnects
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (ws) {
       ws.onclose = null; // Prevent reconnect
       ws.close();

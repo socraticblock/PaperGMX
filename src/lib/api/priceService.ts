@@ -141,6 +141,11 @@ function stopPriceService(): void {
 
   isBinanceActive = false;
   isServiceRunning = false;
+  isPolling = false;
+  // Reset timing state so a restarted service doesn't report stale
+  // "connected" status based on a previous session's successful fetch.
+  lastSuccessfulGmxFetch = 0;
+  gmxOutageStartedAt = null;
   onPriceUpdate = null;
   onMarketInfoUpdate = null;
   onStatusChange = null;
