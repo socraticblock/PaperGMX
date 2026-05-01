@@ -332,6 +332,14 @@ export async function fetchMarketInfo(): Promise<
     // we default to 6 (conservative) — the keeper resolves the actual fee.
     const positionFeeBps = 6;
 
+    // GMX V2: maxPnlFactorForTraders caps positive trader PnL as a
+    // fraction of sizeUsd. The on-chain default is 0.5 (50%).
+    // TODO: Fetch from Reader contract when available via API.
+    // Currently the GMX API doesn't expose this directly, so we use
+    // the on-chain default. The positionEngine will fall back to this
+    // default if the field is missing or zero.
+    const maxPnlFactorForTraders = 0.5;
+
     result[slug] = {
       marketSlug: slug,
       name: validated.name,
@@ -348,6 +356,7 @@ export async function fetchMarketInfo(): Promise<
       fundingRateLongAnnualized,
       fundingRateShortAnnualized,
       positionFeeBps,
+      maxPnlFactorForTraders,
     };
   }
 

@@ -12,8 +12,10 @@ import {
 import {
   calculateHourlyBorrowFeeForPosition,
   getMarkPrice,
+  getMaxPnlFactorForTraders,
   getPositionFeeBps,
   getWorstClosePrice,
+  capPositivePnl,
 } from "@/lib/positionEngine";
 import { MARKETS } from "@/lib/constants";
 
@@ -99,8 +101,11 @@ export function usePositionPnl(
       priceData,
     );
 
+    // Market info for fee rates and PnL cap
+    const info = marketInfo?.[position.market];
+
     // Gross P&L using exit price = current oracle mid price
-    const grossPnl = calculateGrossPnl(
+    let grossPnl = calculateGrossPnl(
       position.direction,
       position.entryPrice,
       currentPrice,
@@ -108,9 +113,13 @@ export function usePositionPnl(
       position.sizeInTokens,
     );
 
+    // GMX V2: Cap positive PnL at sizeUsd * maxPnlFactorForTraders.
+    // This only clips profits; losses pass through unmodified.
+    const maxPnlFactor = getMaxPnlFactorForTraders(info);
+    grossPnl = capPositivePnl(grossPnl, position.sizeUsd, maxPnlFactor);
+
     // Estimate closing position fee using current OI balance
     // GMX V2: close fee BPS is determined at close time based on OI
-    const info = marketInfo?.[position.market];
     const closeFeeBps = getPositionFeeBps(position.direction, true, info);
     const positionFeeClose = calculatePositionFee(position.sizeUsd, closeFeeBps);
 

@@ -115,6 +115,10 @@ export interface ClosedTrade {
   fundingFeeTotal: USD;
   netPnl: USD;
   grossPnl: USD;
+  /** Gross PnL before the maxPnlFactorForTraders cap (same as grossPnl if uncapped) */
+  grossPnlUncapped: USD;
+  /** Amount clipped off by maxPnlFactorForTraders (0 if not capped) */
+  pnlCappedAmount: USD;
   returnedCollateral: USD;
   openedAt: Timestamp;
   closedAt: Timestamp;
@@ -144,6 +148,13 @@ export interface MarketInfo {
   fundingRateLongAnnualized: number; // annualized % (for display)
   fundingRateShortAnnualized: number; // annualized % (for display)
   positionFeeBps: BPS; // 4 or 6 BPS depending on OI balance
+
+  // ─── GMX V2 per-market factors (from Reader contract) ───
+  /** Caps positive trader PnL as fraction of sizeUsd. GMX default: 0.5 (50%). */
+  maxPnlFactorForTraders: number;
+  /** Whether the pool's balance improved after the trade (for fee classification). */
+  // Note: balanceWasImproved is computed at trade time, not stored on MarketInfo.
+  // See positionEngine.determineBalanceWasImproved() for the before/after delta logic.
 }
 
 // ─── 1CT ──────────────────────────────────────────────────

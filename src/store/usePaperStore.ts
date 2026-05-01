@@ -20,7 +20,10 @@ import type {
 import { usd, timestamp, addUSD, subUSD } from "@/lib/branded";
 import { isValidTransition } from "@/types";
 import { validateBalanceAmount } from "@/lib/validation";
-import { calculateClosePosition } from "@/lib/calculations";
+import {
+  calculateCloseSettlement,
+  getMaxPnlFactorForTraders,
+} from "@/lib/positionEngine";
 import {
   ONE_CLICK_MAX_ACTIONS,
   ONE_CLICK_DURATION_DAYS,
@@ -227,11 +230,15 @@ export const usePaperStore = create<PaperStoreState>()(
               // positionFeeBps if not provided (backward-compatible).
               const closeFeeBps = closeFeeBpsOverride ?? pos.positionFeeBps;
 
-              // Use pure calculation function — single source of truth
-              // Liquidation uses the same close calculator and returns any
-              // remaining collateral after realized PnL and fees.
-              const isLiquidation = closeReason === "liquidated";
-              const result = calculateClosePosition(
+              // GMX V2 waterfall settlement: PnL cap → PnL realize →
+              // funding → borrow → close fee → floor at zero.
+              // This replaces the old calculateClosePosition which didn't
+              // apply the maxPnlFactorForTraders cap or expose the
+              // settlement ordering.
+              const marketInfoEntry = state.marketInfo[pos.market];
+              const maxPnlFactor = getMaxPnlFactorForTraders(marketInfoEntry);
+
+              const settlement = calculateCloseSettlement(
                 pos.direction,
                 pos.entryPrice,
                 exitPrice,
@@ -241,8 +248,8 @@ export const usePaperStore = create<PaperStoreState>()(
                 closeFeeBps,
                 pos.borrowFeeAccrued,
                 pos.fundingFeeAccrued,
+                maxPnlFactor,
                 pos.sizeInTokens,
-                isLiquidation,
               );
 
               const closedTrade: ClosedTrade = {
@@ -256,12 +263,14 @@ export const usePaperStore = create<PaperStoreState>()(
                 exitPrice,
                 collateralUsd: pos.collateralUsd,
                 positionFeeOpen: pos.positionFeePaid,
-                positionFeeClose: result.positionFeeClose,
-                borrowFeeTotal: result.borrowFeeTotal,
-                fundingFeeTotal: result.fundingFeeTotal,
-                netPnl: result.netPnl,
-                grossPnl: result.grossPnl,
-                returnedCollateral: result.returnedCollateral,
+                positionFeeClose: settlement.positionFeeClose,
+                borrowFeeTotal: settlement.borrowFeeTotal,
+                fundingFeeTotal: settlement.fundingFeeTotal,
+                netPnl: settlement.netPnl,
+                grossPnl: settlement.grossPnl,
+                grossPnlUncapped: settlement.grossPnlUncapped,
+                pnlCappedAmount: settlement.pnlCappedAmount,
+                returnedCollateral: settlement.returnedCollateral,
                 openedAt: pos.openedAt,
                 closedAt: timestamp(Date.now()),
                 closeReason,
@@ -273,7 +282,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 // manages the state machine transition via setOrderStatus.
                 // Previously this set orderStatus: "idle" which bypassed the
                 // state machine and blocked the subsequent "filled" transition.
-                balance: addUSD(state.balance, result.returnedCollateral),
+                balance: addUSD(state.balance, settlement.returnedCollateral),
                 tradeHistory: [closedTrade, ...state.tradeHistory].slice(0, 100),
               };
             },

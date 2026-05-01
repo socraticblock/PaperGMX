@@ -72,6 +72,10 @@ export interface ParsedMarketInfo {
   fundingRateLongAnnualized: number; // annualized % for display
   fundingRateShortAnnualized: number; // annualized % for display
   positionFeeBps: number; // 4 or 6 BPS — TODO: dynamic at execution time based on OI balance
+
+  // ─── GMX V2 per-market factors ───
+  /** Max PnL factor for traders (fraction of sizeUsd). GMX on-chain default: 0.5 */
+  maxPnlFactorForTraders: number;
 }
 
 // Re-export ApiConnectionStatus from the central types module

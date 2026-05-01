@@ -109,6 +109,7 @@ export function usePriceService(): void {
             fundingRateLongAnnualized: data.fundingRateLongAnnualized,
             fundingRateShortAnnualized: data.fundingRateShortAnnualized,
             positionFeeBps: bps(data.positionFeeBps),
+            maxPnlFactorForTraders: data.maxPnlFactorForTraders,
           };
         }
 
