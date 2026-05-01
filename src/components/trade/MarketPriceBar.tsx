@@ -52,9 +52,8 @@ function MarketPriceBarInner({
         <div>
           {currentPrice > 0 ? (
             <motion.p
-              key={currentPrice}
-              initial={{ opacity: 0.7 }}
               animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
               className="text-lg font-bold text-text-primary tabular-nums"
             >
               ${formatPrice(currentPrice, marketConfig.decimals)}

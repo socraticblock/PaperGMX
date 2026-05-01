@@ -16,7 +16,7 @@ import type {
   MarketInfo,
   ApiConnectionStatus,
 } from "@/types";
-import { usd, timestamp } from "@/lib/branded";
+import { usd, timestamp, addUSD } from "@/lib/branded";
 import { isValidTransition } from "@/types";
 import { validateBalanceAmount } from "@/lib/validation";
 import { calculateClosePosition } from "@/lib/calculations";
@@ -102,7 +102,7 @@ export const usePaperStore = create<PaperStoreState>()(
           const validated = validateBalanceAmount(amount, "top-up amount");
           set(
             (state) => ({
-              balance: usd(state.balance + validated),
+              balance: addUSD(state.balance, validated),
             }),
             false,
             "topUpBalance"

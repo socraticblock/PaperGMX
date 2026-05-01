@@ -221,7 +221,7 @@ function OrderSummaryInner({
         <SummaryRow
           label="Position Fee"
           value={formatUSD(calculations.positionFee)}
-          tooltip={`${calculations.feeBps} BPS (0.0${calculations.feeBps}%) of position size`}
+          tooltip={`${calculations.feeBps} BPS (${(calculations.feeBps / 100).toFixed(2)}%) of position size`}
         />
 
         {/* Hourly Borrow */}

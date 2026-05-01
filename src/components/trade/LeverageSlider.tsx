@@ -59,8 +59,8 @@ function LeverageSliderInner({
     [onChange, maxLeverage]
   );
 
-  // Calculate slider percentage for gradient
-  const sliderPercent = ((leverage - 1) / (maxLeverage - 1)) * 100;
+  // Calculate slider percentage for gradient (guard against maxLeverage = 1)
+  const sliderPercent = maxLeverage > 1 ? ((leverage - 1) / (maxLeverage - 1)) * 100 : 0;
 
   // Leverage danger level for color coding
   const isHighRisk = leverage >= 25;

@@ -15,10 +15,9 @@ import type { MarketSlug } from "@/types";
 
 export default function TradePage() {
   const router = useRouter();
-  const params = useParams();
-  const market = params.market as string;
+  const marketParam = useParams().market;
+  const market = Array.isArray(marketParam) ? marketParam[0] : marketParam;
   const isInitialized = usePaperStore(useShallow((s) => s.isInitialized));
-  const activePosition = usePaperStore(useShallow((s) => s.activePosition));
   const prices = usePaperStore(useShallow((s) => s.prices));
   const marketInfo = usePaperStore(useShallow((s) => s.marketInfo));
 
@@ -41,12 +40,7 @@ export default function TradePage() {
     }
   }, [isInitialized, isValidMarket, router]);
 
-  // Redirect to position page if position is active (Phase 4+)
-  useEffect(() => {
-    if (activePosition && activePosition.status === "active") {
-      // For now, stay on this page. Phase 4 will add position view.
-    }
-  }, [activePosition]);
+  // TODO: Phase 6 — When position is active, show PositionView instead of OrderEntryForm
 
   if (!isInitialized || !isValidMarket) {
     return (
