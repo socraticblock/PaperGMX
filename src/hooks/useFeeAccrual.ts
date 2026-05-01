@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { Position, MarketSlug, PriceData } from "@/types";
-import { calculateBorrowFee, calculateFundingFee } from "@/lib/calculations";
+import { calculateFeeAccrualDelta } from "@/lib/positionEngine";
 import { PRICE_POLL_INTERVAL } from "@/lib/constants";
 
 // ─── Hook ────────────────────────────────────────────────
@@ -54,44 +54,9 @@ export function useFeeAccrual(
     const info = marketInfo[position.market];
     if (!info) return;
 
-    // Calculate borrow fee delta
-    // GMX V2 invariant: the smaller OI side pays ZERO borrow fee.
-    // The API should already return 0 for the smaller side, but we enforce
-    // it client-side to guarantee fidelity even if the API data is stale.
-    const longOi = info.longOi ?? 0;
-    const shortOi = info.shortOi ?? 0;
-    const isSmallerSide =
-      position.direction === "long"
-        ? longOi <= shortOi
-        : shortOi <= longOi;
-    const borrowRatePerSecond =
-      isSmallerSide
-        ? 0
-        : (position.direction === "long" ? info.borrowRateLong : info.borrowRateShort);
-
-    const borrowFeeDelta = calculateBorrowFee(
-      position.sizeUsd,
-      borrowRatePerSecond,
-      durationMs,
-    );
-
-    // Calculate funding fee delta
-    // GMX V2: longs and shorts have separate funding rates.
-    // fundingRateLong > 0 means longs pay shorts.
-    // fundingRateShort > 0 means shorts pay longs.
-    // Both can be non-zero simultaneously (different from perp exchanges).
-    const fundingRatePerSecond =
-      position.direction === "long"
-        ? info.fundingRateLong
-        : info.fundingRateShort;
-
-    // calculateFundingFee uses the rate's sign to determine payer direction:
-    //   positive rate = position pays (cost), negative rate = position receives (credit).
-    // Since we already selected the per-direction rate above, no direction
-    // parameter is needed — the sign IS the direction signal.
-    const fundingFeeDelta = calculateFundingFee(
-      position.sizeUsd,
-      fundingRatePerSecond,
+    const { borrowFeeDelta, fundingFeeDelta } = calculateFeeAccrualDelta(
+      position,
+      info,
       durationMs,
     );
 

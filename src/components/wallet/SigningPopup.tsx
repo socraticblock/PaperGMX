@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import type {
   OrderDirection,
   USD,
-  BPS,
   MarketSlug,
   PriceData,
   MarketInfo,
@@ -13,14 +12,16 @@ import type {
 import type { PopupProcessingState } from "@/hooks/useWalletSimulation";
 import {
   calculatePositionSize,
-  calculatePositionFee,
   calculateAcceptablePrice,
-  determineFillPrice,
 } from "@/lib/calculations";
+import {
+  estimateExecutionFeeUsd,
+  getExecutionPrice,
+  getPositionFee,
+} from "@/lib/positionEngine";
 import { formatUSD, formatPrice } from "@/lib/format";
 import {
   MARKETS,
-  DEFAULT_POSITION_FEE_BPS,
   SLIPPAGE_OPEN_BPS,
   FAKE_WALLET_ADDRESS,
 } from "@/lib/constants";
@@ -61,12 +62,15 @@ function SigningPopupInner({
     if (!priceData || priceData.last <= 0) return null;
 
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
-    const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
-    const positionFee = calculatePositionFee(sizeUsd, feeBps);
-    const fillPrice = determineFillPrice(
-      priceData.min,
-      priceData.max,
+    const { feeBps, feeUsd: positionFee } = getPositionFee(
+      sizeUsd,
       direction,
+      false,
+      marketInfo,
+    );
+    const fillPrice = getExecutionPrice(
+      direction,
+      priceData,
       false,
     );
     const acceptablePrice = calculateAcceptablePrice(
@@ -75,8 +79,16 @@ function SigningPopupInner({
       direction,
       false,
     );
+    const executionFee = estimateExecutionFeeUsd();
 
-    return { sizeUsd, positionFee, fillPrice, acceptablePrice, feeBps };
+    return {
+      sizeUsd,
+      positionFee,
+      fillPrice,
+      acceptablePrice,
+      feeBps,
+      executionFee,
+    };
   }, [collateralUsd, leverage, direction, priceData, marketInfo]);
 
   const isIdle = processing === "idle";
@@ -175,7 +187,10 @@ function SigningPopupInner({
           value={details ? formatUSD(details.positionFee) : "—"}
           tooltip={`${details?.feeBps ?? 6} BPS`}
         />
-        <DetailRow label="Est. Gas" value="~$0.65" />
+        <DetailRow
+          label="Est. Gas"
+          value={details ? `~${formatUSD(details.executionFee)}` : "—"}
+        />
       </div>
 
       {/* Disclaimer */}

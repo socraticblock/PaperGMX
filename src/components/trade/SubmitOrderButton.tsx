@@ -9,6 +9,7 @@ import type {
   USD,
   MarketSlug,
   PriceData,
+  ApiConnectionStatus,
 } from "@/types";
 import { formatUSD } from "@/lib/format";
 import { calculatePositionSize } from "@/lib/calculations";
@@ -30,6 +31,7 @@ export interface SubmitOrderButtonProps {
   balance: USD;
   orderStatus: OrderStatus;
   priceData: PriceData | undefined;
+  connectionStatus: ApiConnectionStatus;
   needsApproval: boolean;
   onStatusChange: (status: OrderStatus) => void;
 }
@@ -48,6 +50,7 @@ function SubmitOrderButtonInner({
   balance,
   orderStatus,
   priceData,
+  connectionStatus,
   needsApproval,
   onStatusChange,
 }: SubmitOrderButtonProps) {
@@ -82,10 +85,12 @@ function SubmitOrderButtonInner({
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
+  const isFallbackOnly = connectionStatus === "fallback";
   const insufficientBalance = collateralUsd > balance;
   const belowMinimum = collateralUsd < 1;
   const canSubmit =
     hasPriceData &&
+    !isFallbackOnly &&
     !insufficientBalance &&
     !belowMinimum &&
     collateralUsd > 0 &&
@@ -193,6 +198,13 @@ function SubmitOrderButtonInner({
           return {
             text: "Waiting for Price Data...",
             bgClass: "bg-border-primary cursor-not-allowed",
+            showSpinner: false,
+          };
+        }
+        if (isFallbackOnly) {
+          return {
+            text: "GMX Oracle Unavailable",
+            bgClass: "bg-yellow-primary cursor-not-allowed",
             showSpinner: false,
           };
         }

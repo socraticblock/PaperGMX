@@ -2,15 +2,19 @@
 
 import { useMemo } from "react";
 import type { Position, PriceData, MarketSlug, USD, Price, ClosedTrade } from "@/types";
-import { applyBps, bpsToDecimal, usd, price, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
+import { applyBps, bpsToDecimal, usd, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
 import {
   calculateGrossPnl,
   calculateNetPnl,
   calculatePositionFee,
   calculateLiquidationPrice,
-  calculateBorrowFee,
-  determinePositionFeeBps,
 } from "@/lib/calculations";
+import {
+  calculateHourlyBorrowFeeForPosition,
+  getMarkPrice,
+  getPositionFeeBps,
+  getWorstClosePrice,
+} from "@/lib/positionEngine";
 import { MARKETS } from "@/lib/constants";
 
 // ─── Return type ─────────────────────────────────────────
@@ -83,15 +87,17 @@ export function usePositionPnl(
     // execution penalty baked in — that penalty is only charged on close.
     // Note: liquidation checks still use the worst price via isLiquidatable
     // below, which is the conservative check for actual close scenarios.
-    const midPrice: Price = price((priceData.min + priceData.max) / 2);
+    const midPrice: Price = getMarkPrice(priceData);
     const currentPrice: Price = midPrice;
 
     // Worst close price: the price the position would actually close at.
     // Closing a long = selling at the lower price (min)
     // Closing a short = buying back at the higher price (max)
     // Used for liquidation exit price and conservative collateral checks.
-    const worstClosePrice: Price =
-      position.direction === "long" ? priceData.min : priceData.max;
+    const worstClosePrice: Price = getWorstClosePrice(
+      position.direction,
+      priceData,
+    );
 
     // Gross P&L using exit price = current oracle mid price
     const grossPnl = calculateGrossPnl(
@@ -104,9 +110,7 @@ export function usePositionPnl(
     // Estimate closing position fee using current OI balance
     // GMX V2: close fee BPS is determined at close time based on OI
     const info = marketInfo?.[position.market];
-    const closeFeeBps = info
-      ? determinePositionFeeBps(position.direction, true, info.longOi, info.shortOi)
-      : position.positionFeeBps;
+    const closeFeeBps = getPositionFeeBps(position.direction, true, info);
     const positionFeeClose = calculatePositionFee(position.sizeUsd, closeFeeBps);
 
     // Net P&L = gross - (open fee + close fee + borrow + funding)
@@ -158,15 +162,7 @@ export function usePositionPnl(
     const isLiquidatable = remainingCollateral <= minCollateral;
 
     // Hourly borrow fee from market info (reuses `info` declared above)
-    const borrowRatePerSecond =
-      position.direction === "long"
-        ? (info?.borrowRateLong ?? 0)
-        : (info?.borrowRateShort ?? 0);
-    const hourlyBorrowFee = calculateBorrowFee(
-      position.sizeUsd,
-      borrowRatePerSecond,
-      3600_000,
-    );
+    const hourlyBorrowFee = calculateHourlyBorrowFeeForPosition(position, info);
 
     return {
       grossPnl,

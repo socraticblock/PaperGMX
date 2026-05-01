@@ -19,11 +19,13 @@ import { useWalletSimulation } from "@/hooks/useWalletSimulation";
 import {
   calculateAcceptablePrice,
   calculateClosePosition,
-  determineFillPrice,
-  determinePositionFeeBps,
 } from "@/lib/calculations";
+import {
+  estimateExecutionFeeUsd,
+  getExecutionPrice,
+  getPositionFeeBps,
+} from "@/lib/positionEngine";
 import { formatUSD, formatPrice } from "@/lib/format";
-import { usd } from "@/lib/branded";
 import { MARKETS, SLIPPAGE_CLOSE_BPS } from "@/lib/constants";
 import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
@@ -67,6 +69,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   // ─── Store ─────────────────────────────────────────────
   const {
     orderStatus,
+    connectionStatus,
     simulateKeeperDelay,
     tradingMode,
     oneClickTrading,
@@ -75,6 +78,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   } = usePaperStore(
     useShallow((s) => ({
       orderStatus: s.orderStatus,
+      connectionStatus: s.connectionStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
       tradingMode: s.tradingMode,
       oneClickTrading: s.oneClickTrading,
@@ -105,10 +109,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     const priceData = prices[position.market];
     if (!priceData) return null;
 
-    const estFillPrice = determineFillPrice(
-      priceData.min,
-      priceData.max,
+    const estFillPrice = getExecutionPrice(
       position.direction,
+      priceData,
       true
     );
 
@@ -126,11 +129,10 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       position.sizeUsd,
       position.collateralUsd,
       position.positionFeePaid,
-      determinePositionFeeBps(
+      getPositionFeeBps(
         position.direction,
         true, // isClose
-        marketInfo[position.market]?.longOi ?? usd(0),
-        marketInfo[position.market]?.shortOi ?? usd(0),
+        marketInfo[position.market],
       ),
       position.borrowFeeAccrued,
       position.fundingFeeAccrued
@@ -139,6 +141,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     return {
       estFillPrice,
       acceptablePrice,
+      executionFee: estimateExecutionFeeUsd(),
       ...closeResult,
     };
   }, [pnl.currentPrice, prices, position, marketInfo]);
@@ -151,10 +154,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       const currentPriceData = usePaperStore.getState().prices[position.market];
       if (currentPriceData && currentPriceData.last > 0) {
         startedRef.current = true;
-        const fillPrice = determineFillPrice(
-          currentPriceData.min,
-          currentPriceData.max,
+        const fillPrice = getExecutionPrice(
           position.direction,
+          currentPriceData,
           true
         );
         const acceptablePrice = calculateAcceptablePrice(
@@ -233,7 +235,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   }
 
   // ─── Main Close Form ───────────────────────────────────
-  const formDisabled = orderStatus !== "idle";
+  const formDisabled = orderStatus !== "idle" || connectionStatus === "fallback";
   const pnlIsPositive = pnl.netPnl >= 0;
 
   return (
@@ -274,6 +276,11 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
               valueColor={pnlIsPositive ? "text-green-primary" : "text-red-primary"}
             />
             <CloseSummaryRow
+              label="Est. Gas"
+              value={`~${formatUSD(closeEstimate.executionFee)}`}
+              tooltip="Shown for GMX fidelity only; paper balance is not charged."
+            />
+            <CloseSummaryRow
               label="Est. Net P&amp;L"
               value={formatUSD(closeEstimate.netPnl)}
               valueColor={pnlIsPositive ? "text-green-primary" : "text-red-primary"}
@@ -301,8 +308,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
         {/* Note */}
         <p className="text-[10px] text-text-muted text-center leading-relaxed">
-          &quot;Take Profit&quot; and &quot;Cut Loss&quot; only differ in your trade history label.
-          Both execute a market decrease order at the current oracle price.
+          {connectionStatus === "fallback"
+            ? "GMX oracle data is unavailable. Binance fallback prices are display-only, so close execution is paused."
+            : `"Take Profit" and "Cut Loss" only differ in your trade history label. Both execute a market decrease order at the current oracle price.`}
         </p>
       </div>
 
@@ -361,6 +369,7 @@ interface CloseSigningPopupProps {
     positionFeeClose: import("@/types").USD;
     netPnl: import("@/types").USD;
     returnedCollateral: import("@/types").USD;
+    executionFee: import("@/types").USD;
   } | null;
   processing: import("@/hooks/useWalletSimulation").PopupProcessingState;
   onConfirm: () => void;
@@ -449,7 +458,10 @@ function CloseSigningPopup({
           value={closeEstimate ? formatUSD(closeEstimate.netPnl) : "—"}
           highlight
         />
-        <PopupDetailRow label="Est. Gas" value="~$0.65" />
+        <PopupDetailRow
+          label="Est. Gas"
+          value={closeEstimate ? `~${formatUSD(closeEstimate.executionFee)}` : "—"}
+        />
       </div>
 
       {/* Disclaimer */}

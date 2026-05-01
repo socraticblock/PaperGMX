@@ -142,7 +142,7 @@ export function useWalletSimulation(): WalletSimulationResult {
         setOrderStatus("signing"); // approved → signing
       }, APPROVAL_SUCCESS_MS);
     }, APPROVAL_PROCESSING_MS);
-  }, [processing, approveToken, setOrderStatus, scheduleTimeout]);
+  }, [approveToken, setOrderStatus, scheduleTimeout]);
 
   const handleRejectApproval = useCallback(() => {
     // User rejected — no on-chain action happened, go back to idle
@@ -176,7 +176,7 @@ export function useWalletSimulation(): WalletSimulationResult {
         setOrderStatus("submitted"); // signing → submitted
       }, SIGNING_SUCCESS_MS);
     }, SIGNING_PROCESSING_MS);
-  }, [processing, setOrderStatus, scheduleTimeout]);
+  }, [setOrderStatus, scheduleTimeout]);
 
   const handleRejectSigning = useCallback(() => {
     // User rejected signing — no on-chain action, go back to idle

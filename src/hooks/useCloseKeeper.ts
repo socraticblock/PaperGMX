@@ -4,8 +4,8 @@ import { useRef, useCallback, useMemo } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { OrderStatus, OrderDirection, Price, MarketSlug, BPS, ClosedTrade } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
-import { determineFillPrice, determinePositionFeeBps } from "@/lib/calculations";
-import { sampleKeeperDelay, KEEPER_FAILURE_RATE, DEFAULT_POSITION_FEE_BPS } from "@/lib/constants";
+import { getExecutionPrice, getPositionFeeBps } from "@/lib/positionEngine";
+import { sampleKeeperDelay, KEEPER_FAILURE_RATE } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -105,10 +105,9 @@ export function useCloseKeeper(
         // Fill price for close:
         // Closing a long = selling → you get the lower (min) price
         // Closing a short = buying back → you pay the higher (max) price
-        const fillPrice = determineFillPrice(
-          currentPriceData.min,
-          currentPriceData.max,
+        const fillPrice = getExecutionPrice(
           directionRef.current,
+          currentPriceData,
           true // isClose = true
         );
 
@@ -148,14 +147,11 @@ export function useCloseKeeper(
         // GMX V2: close fee BPS is determined at close time based on OI balance.
         // We compute the close fee here and pass it to closePosition.
         const currentMarketInfo = usePaperStore.getState().marketInfo[marketRef.current];
-        const closeFeeBps: BPS = currentMarketInfo
-          ? determinePositionFeeBps(
-              directionRef.current,
-              true, // isClose = true
-              currentMarketInfo.longOi,
-              currentMarketInfo.shortOi,
-            )
-          : DEFAULT_POSITION_FEE_BPS;
+        const closeFeeBps: BPS = getPositionFeeBps(
+          directionRef.current,
+          true,
+          currentMarketInfo,
+        );
 
         // closePosition no longer resets orderStatus — we manage the state machine here
         const positionBeforeClose = usePaperStore.getState().activePosition;

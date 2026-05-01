@@ -4,25 +4,26 @@ import { memo, useMemo } from "react";
 import type {
   OrderDirection,
   USD,
-  BPS,
   MarketSlug,
   PriceData,
   MarketInfo,
 } from "@/types";
 import {
   calculatePositionSize,
-  calculatePositionFee,
   calculateHourlyBorrowFee,
   calculateLiquidationPrice,
   calculateAcceptablePrice,
-  determineFillPrice,
-  determinePositionFeeBps,
 } from "@/lib/calculations";
+import {
+  estimateExecutionFeeUsd,
+  getBorrowRateForPosition,
+  getExecutionPrice,
+  getPositionFee,
+} from "@/lib/positionEngine";
 import { usd } from "@/lib/branded";
 import { formatUSD, formatPrice, formatPercent } from "@/lib/format";
 import {
   MARKETS,
-  DEFAULT_POSITION_FEE_BPS,
   SLIPPAGE_OPEN_BPS,
 } from "@/lib/constants";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
@@ -92,16 +93,17 @@ function OrderSummaryInner({
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
     // GMX V2: position fee BPS depends on whether the trade balances or
     // imbalances pool OI. We compute it from the current OI data.
-    const feeBps: BPS = marketInfo
-      ? determinePositionFeeBps(direction, false, marketInfo.longOi, marketInfo.shortOi)
-      : DEFAULT_POSITION_FEE_BPS;
-    const positionFee = calculatePositionFee(sizeUsd, feeBps);
+    const { feeBps, feeUsd: positionFee } = getPositionFee(
+      sizeUsd,
+      direction,
+      false,
+      marketInfo,
+    );
 
     // Fill price (worst oracle price for trader)
-    const fillPrice = determineFillPrice(
-      priceData.min,
-      priceData.max,
+    const fillPrice = getExecutionPrice(
       direction,
+      priceData,
       false, // not a close
     );
 
@@ -128,11 +130,11 @@ function OrderSummaryInner({
     );
 
     // Hourly borrow fee estimate
-    const borrowRate =
-      direction === "long"
-        ? (marketInfo?.borrowRateLong ?? 0)
-        : (marketInfo?.borrowRateShort ?? 0);
+    const borrowRate = marketInfo
+      ? getBorrowRateForPosition(direction, marketInfo)
+      : 0;
     const hourlyBorrowFee = calculateHourlyBorrowFee(sizeUsd, borrowRate);
+    const executionFee = estimateExecutionFeeUsd();
 
     // Spread percentage
     const spread =
@@ -149,6 +151,7 @@ function OrderSummaryInner({
       acceptablePrice,
       liquidationPrice,
       hourlyBorrowFee,
+      executionFee,
       spread,
       feeBps,
     };
@@ -267,6 +270,12 @@ function OrderSummaryInner({
           label="Est. Borrow (1h)"
           value={formatUSD(calculations.hourlyBorrowFee)}
           tooltip="Based on current borrow rate. May change."
+        />
+
+        <SummaryRow
+          label="Est. Gas"
+          value={`~${formatUSD(calculations.executionFee)}`}
+          tooltip="Shown for GMX fidelity only; paper balance is not charged."
         />
 
         {/* Oracle Spread */}

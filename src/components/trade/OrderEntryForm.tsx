@@ -52,6 +52,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     orderStatus,
     prices,
     marketInfo,
+    connectionStatus,
     simulateKeeperDelay,
     approvedTokens,
     lockCollateral,
@@ -65,6 +66,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       orderStatus: s.orderStatus,
       prices: s.prices,
       marketInfo: s.marketInfo,
+      connectionStatus: s.connectionStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
       approvedTokens: s.approvedTokens,
       lockCollateral: s.lockCollateral,
@@ -299,6 +301,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               balance={balance}
               orderStatus={orderStatus}
               priceData={priceData}
+              connectionStatus={connectionStatus}
               needsApproval={needsApproval}
               onStatusChange={handleStatusChange}
             />
