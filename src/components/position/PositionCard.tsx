@@ -4,6 +4,7 @@ import { memo, useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import type { Position, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { usePositionPnl } from "@/hooks/usePositionPnl";
+import { MarginWarning } from "@/components/position/MarginWarning";
 import { MARKETS } from "@/lib/constants";
 import { formatUSD, formatPrice, formatPercent, formatDuration } from "@/lib/format";
 import { usd } from "@/lib/branded";
@@ -11,7 +12,6 @@ import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   ClockIcon,
-  FireIcon,
 } from "@heroicons/react/24/outline";
 
 // ─── Props ───────────────────────────────────────────────
@@ -104,6 +104,13 @@ function PositionCardInner({ position, prices }: PositionCardProps) {
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="space-y-4"
     >
+      {/* ─── Margin Warning Banner ─────────────────────── */}
+      <MarginWarning
+        position={position}
+        distanceToLiq={pnl.distanceToLiq}
+        prices={prices}
+      />
+
       {/* ─── Header: Direction + Market ──────────────────── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -236,35 +243,6 @@ function PositionCardInner({ position, prices }: PositionCardProps) {
         </div>
         <span className="text-text-secondary font-mono">{timeSinceOpen}</span>
       </div>
-
-      {/* ─── Liquidation Warning ─────────────────────────── */}
-      {pnl.distanceToLiq < 15 && pnl.distanceToLiq > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
-            pnl.distanceToLiq < 5
-              ? "bg-red-primary/10 border border-red-primary/30"
-              : "bg-yellow-primary/10 border border-yellow-primary/30"
-          }`}
-        >
-          <FireIcon
-            className={`h-4 w-4 flex-shrink-0 ${
-              pnl.distanceToLiq < 5 ? "text-red-primary" : "text-yellow-primary"
-            }`}
-            aria-hidden="true"
-          />
-          <p
-            className={`text-[10px] leading-relaxed ${
-              pnl.distanceToLiq < 5 ? "text-red-primary" : "text-yellow-primary"
-            }`}
-          >
-            {pnl.distanceToLiq < 5
-              ? "Close to liquidation! Consider cutting your loss."
-              : "Position approaching liquidation zone."}
-          </p>
-        </motion.div>
-      )}
     </motion.div>
   );
 }

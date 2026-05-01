@@ -11,6 +11,7 @@ import LeverageSlider from "./LeverageSlider";
 import OrderSummary from "./OrderSummary";
 import SubmitOrderButton from "./SubmitOrderButton";
 import { useWalletSimulation } from "@/hooks/useWalletSimulation";
+import { useLiquidationChecker } from "@/hooks/useLiquidationChecker";
 import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
 import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
@@ -19,6 +20,7 @@ import { KeeperWaitScreen } from "@/components/keeper/KeeperWaitScreen";
 import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
 import { PositionCard } from "@/components/position/PositionCard";
 import { ClosePositionForm } from "@/components/position/ClosePositionForm";
+import { LiquidationScreen } from "@/components/position/LiquidationScreen";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -71,16 +73,47 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   // ─── Wallet simulation hook ─────────────────────────────
   const wallet = useWalletSimulation();
 
-  // ─── Local form state ───────────────────────────────────
-  const [direction, setDirection] = useState<OrderDirection>("long");
-  const [collateralUsd, setCollateralUsd] = useState<USD>(usd(0));
-  const [leverage, setLeverage] = useState(5);
-
   // ─── Derived data ───────────────────────────────────────
   const priceData = prices[market];
   const info = marketInfo[market];
   const hasActivePosition = activePosition !== null;
   const needsApproval = !approvedTokens.includes("USDC");
+
+  // ─── Liquidation checker (runs while position is active) ──
+  // This hook runs side effects (auto-liquidation) — return value is for
+  // consumers that need real-time liquidation status, but we don't use it
+  // directly here since the LiquidationScreen is triggered via trade history.
+  useLiquidationChecker(activePosition, prices);
+
+  // ─── Trade history for liquidation detection ─────────────
+  const tradeHistory = usePaperStore(useShallow((s) => s.tradeHistory));
+
+  // ─── Liquidation screen state ────────────────────────────
+  // Track dismissed liquidation trade IDs so the screen doesn't re-show
+  const [dismissedLiquidationIds, setDismissedLiquidationIds] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  // Derive whether to show the LiquidationScreen from trade history
+  const lastTrade = tradeHistory.length > 0 ? tradeHistory[0] : null;
+  const recentLiquidation =
+    !hasActivePosition &&
+    lastTrade &&
+    lastTrade.closeReason === "liquidated" &&
+    !dismissedLiquidationIds.has(lastTrade.id)
+      ? lastTrade
+      : null;
+
+  const handleLiquidationDismiss = useCallback(() => {
+    if (lastTrade) {
+      setDismissedLiquidationIds((prev) => new Set([...prev, lastTrade.id]));
+    }
+  }, [lastTrade]);
+
+  // ─── Local form state ───────────────────────────────────
+  const [direction, setDirection] = useState<OrderDirection>("long");
+  const [collateralUsd, setCollateralUsd] = useState<USD>(usd(0));
+  const [leverage, setLeverage] = useState(5);
 
   // ─── Handlers ───────────────────────────────────────────
   const handleCollateralChange = useCallback((value: USD) => {
@@ -112,6 +145,17 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const handleResultDismiss = useCallback(() => {
     setOrderStatus("idle"); // failed/cancelled → idle, back to form
   }, [setOrderStatus]);
+
+  // ─── Show Liquidation Screen if position was just liquidated ──
+  if (recentLiquidation) {
+    return (
+      <LiquidationScreen
+        trade={recentLiquidation}
+        prices={prices}
+        onDismiss={handleLiquidationDismiss}
+      />
+    );
+  }
 
   // ─── Already have a position — show Position Card + Close Form ──
   if (hasActivePosition) {
