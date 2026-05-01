@@ -1,10 +1,10 @@
 /**
  * Binance WebSocket Fallback
- * 
+ *
  * When the GMX API is unavailable for >30 seconds, we fall back to
  * Binance's free WebSocket for price data. This ensures users always
  * see live prices even during GMX API outages.
- * 
+ *
  * Key differences from GMX prices:
  * - Binance gives a single mid-price, not min/max spread
  * - We simulate the spread as ±0.05% to maintain oracle behavior
@@ -131,7 +131,7 @@ function handleBinanceMessage(data: Record<string, unknown>): void {
  * Simulates min/max spread from single mid-price.
  */
 function convertBinancePrices(
-  binancePrices: Record<string, number>
+  binancePrices: Record<string, number>,
 ): Record<MarketSlug, ParsedMarketPrice> {
   const result: Partial<Record<MarketSlug, ParsedMarketPrice>> = {};
   const now = Date.now();

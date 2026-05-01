@@ -7,7 +7,12 @@ interface DetailRowProps {
   tooltip?: string;
 }
 
-export function DetailRow({ label, value, highlight, tooltip }: DetailRowProps) {
+export function DetailRow({
+  label,
+  value,
+  highlight,
+  tooltip,
+}: DetailRowProps) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-xs text-text-muted">

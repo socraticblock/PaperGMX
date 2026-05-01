@@ -10,6 +10,7 @@ import {
   calculateClosePosition,
 } from "../index";
 import { usd, price, bps } from "../../branded";
+import type { Price } from "@/types";
 
 describe("calculateGrossPnl", () => {
   it("calculates long profit correctly", () => {
@@ -23,12 +24,22 @@ describe("calculateGrossPnl", () => {
   });
 
   it("calculates short profit correctly", () => {
-    const pnl = calculateGrossPnl("short", price(2000), price(1800), usd(10000));
+    const pnl = calculateGrossPnl(
+      "short",
+      price(2000),
+      price(1800),
+      usd(10000),
+    );
     expect(pnl).toBeCloseTo(1000, 2);
   });
 
   it("calculates short loss correctly", () => {
-    const pnl = calculateGrossPnl("short", price(2000), price(2200), usd(10000));
+    const pnl = calculateGrossPnl(
+      "short",
+      price(2000),
+      price(2200),
+      usd(10000),
+    );
     expect(pnl).toBeCloseTo(-1000, 2);
   });
 
@@ -38,11 +49,15 @@ describe("calculateGrossPnl", () => {
   });
 
   it("throws on zero entry price", () => {
-    expect(() => calculateGrossPnl("long", 0 as any, price(2000), usd(10000))).toThrow();
+    expect(() =>
+      calculateGrossPnl("long", 0 as unknown as Price, price(2000), usd(10000)),
+    ).toThrow();
   });
 
   it("throws on negative position size", () => {
-    expect(() => calculateGrossPnl("long", price(2000), price(2200), usd(-1000))).toThrow();
+    expect(() =>
+      calculateGrossPnl("long", price(2000), price(2200), usd(-1000)),
+    ).toThrow();
   });
 });
 
@@ -82,34 +97,70 @@ describe("calculateBorrowFee", () => {
 describe("calculateLiquidationPrice", () => {
   it("calculates long liquidation price for BTC/ETH (0.5% maintenance, no fees)", () => {
     const liqPrice = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
+      "long",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(0),
+      usd(0),
     );
     expect(liqPrice).toBeCloseTo(1610, 0);
   });
 
   it("calculates short liquidation price", () => {
     const liqPrice = calculateLiquidationPrice(
-      "short", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
+      "short",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(0),
+      usd(0),
     );
     expect(liqPrice).toBeCloseTo(2390, 0);
   });
 
   it("liquidation price moves closer with accrued fees", () => {
     const liqPriceNoFees = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
+      "long",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(0),
+      usd(0),
     );
     const liqPriceWithFees = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(50)
+      "long",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(0),
+      usd(50),
     );
     expect(liqPriceWithFees).toBeGreaterThan(liqPriceNoFees);
   });
 
   it("liquidation price moves closer with position fee", () => {
     const liqPriceNoPositionFee = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(0), usd(0)
+      "long",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(0),
+      usd(0),
     );
     const liqPriceWithPositionFee = calculateLiquidationPrice(
-      "long", price(2000), usd(1000), usd(5000), bps(50), usd(3), usd(0)
+      "long",
+      price(2000),
+      usd(1000),
+      usd(5000),
+      bps(50),
+      usd(3),
+      usd(0),
     );
     // Position fee reduces effective collateral, moving liq price closer
     expect(liqPriceWithPositionFee).toBeGreaterThan(liqPriceNoPositionFee);
@@ -125,7 +176,13 @@ describe("calculateLiquidationPrice", () => {
     // i.e., collateral - positionFee - accruedFees - size*maintMargin < -sizeUsd
     // e.g., accruedFees > sizeUsd + collateral - sizeUsd*maintMargin
     const liqPrice = calculateLiquidationPrice(
-      "short", price(2000), usd(100), usd(10000), bps(50), usd(0), usd(15000)
+      "short",
+      price(2000),
+      usd(100),
+      usd(10000),
+      bps(50),
+      usd(0),
+      usd(15000),
     );
     // effectiveCollateral = 100 - 0 - 15000 - 50 = -14950
     // liqPrice = 2000 * (1 + (-14950)/10000) = 2000 * (-0.495) = -990 → sentinel 0.01
@@ -157,12 +214,22 @@ describe("determineFillPrice", () => {
 
 describe("calculateAcceptablePrice", () => {
   it("long open: acceptable price is higher (worse)", () => {
-    const acceptable = calculateAcceptablePrice(price(2000), bps(50), "long", false);
+    const acceptable = calculateAcceptablePrice(
+      price(2000),
+      bps(50),
+      "long",
+      false,
+    );
     expect(acceptable).toBeCloseTo(2010, 0); // 2000 * 1.005
   });
 
   it("long close: acceptable price is lower (worse)", () => {
-    const acceptable = calculateAcceptablePrice(price(2000), bps(300), "long", true);
+    const acceptable = calculateAcceptablePrice(
+      price(2000),
+      bps(300),
+      "long",
+      true,
+    );
     expect(acceptable).toBeCloseTo(1940, 0); // 2000 * 0.97
   });
 });
@@ -178,7 +245,7 @@ describe("calculateClosePosition", () => {
       usd(3),
       bps(6),
       usd(1),
-      usd(0.5)
+      usd(0.5),
     );
 
     expect(result.grossPnl).toBeCloseTo(500, 1);
@@ -197,7 +264,7 @@ describe("calculateClosePosition", () => {
       usd(3),
       bps(6),
       usd(1),
-      usd(0.5)
+      usd(0.5),
     );
 
     expect(result.grossPnl).toBeCloseTo(-500, 1);
@@ -209,13 +276,13 @@ describe("calculateClosePosition", () => {
     const result = calculateClosePosition(
       "long",
       price(2000),
-      price(100),    // catastrophic loss
+      price(100), // catastrophic loss
       usd(5000),
       usd(1000),
       usd(3),
       bps(6),
       usd(1),
-      usd(0.5)
+      usd(0.5),
     );
 
     expect(result.returnedCollateral).toBeGreaterThanOrEqual(0);

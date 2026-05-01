@@ -37,7 +37,7 @@ function MarketPriceBarInner({
     if (!marketInfo) return "—";
     const annual = Math.max(
       marketInfo.borrowRateLongAnnualized,
-      marketInfo.borrowRateShortAnnualized
+      marketInfo.borrowRateShortAnnualized,
     );
     if (annual <= 0) return "—";
     if (annual > 1000) return ">1000%";
@@ -48,7 +48,9 @@ function MarketPriceBarInner({
     <div className="flex items-center gap-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-card px-4 py-2.5 scrollbar-none">
       {/* Price */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className="text-2xl" aria-hidden="true">{marketConfig.icon}</span>
+        <span className="text-2xl" aria-hidden="true">
+          {marketConfig.icon}
+        </span>
         <div>
           {currentPrice > 0 ? (
             <motion.p
@@ -61,7 +63,9 @@ function MarketPriceBarInner({
           ) : (
             <div className="h-6 w-24 animate-pulse rounded bg-bg-input" />
           )}
-          <p className="text-[10px] text-text-muted">{marketConfig.pair} Perpetual</p>
+          <p className="text-[10px] text-text-muted">
+            {marketConfig.pair} Perpetual
+          </p>
         </div>
       </div>
 
@@ -76,8 +80,8 @@ function MarketPriceBarInner({
             change24h === 0
               ? "text-text-muted"
               : isPositive
-              ? "text-green-primary"
-              : "text-red-primary"
+                ? "text-green-primary"
+                : "text-red-primary"
           }`}
         >
           {change24h !== 0 ? formatPercent(change24h) : "—"}

@@ -4,7 +4,18 @@
 
 // Re-export branded types so consumers only need one import path
 export type { USD, Price, BPS, Percent, Timestamp } from "@/lib/branded";
-export { usd, price, bps, percent, timestamp, bpsToDecimal, applyBps, addUSD, subUSD, mulUSD } from "@/lib/branded";
+export {
+  usd,
+  price,
+  bps,
+  percent,
+  timestamp,
+  bpsToDecimal,
+  applyBps,
+  addUSD,
+  subUSD,
+  mulUSD,
+} from "@/lib/branded";
 
 import type { USD, Price, BPS, Percent, Timestamp } from "@/lib/branded";
 
@@ -61,7 +72,7 @@ export interface MarketConfig {
   decimals: number;
   icon: string;
   maintenanceMarginBps: BPS; // 50 (0.5%) for BTC/ETH, 100 (1.0%) for SOL/ARB
-  liquidationFeeBps: BPS;    // 20 (0.2%) for BTC/ETH, 30 (0.3%) for SOL/ARB
+  liquidationFeeBps: BPS; // 20 (0.2%) for BTC/ETH, 30 (0.3%) for SOL/ARB
   maxLeverage: number;
 }
 
@@ -120,13 +131,13 @@ export interface MarketInfo {
   slug: MarketSlug;
   longOi: USD;
   shortOi: USD;
-  borrowRateLong: number;   // per-second (for calculations)
-  borrowRateShort: number;  // per-second (for calculations)
-  borrowRateLongAnnualized: number;   // annualized % (for display)
-  borrowRateShortAnnualized: number;  // annualized % (for display)
-  fundingRate: number;      // per-second (for calculations)
-  fundingRateAnnualized: number;      // annualized % (for display)
-  positionFeeBps: BPS;     // 4 or 6 BPS depending on OI balance
+  borrowRateLong: number; // per-second (for calculations)
+  borrowRateShort: number; // per-second (for calculations)
+  borrowRateLongAnnualized: number; // annualized % (for display)
+  borrowRateShortAnnualized: number; // annualized % (for display)
+  fundingRate: number; // per-second (for calculations)
+  fundingRateAnnualized: number; // annualized % (for display)
+  positionFeeBps: BPS; // 4 or 6 BPS depending on OI balance
 }
 
 // ─── 1CT ──────────────────────────────────────────────────
@@ -141,10 +152,10 @@ export interface OneClickTradingState {
 // ─── Store ────────────────────────────────────────────────
 
 export type ApiConnectionStatus =
-  | "connected"       // GMX API responding normally
-  | "degraded"        // GMX API slow or partially failing
-  | "fallback"        // Using Binance fallback
-  | "disconnected";   // All sources failing
+  | "connected" // GMX API responding normally
+  | "degraded" // GMX API slow or partially failing
+  | "fallback" // Using Binance fallback
+  | "disconnected"; // All sources failing
 
 export interface PaperStoreState {
   // Wallet
@@ -198,7 +209,10 @@ export interface PaperStoreState {
   decrementOneClickActions: () => void;
   renewOneClickTrading: () => void;
   updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) => void;
-  closePosition: (exitPrice: Price, closeReason: ClosedTrade["closeReason"]) => void;
+  closePosition: (
+    exitPrice: Price,
+    closeReason: ClosedTrade["closeReason"],
+  ) => void;
   setPrices: (prices: Record<MarketSlug, PriceData>) => void;
   setMarketInfo: (info: Record<MarketSlug, MarketInfo>) => void;
   setConnectionStatus: (status: ApiConnectionStatus) => void;

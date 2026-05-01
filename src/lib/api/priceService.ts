@@ -1,29 +1,33 @@
 /**
  * Unified Price Service
- * 
+ *
  * Orchestrates price data from two sources:
  * 1. GMX Oracle Keeper API (primary) — provides min/max oracle prices
  * 2. Binance WebSocket (fallback) — provides mid-price when GMX is down
- * 
+ *
  * Architecture:
  * - GMX API is polled every 3 seconds (same as GMX's own frontend)
  * - If GMX API fails for 30+ seconds, Binance WebSocket activates
  * - When GMX API recovers, Binance is deactivated
  * - All prices go through Zustand store for global access
  * - Components subscribe to the store, never to the API directly
- * 
+ *
  * Circuit breaker:
  * - After 5 consecutive GMX API failures, circuit opens for 60 seconds
  * - During circuit open, Binance is the sole source
  * - After cooldown, GMX is retried automatically
- * 
+ *
  * Singleton guard:
  * - Only one price service can run at a time across the entire app
  * - Prevents duplicate intervals on React StrictMode or page transitions
  */
 
 import type { MarketSlug } from "@/types";
-import type { ParsedMarketPrice, ParsedMarketInfo, ApiConnectionStatus } from "./types";
+import type {
+  ParsedMarketPrice,
+  ParsedMarketInfo,
+  ApiConnectionStatus,
+} from "./types";
 import { fetchMarketPrices, fetchMarketInfo, getApiStatus } from "./gmx";
 import { connectBinanceWs, isBinanceConnected } from "./binance";
 
@@ -45,7 +49,9 @@ let isServiceRunning = false; // Singleton guard
 let isPolling = false; // Prevent overlapping polls
 let consumerCount = 0; // Reference counting for lifecycle management
 
-type PriceUpdateCallback = (prices: Record<MarketSlug, ParsedMarketPrice>) => void;
+type PriceUpdateCallback = (
+  prices: Record<MarketSlug, ParsedMarketPrice>,
+) => void;
 type MarketInfoCallback = (info: Record<MarketSlug, ParsedMarketInfo>) => void;
 type StatusCallback = (status: ApiConnectionStatus) => void;
 
@@ -94,13 +100,18 @@ export function startPriceService(callbacks: {
 
     // Set up polling intervals
     priceIntervalId = setInterval(pollPrices, PRICE_POLL_INTERVAL_MS);
-    marketInfoIntervalId = setInterval(pollMarketInfo, MARKET_INFO_POLL_INTERVAL_MS);
+    marketInfoIntervalId = setInterval(
+      pollMarketInfo,
+      MARKET_INFO_POLL_INTERVAL_MS,
+    );
   }
 
   // Return cleanup function that decrements consumer count
   return () => {
     consumerCount--;
-    console.info(`[PriceService] Consumer disconnected (${consumerCount} remaining)`);
+    console.info(
+      `[PriceService] Consumer disconnected (${consumerCount} remaining)`,
+    );
 
     if (consumerCount <= 0) {
       consumerCount = 0;
@@ -144,11 +155,17 @@ export function getConnectionStatus(): ApiConnectionStatus {
   const apiStatus = getApiStatus();
   const timeSinceLastSuccess = Date.now() - lastSuccessfulGmxFetch;
 
-  if (apiStatus.isAvailable && timeSinceLastSuccess < FALLBACK_ACTIVATION_DELAY_MS) {
+  if (
+    apiStatus.isAvailable &&
+    timeSinceLastSuccess < FALLBACK_ACTIVATION_DELAY_MS
+  ) {
     return "connected";
   }
 
-  if (apiStatus.isAvailable && timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS) {
+  if (
+    apiStatus.isAvailable &&
+    timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS
+  ) {
     return "degraded";
   }
 
@@ -172,7 +189,9 @@ async function pollPrices(): Promise<void> {
 
     // If Binance was active and GMX is back, deactivate Binance
     if (isBinanceActive) {
-      console.info("[PriceService] GMX API recovered, deactivating Binance fallback");
+      console.info(
+        "[PriceService] GMX API recovered, deactivating Binance fallback",
+      );
       if (binanceCleanup) {
         binanceCleanup();
         binanceCleanup = null;
@@ -187,7 +206,10 @@ async function pollPrices(): Promise<void> {
 
     // Check if we should activate Binance fallback
     const timeSinceLastSuccess = Date.now() - lastSuccessfulGmxFetch;
-    if (timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS && !isBinanceActive) {
+    if (
+      timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS &&
+      !isBinanceActive
+    ) {
       activateBinanceFallback();
     }
 

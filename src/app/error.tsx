@@ -16,9 +16,12 @@ export default function Error({
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center px-4">
       <div className="rounded-xl border border-red-primary/30 bg-red-bg p-8 text-center max-w-md">
-        <h2 className="text-lg font-bold text-red-primary">Something went wrong</h2>
+        <h2 className="text-lg font-bold text-red-primary">
+          Something went wrong
+        </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          PaperGMX encountered an unexpected error. Your data is safe in local storage.
+          PaperGMX encountered an unexpected error. Your data is safe in local
+          storage.
         </p>
         <button
           onClick={reset}

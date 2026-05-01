@@ -2,7 +2,14 @@
 
 import { memo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import type { OrderStatus, OrderDirection, USD, Price, MarketSlug, Position } from "@/types";
+import type {
+  OrderStatus,
+  OrderDirection,
+  USD,
+  Price,
+  MarketSlug,
+  Position,
+} from "@/types";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useKeeperExecution } from "@/hooks/useKeeperExecution";
 import { MARKETS, SLIPPAGE_OPEN_BPS } from "@/lib/constants";
@@ -65,12 +72,13 @@ function KeeperWaitScreenInner({
       // This is used for real slippage validation at execution time
       const currentPriceData = usePaperStore.getState().prices[market];
       if (currentPriceData && currentPriceData.last > 0) {
-        const fillPrice = direction === "long" ? currentPriceData.max : currentPriceData.min;
+        const fillPrice =
+          direction === "long" ? currentPriceData.max : currentPriceData.min;
         orderTimeAcceptablePriceRef.current = calculateAcceptablePrice(
           fillPrice,
           SLIPPAGE_OPEN_BPS,
           direction,
-          false
+          false,
         );
       }
 
@@ -79,9 +87,7 @@ function KeeperWaitScreenInner({
   }, [keeper.start, market, direction]);
 
   // Determine current step index
-  const currentStepIndex = KEEPER_STEPS.findIndex(
-    (s) => s.key === orderStatus
-  );
+  const currentStepIndex = KEEPER_STEPS.findIndex((s) => s.key === orderStatus);
 
   // Can cancel during steps 0-2 (submitted, keeper_step_1, keeper_step_2)
   // Spec 5.4: "Cancel button during wait — Visible during steps 1-2"
@@ -172,19 +178,33 @@ function ProgressStep({ label, state, isLast }: ProgressStepProps) {
             state === "done"
               ? "border-green-primary bg-green-primary"
               : state === "active"
-              ? "border-blue-primary bg-blue-primary/20"
-              : "border-border-primary bg-transparent"
+                ? "border-blue-primary bg-blue-primary/20"
+                : "border-border-primary bg-transparent"
           }`}
         >
           {state === "done" && (
-            <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            <svg
+              className="h-3 w-3 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={3}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4.5 12.75l6 6 9-13.5"
+              />
             </svg>
           )}
           {state === "active" && (
             <motion.div
               animate={{ scale: [1, 1.3, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              transition={{
+                repeat: Infinity,
+                duration: 1.5,
+                ease: "easeInOut",
+              }}
               className="h-2.5 w-2.5 rounded-full bg-blue-primary"
             />
           )}
@@ -206,8 +226,8 @@ function ProgressStep({ label, state, isLast }: ProgressStepProps) {
           state === "done"
             ? "text-text-secondary line-through"
             : state === "active"
-            ? "text-text-primary font-medium"
-            : "text-text-muted"
+              ? "text-text-primary font-medium"
+              : "text-text-muted"
         }`}
       >
         {label}

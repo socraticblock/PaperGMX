@@ -111,7 +111,9 @@ describe("Store: Position Open Flow", () => {
     });
 
     usePaperStore.getState().setActivePosition(position);
-    expect(usePaperStore.getState().activePosition?.liquidationPrice).toBeGreaterThan(0);
+    expect(
+      usePaperStore.getState().activePosition?.liquidationPrice,
+    ).toBeGreaterThan(0);
   });
 
   it("confirmedAt is null when position is first created", () => {

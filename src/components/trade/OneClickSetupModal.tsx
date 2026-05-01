@@ -31,7 +31,6 @@ function useExpiryCountdown(expiresAt: number | null): string {
 
   useEffect(() => {
     if (!expiresAt) {
-      setRemaining("");
       return;
     }
 
@@ -83,9 +82,16 @@ function OneClickSetupModalInner({ open, onClose }: OneClickSetupModalProps) {
 
   const countdown = useExpiryCountdown(oneClickTrading.expiresAt as number | null);
 
+  // Track current time in state to avoid calling Date.now() during render
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const isExpired =
     oneClickTrading.expiresAt !== null &&
-    oneClickTrading.expiresAt < Date.now();
+    oneClickTrading.expiresAt < now;
 
   const isDepleted = oneClickTrading.actionsRemaining <= 0;
   const needsRenewal = oneClickTrading.enabled && (isExpired || isDepleted);

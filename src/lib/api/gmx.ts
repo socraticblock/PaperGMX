@@ -1,6 +1,6 @@
 /**
  * GMX Arbitrum API Client
- * 
+ *
  * Handles:
  * - Fetching from arbitrum-api.gmxinfra.io
  * - Response validation and parsing
@@ -16,7 +16,12 @@ import type {
   ParsedMarketPrice,
   ParsedMarketInfo,
 } from "./types";
-import { parseGmxPrice, parseGmxUsdValue, parseGmxPerSecondRate, parseGmxAnnualRate } from "./gmxPrice";
+import {
+  parseGmxPrice,
+  parseGmxUsdValue,
+  parseGmxPerSecondRate,
+  parseGmxAnnualRate,
+} from "./gmxPrice";
 import { usd } from "@/lib/branded";
 import type { MarketSlug } from "@/types";
 
@@ -86,7 +91,7 @@ function recordFailure(): void {
   if (consecutiveFailures >= CIRCUIT_BREAKER_FAILURES) {
     circuitOpenUntil = Date.now() + CIRCUIT_BREAKER_COOLDOWN_MS;
     console.warn(
-      `[GmxApi] Circuit breaker opened after ${consecutiveFailures} failures. Cooldown: ${CIRCUIT_BREAKER_COOLDOWN_MS / 1000}s`
+      `[GmxApi] Circuit breaker opened after ${consecutiveFailures} failures. Cooldown: ${CIRCUIT_BREAKER_COOLDOWN_MS / 1000}s`,
     );
   }
 }
@@ -95,7 +100,9 @@ function recordFailure(): void {
 
 async function fetchWithRetry(url: string): Promise<Response> {
   if (isCircuitOpen()) {
-    throw new Error(`[GmxApi] Circuit breaker is open. Retry after ${new Date(circuitOpenUntil).toISOString()}`);
+    throw new Error(
+      `[GmxApi] Circuit breaker is open. Retry after ${new Date(circuitOpenUntil).toISOString()}`,
+    );
   }
 
   let lastError: Error | null = null;
@@ -123,7 +130,10 @@ async function fetchWithRetry(url: string): Promise<Response> {
 
       if (attempt < MAX_RETRIES - 1) {
         const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-        console.warn(`[GmxApi] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`, lastError.message);
+        console.warn(
+          `[GmxApi] Attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+          lastError.message,
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -158,7 +168,10 @@ function validateTicker(raw: unknown): GmxTickerResponse | null {
     minPrice: obj.minPrice,
     maxPrice: obj.maxPrice,
     updatedAt: typeof obj.updatedAt === "number" ? obj.updatedAt : Date.now(),
-    timestamp: typeof obj.timestamp === "number" ? obj.timestamp : Math.floor(Date.now() / 1000),
+    timestamp:
+      typeof obj.timestamp === "number"
+        ? obj.timestamp
+        : Math.floor(Date.now() / 1000),
   };
 }
 
@@ -173,9 +186,12 @@ function validateMarketInfo(raw: unknown): GmxMarketInfoResponse | null {
 
   // All rate/OI fields should be strings
   const stringFields = [
-    "openInterestLong", "openInterestShort",
-    "fundingRateLong", "fundingRateShort",
-    "borrowingRateLong", "borrowingRateShort",
+    "openInterestLong",
+    "openInterestShort",
+    "fundingRateLong",
+    "fundingRateShort",
+    "borrowingRateLong",
+    "borrowingRateShort",
   ];
 
   for (const field of stringFields) {
@@ -191,7 +207,9 @@ function validateMarketInfo(raw: unknown): GmxMarketInfoResponse | null {
  * Fetch and parse prices for our 4 markets.
  * Returns a Record<MarketSlug, ParsedMarketPrice>.
  */
-export async function fetchMarketPrices(): Promise<Record<MarketSlug, ParsedMarketPrice>> {
+export async function fetchMarketPrices(): Promise<
+  Record<MarketSlug, ParsedMarketPrice>
+> {
   const response = await fetchWithRetry(`${API_BASE}/prices/tickers`);
   const rawData: unknown[] = await response.json();
 
@@ -248,8 +266,8 @@ export async function fetchMarketPrices(): Promise<Record<MarketSlug, ParsedMark
   ) {
     console.warn(
       `[GmxApi] BTC price missing while ETH/SOL fetched. ` +
-      `Check BTC index token address: ${MARKET_INDEX_TOKENS.btc}. ` +
-      `Verify against /prices/tickers response field tokenAddress.`
+        `Check BTC index token address: ${MARKET_INDEX_TOKENS.btc}. ` +
+        `Verify against /prices/tickers response field tokenAddress.`,
     );
   }
 
@@ -259,10 +277,12 @@ export async function fetchMarketPrices(): Promise<Record<MarketSlug, ParsedMark
 /**
  * Fetch and parse market info for our 4 markets.
  * Returns a Record<MarketSlug, ParsedMarketInfo>.
- * 
+ *
  * Note: This endpoint is SLOW (~5-10s). Call it less frequently than prices.
  */
-export async function fetchMarketInfo(): Promise<Record<MarketSlug, ParsedMarketInfo>> {
+export async function fetchMarketInfo(): Promise<
+  Record<MarketSlug, ParsedMarketInfo>
+> {
   const response = await fetchWithRetry(`${API_BASE}/markets/info`);
   const rawBody = await response.json();
   const rawData: unknown[] = rawBody?.markets ?? rawBody;
@@ -292,8 +312,12 @@ export async function fetchMarketInfo(): Promise<Record<MarketSlug, ParsedMarket
 
     // Annualized rates for display — uses parseGmxAnnualRate for
     // precise conversion from raw 30-decimal API strings
-    const borrowRateLongAnnualized = parseGmxAnnualRate(validated.borrowingRateLong);
-    const borrowRateShortAnnualized = parseGmxAnnualRate(validated.borrowingRateShort);
+    const borrowRateLongAnnualized = parseGmxAnnualRate(
+      validated.borrowingRateLong,
+    );
+    const borrowRateShortAnnualized = parseGmxAnnualRate(
+      validated.borrowingRateShort,
+    );
     const fundingRateAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
 
     // Determine position fee BPS based on OI balance
@@ -324,7 +348,11 @@ export async function fetchMarketInfo(): Promise<Record<MarketSlug, ParsedMarket
 /**
  * Get the current circuit breaker status.
  */
-export function getApiStatus(): { isAvailable: boolean; failures: number; cooldownRemaining: number } {
+export function getApiStatus(): {
+  isAvailable: boolean;
+  failures: number;
+  cooldownRemaining: number;
+} {
   return {
     isAvailable: !isCircuitOpen(),
     failures: consecutiveFailures,

@@ -107,7 +107,7 @@ describe("Wallet Simulation Flow", () => {
       store.approveToken("USDC");
       store.approveToken("USDC");
       expect(
-        usePaperStore.getState().approvedTokens.filter((t) => t === "USDC")
+        usePaperStore.getState().approvedTokens.filter((t) => t === "USDC"),
       ).toHaveLength(1);
     });
 
@@ -120,7 +120,7 @@ describe("Wallet Simulation Flow", () => {
       const store = usePaperStore.getState();
       store.approveToken("USDC");
       expect(usePaperStore.getState().approvedTokens.includes("USDC")).toBe(
-        true
+        true,
       );
     });
   });

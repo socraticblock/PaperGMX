@@ -28,16 +28,16 @@ import { price } from "../../branded";
 // ─── Realistic price values ──────────────────────────────────
 
 // ETH (18 decimals) at ~$2,263.37 — truncated API format
-const API_ETH_MIN = "2263370644399128";  // ~$2263.37
+const API_ETH_MIN = "2263370644399128"; // ~$2263.37
 
 // BTC (8 decimals) at ~$76,285
-const API_BTC_MIN = "762852859759876100000000000";  // ~$76285.29
+const API_BTC_MIN = "762852859759876100000000000"; // ~$76285.29
 
 // SOL (9 decimals) at ~$152.34
-const API_SOL_MIN = "152340000000000000000000";  // ~$152.34
+const API_SOL_MIN = "152340000000000000000000"; // ~$152.34
 
 // ARB (18 decimals) at ~$0.382
-const API_ARB_MIN = "382000000000";  // ~$0.382
+const API_ARB_MIN = "382000000000"; // ~$0.382
 
 // ─── Realistic rate values ───────────────────────────────────
 // Borrow rates from /markets/info are 30-decimal per-second rates.
@@ -45,11 +45,11 @@ const API_ARB_MIN = "382000000000";  // ~$0.382
 // In 30-decimal: 1.427e-8 * 10^30 = 1.427e22
 
 // ~45% annual BTC borrow rate
-const REAL_BORROW_RATE_BTC = "14270000000000000000000";  // ~1.427e-8 per-second
+const REAL_BORROW_RATE_BTC = "14270000000000000000000"; // ~1.427e-8 per-second
 // ~180% annual ETH borrow rate
-const REAL_BORROW_RATE_ETH = "57080000000000000000000";  // ~5.708e-8 per-second
+const REAL_BORROW_RATE_ETH = "57080000000000000000000"; // ~5.708e-8 per-second
 // ~1% annual funding rate
-const REAL_FUNDING_RATE = "317000000000000000000";       // ~3.17e-10 per-second
+const REAL_FUNDING_RATE = "317000000000000000000"; // ~3.17e-10 per-second
 
 describe("parseGmxUsdValue", () => {
   it("parses ETH price with truncated API format (18 decimals)", () => {
@@ -185,7 +185,9 @@ describe("parseGmxAnnualRate", () => {
     const perSecond = parseGmxPerSecondRate(REAL_BORROW_RATE_BTC);
     const manualAnnual = perSecond * 31536000 * 100;
     const parsedAnnual = parseGmxAnnualRate(REAL_BORROW_RATE_BTC);
-    expect(Math.abs(manualAnnual - parsedAnnual) / parsedAnnual).toBeLessThan(0.01);
+    expect(Math.abs(manualAnnual - parsedAnnual) / parsedAnnual).toBeLessThan(
+      0.01,
+    );
   });
 });
 
@@ -217,7 +219,10 @@ describe("calculateSpreadPercent", () => {
 
 describe("calculatePriceChangePercent", () => {
   it("returns 0 for identical prices", () => {
-    expect(calculatePriceChangePercent(price(2000), price(2000))).toBeCloseTo(0, 4);
+    expect(calculatePriceChangePercent(price(2000), price(2000))).toBeCloseTo(
+      0,
+      4,
+    );
   });
 
   it("calculates positive change correctly", () => {

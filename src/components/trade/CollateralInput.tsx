@@ -51,7 +51,7 @@ function CollateralInputInner({
         onChange(usd(Math.min(parsed, balance)));
       }
     },
-    [onChange, balance]
+    [onChange, balance],
   );
 
   const handleBlur = useCallback(() => {
@@ -65,7 +65,7 @@ function CollateralInputInner({
       isTypingRef.current = false;
       onChange(usd(Math.min(amount, balance)));
     },
-    [onChange, balance]
+    [onChange, balance],
   );
 
   const handleMaxClick = useCallback(() => {
@@ -102,8 +102,8 @@ function CollateralInputInner({
           hasError
             ? "border-red-primary"
             : value > 0
-            ? "border-blue-primary/60"
-            : "border-border-primary focus-within:border-blue-primary/60"
+              ? "border-blue-primary/60"
+              : "border-border-primary focus-within:border-blue-primary/60"
         } ${disabled ? "opacity-50" : ""}`}
       >
         <span className="pl-4 text-sm text-text-muted">$</span>

@@ -38,9 +38,7 @@ const STATUS_CONFIG: Record<
 // ─── Connection Pulse Component ─────────────────────────────
 
 function ConnectionPulse() {
-  const connectionStatus = usePaperStore(
-    useShallow((s) => s.connectionStatus)
-  );
+  const connectionStatus = usePaperStore(useShallow((s) => s.connectionStatus));
   const config = STATUS_CONFIG[connectionStatus];
 
   return (
@@ -79,7 +77,7 @@ function HeaderInner() {
         isInitialized: s.isInitialized,
         activePosition: s.activePosition,
         setSettingsOpen: s.setSettingsOpen,
-      }))
+      })),
     );
 
   const hasPosition = activePosition !== null;
@@ -117,7 +115,10 @@ function HeaderInner() {
             aria-live="polite"
             aria-label={`Current balance: ${formatBalance(balance)}`}
           >
-            <div className="h-2 w-2 rounded-full bg-green-primary" aria-hidden="true" />
+            <div
+              className="h-2 w-2 rounded-full bg-green-primary"
+              aria-hidden="true"
+            />
             <span className="text-sm font-medium text-text-primary">
               {formatBalance(balance)}
             </span>

@@ -35,22 +35,21 @@ export interface WalletSimulationResult {
 // ─── Timing constants ────────────────────────────────────
 
 // Spec 4.8: spinner → success checkmark (1s total)
-const APPROVAL_PROCESSING_MS = 700;  // Spinner phase
-const APPROVAL_SUCCESS_MS = 300;     // Green checkmark phase
-const SIGNING_PROCESSING_MS = 700;   // Spinner phase
-const SIGNING_SUCCESS_MS = 300;      // Green checkmark phase
+const APPROVAL_PROCESSING_MS = 700; // Spinner phase
+const APPROVAL_SUCCESS_MS = 300; // Green checkmark phase
+const SIGNING_PROCESSING_MS = 700; // Spinner phase
+const SIGNING_SUCCESS_MS = 300; // Green checkmark phase
 
 // ─── Hook ────────────────────────────────────────────────
 
 export function useWalletSimulation(): WalletSimulationResult {
-  const { orderStatus, approveToken, setOrderStatus } =
-    usePaperStore(
-      useShallow((s) => ({
-        orderStatus: s.orderStatus,
-        approveToken: s.approveToken,
-        setOrderStatus: s.setOrderStatus,
-      }))
-    );
+  const { orderStatus, approveToken, setOrderStatus } = usePaperStore(
+    useShallow((s) => ({
+      orderStatus: s.orderStatus,
+      approveToken: s.approveToken,
+      setOrderStatus: s.setOrderStatus,
+    })),
+  );
 
   const [processing, setProcessing] = useState<PopupProcessingState>("idle");
 
@@ -69,7 +68,11 @@ export function useWalletSimulation(): WalletSimulationResult {
       // running timeout to advance it. Reset to idle so the form works
       // when the user returns.
       const status = usePaperStore.getState().orderStatus;
-      if (status === "approving" || status === "approved" || status === "signing") {
+      if (
+        status === "approving" ||
+        status === "approved" ||
+        status === "signing"
+      ) {
         usePaperStore.getState().setOrderStatus("idle");
       }
       // Clean up all pending timers
@@ -81,17 +84,14 @@ export function useWalletSimulation(): WalletSimulationResult {
   }, []);
 
   // Helper: schedule a timeout that's tracked for cleanup
-  const scheduleTimeout = useCallback(
-    (fn: () => void, delay: number) => {
-      const id = setTimeout(() => {
-        timerRefs.current.delete(id);
-        fn();
-      }, delay);
-      timerRefs.current.add(id);
-      return id;
-    },
-    []
-  );
+  const scheduleTimeout = useCallback((fn: () => void, delay: number) => {
+    const id = setTimeout(() => {
+      timerRefs.current.delete(id);
+      fn();
+    }, delay);
+    timerRefs.current.add(id);
+    return id;
+  }, []);
 
   const showApproval =
     orderStatus === "approving" || orderStatus === "approved";

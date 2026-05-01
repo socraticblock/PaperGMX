@@ -1,12 +1,23 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState, useEffect } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
-import type { OrderDirection, OrderStatus, USD, MarketSlug, PriceData, MarketInfo } from "@/types";
+import type {
+  OrderDirection,
+  OrderStatus,
+  USD,
+  MarketSlug,
+  PriceData,
+  MarketInfo,
+} from "@/types";
 import { formatUSD } from "@/lib/format";
 import { calculatePositionSize } from "@/lib/calculations";
-import { MARKETS, ONE_CLICK_MAX_ACTIONS, ONE_CLICK_WARNING_THRESHOLD } from "@/lib/constants";
+import {
+  MARKETS,
+  ONE_CLICK_MAX_ACTIONS,
+  ONE_CLICK_WARNING_THRESHOLD,
+} from "@/lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
 import { BoltIcon } from "@heroicons/react/24/outline";
 
@@ -43,13 +54,14 @@ function SubmitOrderButtonInner({
   needsApproval,
   onStatusChange,
 }: SubmitOrderButtonProps) {
-  const { oneClickTrading, tradingMode, decrementOneClickActions } = usePaperStore(
-    useShallow((s) => ({
-      oneClickTrading: s.oneClickTrading,
-      tradingMode: s.tradingMode,
-      decrementOneClickActions: s.decrementOneClickActions,
-    }))
-  );
+  const { oneClickTrading, tradingMode, decrementOneClickActions } =
+    usePaperStore(
+      useShallow((s) => ({
+        oneClickTrading: s.oneClickTrading,
+        tradingMode: s.tradingMode,
+        decrementOneClickActions: s.decrementOneClickActions,
+      })),
+    );
 
   const marketConfig = MARKETS[market];
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
@@ -57,12 +69,20 @@ function SubmitOrderButtonInner({
 
   // ─── 1CT State ──────────────────────────────────────
   const is1ctMode = tradingMode === "1ct" && oneClickTrading.enabled;
+  // Track current time in state to avoid calling Date.now() during render
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
   const isExpired =
     oneClickTrading.expiresAt !== null &&
-    oneClickTrading.expiresAt < Date.now();
+    oneClickTrading.expiresAt < now;
   const isDepleted = oneClickTrading.actionsRemaining <= 0;
   const needsRenewal = is1ctMode && (isExpired || isDepleted);
-  const isLow1ct = is1ctMode && oneClickTrading.actionsRemaining <= ONE_CLICK_WARNING_THRESHOLD;
+  const isLow1ct =
+    is1ctMode &&
+    oneClickTrading.actionsRemaining <= ONE_CLICK_WARNING_THRESHOLD;
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
@@ -92,7 +112,13 @@ function SubmitOrderButtonInner({
     } else {
       onStatusChange("signing"); // Skip approval, go to signing
     }
-  }, [canSubmit, is1ctMode, needsApproval, onStatusChange, decrementOneClickActions]);
+  }, [
+    canSubmit,
+    is1ctMode,
+    needsApproval,
+    onStatusChange,
+    decrementOneClickActions,
+  ]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -209,7 +235,9 @@ function SubmitOrderButtonInner({
         onClick={handleClick}
         disabled={!canSubmit}
         className={`w-full rounded-xl py-4 text-base font-bold text-white transition-all ${buttonConfig.bgClass} ${
-          canSubmit ? "hover:brightness-110 active:brightness-90" : "cursor-not-allowed"
+          canSubmit
+            ? "hover:brightness-110 active:brightness-90"
+            : "cursor-not-allowed"
         }`}
         aria-label={buttonConfig.text}
       >
@@ -233,12 +261,16 @@ function SubmitOrderButtonInner({
         <p>
           Paper trading only — no real funds at risk.
           <br />
-          Position fee: {marketInfo?.positionFeeBps ?? 6} BPS. Keeper execution simulated.
+          Position fee: {marketInfo?.positionFeeBps ?? 6} BPS. Keeper execution
+          simulated.
         </p>
         {is1ctMode && (
-          <p className={`mt-1 ${isLow1ct ? "text-yellow-primary" : "text-purple-primary"}`}>
-            <BoltIcon className="inline h-3 w-3" aria-hidden="true" />{" "}
-            1CT: {oneClickTrading.actionsRemaining}/{ONE_CLICK_MAX_ACTIONS} actions remaining
+          <p
+            className={`mt-1 ${isLow1ct ? "text-yellow-primary" : "text-purple-primary"}`}
+          >
+            <BoltIcon className="inline h-3 w-3" aria-hidden="true" /> 1CT:{" "}
+            {oneClickTrading.actionsRemaining}/{ONE_CLICK_MAX_ACTIONS} actions
+            remaining
           </p>
         )}
       </div>

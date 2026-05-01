@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState, useEffect } from "react";
+import { memo, useCallback } from "react";
 import { MARKETS, LEVERAGE_PRESETS } from "@/lib/constants";
 import type { MarketSlug } from "@/types";
 
@@ -21,13 +21,7 @@ function LeverageSliderInner({
   onChange,
   disabled = false,
 }: LeverageSliderProps) {
-  const [inputValue, setInputValue] = useState(String(leverage));
   const maxLeverage = MARKETS[market].maxLeverage;
-
-  // Sync input when leverage changes externally
-  useEffect(() => {
-    setInputValue(String(leverage));
-  }, [leverage]);
 
   const handleSliderChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,10 +35,7 @@ function LeverageSliderInner({
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value;
-      setInputValue(raw);
-
-      const val = parseInt(raw, 10);
+      const val = parseInt(e.target.value, 10);
       if (Number.isFinite(val) && val >= 1 && val <= maxLeverage) {
         onChange(val);
       }
@@ -90,7 +81,7 @@ function LeverageSliderInner({
             type="number"
             min={1}
             max={maxLeverage}
-            value={inputValue}
+            value={leverage}
             onChange={handleInputChange}
             disabled={disabled}
             className={`w-14 rounded-lg border border-border-primary bg-bg-input px-2 py-1 text-right text-sm font-bold text-text-primary focus:border-blue-primary focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${

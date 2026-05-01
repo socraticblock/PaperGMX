@@ -19,10 +19,12 @@ import {
 } from "@/lib/calculations";
 import { usd } from "@/lib/branded";
 import { formatUSD, formatPrice, formatPercent } from "@/lib/format";
-import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS } from "@/lib/constants";
 import {
-  InformationCircleIcon,
-} from "@heroicons/react/24/outline";
+  MARKETS,
+  DEFAULT_POSITION_FEE_BPS,
+  SLIPPAGE_OPEN_BPS,
+} from "@/lib/constants";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -51,11 +53,16 @@ function SummaryRow({ label, value, tooltip, valueColor }: SummaryRowProps) {
         <span className="text-xs text-text-muted">{label}</span>
         {tooltip && (
           <span title={tooltip} className="cursor-help">
-            <InformationCircleIcon className="h-3 w-3 text-text-muted/60" aria-hidden="true" />
+            <InformationCircleIcon
+              className="h-3 w-3 text-text-muted/60"
+              aria-hidden="true"
+            />
           </span>
         )}
       </div>
-      <span className={`text-xs font-medium ${valueColor ?? "text-text-primary"}`}>
+      <span
+        className={`text-xs font-medium ${valueColor ?? "text-text-primary"}`}
+      >
         {value}
       </span>
     </div>
@@ -90,7 +97,7 @@ function OrderSummaryInner({
       priceData.min,
       priceData.max,
       direction,
-      false // not a close
+      false, // not a close
     );
 
     // Acceptable price with slippage
@@ -98,7 +105,7 @@ function OrderSummaryInner({
       fillPrice,
       SLIPPAGE_OPEN_BPS,
       direction,
-      false
+      false,
     );
 
     // Liquidation price (at entry, no accrued fees)
@@ -110,20 +117,23 @@ function OrderSummaryInner({
       sizeUsd,
       maintenanceMarginBps,
       positionFee, // Position fee reduces effective collateral
-      usd(0)       // No accrued fees at open
+      usd(0), // No accrued fees at open
     );
 
     // Hourly borrow fee estimate
     const borrowRate =
       direction === "long"
-        ? marketInfo?.borrowRateLong ?? 0
-        : marketInfo?.borrowRateShort ?? 0;
+        ? (marketInfo?.borrowRateLong ?? 0)
+        : (marketInfo?.borrowRateShort ?? 0);
     const hourlyBorrowFee = calculateHourlyBorrowFee(sizeUsd, borrowRate);
 
     // Spread percentage
-    const spread = priceData.max > 0 && priceData.min > 0
-      ? ((priceData.max - priceData.min) / ((priceData.max + priceData.min) / 2)) * 100
-      : 0;
+    const spread =
+      priceData.max > 0 && priceData.min > 0
+        ? ((priceData.max - priceData.min) /
+            ((priceData.max + priceData.min) / 2)) *
+          100
+        : 0;
 
     return {
       sizeUsd,
@@ -135,15 +145,23 @@ function OrderSummaryInner({
       spread,
       feeBps,
     };
-  }, [collateralUsd, leverage, direction, priceData, marketInfo, marketConfig.maintenanceMarginBps]);
+  }, [
+    collateralUsd,
+    leverage,
+    direction,
+    priceData,
+    marketInfo,
+    marketConfig.maintenanceMarginBps,
+  ]);
 
   // ─── Loading state ──────────────────────────────────────
   if (!calculations) {
-    const reason = !priceData || priceData.last <= 0
-      ? "Waiting for price data..."
-      : collateralUsd <= 0
-      ? "Enter collateral to see order details"
-      : null;
+    const reason =
+      !priceData || priceData.last <= 0
+        ? "Waiting for price data..."
+        : collateralUsd <= 0
+          ? "Enter collateral to see order details"
+          : null;
 
     return (
       <div className="rounded-xl border border-border-primary bg-bg-card p-4">
@@ -171,7 +189,7 @@ function OrderSummaryInner({
       ? Math.abs(
           ((calculations.liquidationPrice - calculations.fillPrice) /
             calculations.fillPrice) *
-            100
+            100,
         )
       : 0;
 
@@ -212,8 +230,8 @@ function OrderSummaryInner({
             liqDistancePercent < 10
               ? "text-red-primary"
               : liqDistancePercent < 25
-              ? "text-yellow-primary"
-              : "text-text-primary"
+                ? "text-yellow-primary"
+                : "text-text-primary"
           }
         />
 

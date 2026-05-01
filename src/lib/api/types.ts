@@ -48,11 +48,11 @@ export interface GmxTokenResponse {
 export interface ParsedMarketPrice {
   marketSlug: string;
   symbol: string;
-  minPrice: number;  // Already converted from 30-decimal
+  minPrice: number; // Already converted from 30-decimal
   maxPrice: number;
   midPrice: number;
   updatedAt: number; // ms timestamp
-  isStale: boolean;  // true if updatedAt is > 30s ago
+  isStale: boolean; // true if updatedAt is > 30s ago
 }
 
 /** Validated and parsed market info for a single market */

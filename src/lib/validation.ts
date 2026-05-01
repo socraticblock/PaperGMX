@@ -7,7 +7,10 @@ import { usd, price } from "@/lib/branded";
  * Validate a balance amount for initialization or top-up.
  * @returns The validated amount or throws
  */
-export function validateBalanceAmount(amount: number, context: string = "amount"): USD {
+export function validateBalanceAmount(
+  amount: number,
+  context: string = "amount",
+): USD {
   if (typeof amount !== "number" || !Number.isFinite(amount)) {
     throw new Error(`Invalid ${context}: not a finite number (${amount})`);
   }
@@ -32,7 +35,9 @@ export function validateTradeAmount(amount: number, balance: USD): USD {
     throw new Error(`Invalid trade amount: minimum is $1 (${amount})`);
   }
   if (amount > balance) {
-    throw new Error(`Invalid trade amount: exceeds balance (${amount} > ${balance})`);
+    throw new Error(
+      `Invalid trade amount: exceeds balance (${amount} > ${balance})`,
+    );
   }
   return usd(amount);
 }
@@ -40,7 +45,10 @@ export function validateTradeAmount(amount: number, balance: USD): USD {
 /**
  * Validate leverage value.
  */
-export function validateLeverage(leverage: number, maxLeverage: number): number {
+export function validateLeverage(
+  leverage: number,
+  maxLeverage: number,
+): number {
   if (typeof leverage !== "number" || !Number.isFinite(leverage)) {
     throw new Error(`Invalid leverage: not a finite number (${leverage})`);
   }
@@ -48,7 +56,9 @@ export function validateLeverage(leverage: number, maxLeverage: number): number 
     throw new Error(`Invalid leverage: minimum is 1x (${leverage})`);
   }
   if (leverage > maxLeverage) {
-    throw new Error(`Invalid leverage: exceeds maximum (${leverage} > ${maxLeverage}x)`);
+    throw new Error(
+      `Invalid leverage: exceeds maximum (${leverage} > ${maxLeverage}x)`,
+    );
   }
   return leverage;
 }

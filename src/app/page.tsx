@@ -137,7 +137,10 @@ export default function Home() {
                 transition={{ delay: 0.6 + i * 0.1, duration: 0.4 }}
                 className="rounded-xl border border-border-primary bg-bg-card p-5 text-left"
               >
-                <feature.icon className="h-6 w-6 text-blue-primary" aria-hidden="true" />
+                <feature.icon
+                  className="h-6 w-6 text-blue-primary"
+                  aria-hidden="true"
+                />
                 <h3 className="mt-3 text-sm font-semibold text-text-primary">
                   {feature.title}
                 </h3>

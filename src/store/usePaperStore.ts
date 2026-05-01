@@ -69,7 +69,10 @@ const initialState = {
 
 const STORE_VERSION = 1;
 
-function migrateStore(persistedState: unknown, version: number): Partial<PaperStoreState> {
+function migrateStore(
+  persistedState: unknown,
+  version: number,
+): Partial<PaperStoreState> {
   if (version === 0) {
     // Future: migrate from v0 to v1
   }
@@ -94,7 +97,7 @@ export const usePaperStore = create<PaperStoreState>()(
               isInitialized: true,
             },
             false,
-            "initializeBalance"
+            "initializeBalance",
           );
         },
 
@@ -105,16 +108,12 @@ export const usePaperStore = create<PaperStoreState>()(
               balance: addUSD(state.balance, validated),
             }),
             false,
-            "topUpBalance"
+            "topUpBalance",
           );
         },
 
         resetWallet: () => {
-          set(
-            { ...initialState, isInitialized: false },
-            false,
-            "resetWallet"
-          );
+          set({ ...initialState, isInitialized: false }, false, "resetWallet");
         },
 
         approveToken: (token: string) =>
@@ -125,7 +124,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 : [...state.approvedTokens, token],
             }),
             false,
-            "approveToken"
+            "approveToken",
           ),
 
         // ─── Position Actions ───────────────────────────
@@ -137,14 +136,14 @@ export const usePaperStore = create<PaperStoreState>()(
             (state) => {
               if (amount > state.balance) {
                 console.warn(
-                  `[PaperGMX] Cannot lock $${amount} — balance is $${state.balance}`
+                  `[PaperGMX] Cannot lock $${amount} — balance is $${state.balance}`,
                 );
                 return state; // No change
               }
               return { balance: usd(state.balance - amount) };
             },
             false,
-            "lockCollateral"
+            "lockCollateral",
           ),
 
         setOrderStatus: (status: OrderStatus) => {
@@ -153,7 +152,7 @@ export const usePaperStore = create<PaperStoreState>()(
           // Valid transitions are defined in ORDER_TRANSITIONS (src/types/index.ts)
           if (!isValidTransition(current, status)) {
             console.warn(
-              `[PaperGMX] Blocked invalid transition: ${current} → ${status}`
+              `[PaperGMX] Blocked invalid transition: ${current} → ${status}`,
             );
             return; // Do NOT apply the transition
           }
@@ -168,21 +167,21 @@ export const usePaperStore = create<PaperStoreState>()(
                 activePosition: {
                   ...state.activePosition,
                   borrowFeeAccrued: usd(
-                    state.activePosition.borrowFeeAccrued + borrowFeeDelta
+                    state.activePosition.borrowFeeAccrued + borrowFeeDelta,
                   ),
                   fundingFeeAccrued: usd(
-                    state.activePosition.fundingFeeAccrued + fundingFeeDelta
+                    state.activePosition.fundingFeeAccrued + fundingFeeDelta,
                   ),
                 },
               };
             },
             false,
-            "updatePositionFees"
+            "updatePositionFees",
           ),
 
         closePosition: (
           exitPrice: Price,
-          closeReason: ClosedTrade["closeReason"]
+          closeReason: ClosedTrade["closeReason"],
         ) =>
           set(
             (state) => {
@@ -200,7 +199,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 pos.positionFeePaid,
                 pos.positionFeeBps, // Use the SAME fee rate as open
                 pos.borrowFeeAccrued,
-                pos.fundingFeeAccrued
+                pos.fundingFeeAccrued,
               );
 
               const closedTrade: ClosedTrade = {
@@ -231,7 +230,7 @@ export const usePaperStore = create<PaperStoreState>()(
               };
             },
             false,
-            "closePosition"
+            "closePosition",
           ),
 
         addClosedTrade: (trade: ClosedTrade) =>
@@ -240,7 +239,7 @@ export const usePaperStore = create<PaperStoreState>()(
               tradeHistory: [trade, ...state.tradeHistory],
             }),
             false,
-            "addClosedTrade"
+            "addClosedTrade",
           ),
 
         // ─── Settings Actions ───────────────────────────
@@ -256,7 +255,7 @@ export const usePaperStore = create<PaperStoreState>()(
               tutorialDismissed: { ...state.tutorialDismissed, [key]: true },
             }),
             false,
-            "dismissTutorial"
+            "dismissTutorial",
           ),
 
         setTradingMode: (mode: TradingMode) =>
@@ -269,7 +268,7 @@ export const usePaperStore = create<PaperStoreState>()(
           set(
             { simulateKeeperDelay: simulate },
             false,
-            "setSimulateKeeperDelay"
+            "setSimulateKeeperDelay",
           ),
 
         // ─── 1CT Actions ───────────────────────────────
@@ -281,12 +280,12 @@ export const usePaperStore = create<PaperStoreState>()(
                 activatedAt: timestamp(Date.now()),
                 actionsRemaining: ONE_CLICK_MAX_ACTIONS,
                 expiresAt: timestamp(
-                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000
+                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000,
                 ),
               },
             },
             false,
-            "enableOneClickTrading"
+            "enableOneClickTrading",
           ),
 
         disableOneClickTrading: () =>
@@ -300,7 +299,7 @@ export const usePaperStore = create<PaperStoreState>()(
               },
             },
             false,
-            "disableOneClickTrading"
+            "disableOneClickTrading",
           ),
 
         decrementOneClickActions: () =>
@@ -310,12 +309,12 @@ export const usePaperStore = create<PaperStoreState>()(
                 ...state.oneClickTrading,
                 actionsRemaining: Math.max(
                   0,
-                  state.oneClickTrading.actionsRemaining - 1
+                  state.oneClickTrading.actionsRemaining - 1,
                 ),
               },
             }),
             false,
-            "decrementOneClickActions"
+            "decrementOneClickActions",
           ),
 
         renewOneClickTrading: () =>
@@ -326,35 +325,23 @@ export const usePaperStore = create<PaperStoreState>()(
                 activatedAt: timestamp(Date.now()),
                 actionsRemaining: ONE_CLICK_MAX_ACTIONS,
                 expiresAt: timestamp(
-                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000
+                  Date.now() + ONE_CLICK_DURATION_DAYS * 24 * 60 * 60 * 1000,
                 ),
               },
             },
             false,
-            "renewOneClickTrading"
+            "renewOneClickTrading",
           ),
 
         // ─── Price Actions ─────────────────────────────
         setPrices: (prices: Record<MarketSlug, PriceData>) =>
-          set(
-            { prices, pricesLoaded: true },
-            false,
-            "setPrices"
-          ),
+          set({ prices, pricesLoaded: true }, false, "setPrices"),
 
         setMarketInfo: (info: Record<MarketSlug, MarketInfo>) =>
-          set(
-            { marketInfo: info },
-            false,
-            "setMarketInfo"
-          ),
+          set({ marketInfo: info }, false, "setMarketInfo"),
 
         setConnectionStatus: (status: ApiConnectionStatus) =>
-          set(
-            { connectionStatus: status },
-            false,
-            "setConnectionStatus"
-          ),
+          set({ connectionStatus: status }, false, "setConnectionStatus"),
       }),
       {
         name: "papergmx-storage",
@@ -383,8 +370,8 @@ export const usePaperStore = create<PaperStoreState>()(
           simulateKeeperDelay: state.simulateKeeperDelay,
           oneClickTrading: state.oneClickTrading,
         }),
-      }
+      },
     ),
-    { name: "PaperGMX", enabled: process.env.NODE_ENV === "development" }
-  )
+    { name: "PaperGMX", enabled: process.env.NODE_ENV === "development" },
+  ),
 );

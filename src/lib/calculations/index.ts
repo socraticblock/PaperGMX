@@ -1,5 +1,13 @@
 import type { USD, Price, BPS, OrderDirection } from "@/types";
-import { usd, price, bpsToDecimal, applyBps, addUSD, subUSD, mulUSD } from "@/lib/branded";
+import {
+  usd,
+  price,
+  bpsToDecimal,
+  applyBps,
+  addUSD,
+  subUSD,
+  mulUSD,
+} from "@/lib/branded";
 
 // ─── Position Fee ──────────────────────────────────────────
 
@@ -27,10 +35,11 @@ export function calculatePositionFee(sizeUsd: USD, feeBps: BPS): USD {
 export function calculateBorrowFee(
   sizeUsd: USD,
   borrowRatePerSecond: number,
-  durationMs: number
+  durationMs: number,
 ): USD {
   if (sizeUsd < 0) throw new Error(`Invalid size: ${sizeUsd}`);
-  if (borrowRatePerSecond < 0) throw new Error(`Invalid borrow rate: ${borrowRatePerSecond}`);
+  if (borrowRatePerSecond < 0)
+    throw new Error(`Invalid borrow rate: ${borrowRatePerSecond}`);
   if (durationMs < 0) throw new Error(`Invalid duration: ${durationMs}`);
 
   const secondsElapsed = durationMs / 1000;
@@ -43,7 +52,10 @@ export function calculateBorrowFee(
  * @param sizeUsd - Position size in USD
  * @param borrowRatePerSecond - Per-second rate
  */
-export function calculateHourlyBorrowFee(sizeUsd: USD, borrowRatePerSecond: number): USD {
+export function calculateHourlyBorrowFee(
+  sizeUsd: USD,
+  borrowRatePerSecond: number,
+): USD {
   return calculateBorrowFee(sizeUsd, borrowRatePerSecond, 3600_000);
 }
 
@@ -62,15 +74,17 @@ export function calculateFundingFee(
   sizeUsd: USD,
   fundingRatePerSecond: number,
   durationMs: number,
-  direction: OrderDirection
+  direction: OrderDirection,
 ): USD {
   if (sizeUsd < 0) throw new Error(`Invalid size: ${sizeUsd}`);
-  if (!Number.isFinite(fundingRatePerSecond)) throw new Error(`Invalid funding rate: ${fundingRatePerSecond}`);
+  if (!Number.isFinite(fundingRatePerSecond))
+    throw new Error(`Invalid funding rate: ${fundingRatePerSecond}`);
   if (durationMs < 0) throw new Error(`Invalid duration: ${durationMs}`);
 
   const secondsElapsed = durationMs / 1000;
   const directionMultiplier = direction === "long" ? 1 : -1;
-  const fee = sizeUsd * fundingRatePerSecond * secondsElapsed * directionMultiplier;
+  const fee =
+    sizeUsd * fundingRatePerSecond * secondsElapsed * directionMultiplier;
   return usd(fee);
 }
 
@@ -87,7 +101,7 @@ export function calculateGrossPnl(
   direction: OrderDirection,
   entryPrice: Price,
   exitPrice: Price,
-  sizeUsd: USD
+  sizeUsd: USD,
 ): USD {
   if (entryPrice <= 0) throw new Error(`Invalid entry price: ${entryPrice}`);
   if (exitPrice <= 0) throw new Error(`Invalid exit price: ${exitPrice}`);
@@ -111,9 +125,15 @@ export function calculateNetPnl(
   positionFeeOpen: USD,
   positionFeeClose: USD,
   borrowFeeTotal: USD,
-  fundingFeeTotal: USD
+  fundingFeeTotal: USD,
 ): USD {
-  return subUSD(grossPnl, addUSD(positionFeeOpen, addUSD(positionFeeClose, addUSD(borrowFeeTotal, fundingFeeTotal))));
+  return subUSD(
+    grossPnl,
+    addUSD(
+      positionFeeOpen,
+      addUSD(positionFeeClose, addUSD(borrowFeeTotal, fundingFeeTotal)),
+    ),
+  );
 }
 
 // ─── Liquidation Price ─────────────────────────────────────
@@ -121,13 +141,13 @@ export function calculateNetPnl(
 /**
  * Calculate liquidation price.
  * GMX V2: Full liquidation only.
- * 
+ *
  * For Long: liqPrice = entryPrice * (1 - (collateral - fees) / size)
  * For Short: liqPrice = entryPrice * (1 + (collateral - fees) / size)
- * 
+ *
  * Where fees = position fee + accumulated borrow + funding
  * Maintenance margin: 0.5% (BTC/ETH) or 1.0% (SOL/ARB)
- * 
+ *
  * @param direction - Long or Short
  * @param entryPrice - Entry fill price
  * @param collateralUsd - Collateral amount
@@ -143,16 +163,18 @@ export function calculateLiquidationPrice(
   sizeUsd: USD,
   maintenanceMarginBps: BPS,
   positionFee: USD,
-  accruedFees: USD
+  accruedFees: USD,
 ): Price {
   if (entryPrice <= 0) throw new Error(`Invalid entry price: ${entryPrice}`);
-  if (collateralUsd < 0) throw new Error(`Invalid collateral: ${collateralUsd}`);
+  if (collateralUsd < 0)
+    throw new Error(`Invalid collateral: ${collateralUsd}`);
   if (sizeUsd <= 0) throw new Error(`Invalid size: ${sizeUsd}`);
 
   const maintenanceMargin = bpsToDecimal(maintenanceMarginBps);
   // GMX V2: effectiveCollateral = collateral - positionFee - accruedFees - maintenanceMargin
   // Position fee is deducted from collateral at open in GMX V2
-  const effectiveCollateral = collateralUsd - positionFee - accruedFees - sizeUsd * maintenanceMargin;
+  const effectiveCollateral =
+    collateralUsd - positionFee - accruedFees - sizeUsd * maintenanceMargin;
 
   if (direction === "long") {
     // Long liq: price drops so that collateral is wiped out
@@ -183,7 +205,7 @@ export function calculateAcceptablePrice(
   currentPrice: Price,
   slippageBps: BPS,
   direction: OrderDirection,
-  isClose: boolean
+  isClose: boolean,
 ): Price {
   const slippage = bpsToDecimal(slippageBps);
 
@@ -209,7 +231,7 @@ export function determineFillPrice(
   oracleMin: Price,
   oracleMax: Price,
   direction: OrderDirection,
-  isClose: boolean
+  isClose: boolean,
 ): Price {
   const isLong = direction === "long";
 
@@ -226,8 +248,12 @@ export function determineFillPrice(
 /**
  * Calculate position size from collateral and leverage.
  */
-export function calculatePositionSize(collateralUsd: USD, leverage: number): USD {
-  if (collateralUsd < 0) throw new Error(`Invalid collateral: ${collateralUsd}`);
+export function calculatePositionSize(
+  collateralUsd: USD,
+  leverage: number,
+): USD {
+  if (collateralUsd < 0)
+    throw new Error(`Invalid collateral: ${collateralUsd}`);
   if (leverage <= 0) throw new Error(`Invalid leverage: ${leverage}`);
   return mulUSD(collateralUsd, leverage);
 }
@@ -256,11 +282,17 @@ export function calculateClosePosition(
   positionFeeOpen: USD,
   positionFeeCloseBps: BPS,
   borrowFeeAccrued: USD,
-  fundingFeeAccrued: USD
+  fundingFeeAccrued: USD,
 ): ClosePositionResult {
   const grossPnl = calculateGrossPnl(direction, entryPrice, exitPrice, sizeUsd);
   const positionFeeClose = calculatePositionFee(sizeUsd, positionFeeCloseBps);
-  const netPnl = calculateNetPnl(grossPnl, positionFeeOpen, positionFeeClose, borrowFeeAccrued, fundingFeeAccrued);
+  const netPnl = calculateNetPnl(
+    grossPnl,
+    positionFeeOpen,
+    positionFeeClose,
+    borrowFeeAccrued,
+    fundingFeeAccrued,
+  );
 
   // Returned collateral = original collateral + net P&L
   // If net P&L is very negative, this could be < 0 (liquidation handles this)

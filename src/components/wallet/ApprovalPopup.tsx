@@ -30,23 +30,35 @@ function ApprovalPopupInner({
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-border-primary px-5 py-4">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-primary/20">
-          <svg className="h-4 w-4 text-blue-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+          <svg
+            className="h-4 w-4 text-blue-primary"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+            />
           </svg>
         </div>
         <div>
           <h2 className="text-sm font-semibold text-text-primary">
             Approve USDC
           </h2>
-          <p className="text-xs text-text-muted">
-            {FAKE_WALLET_ADDRESS}
-          </p>
+          <p className="text-xs text-text-muted">{FAKE_WALLET_ADDRESS}</p>
         </div>
       </div>
 
       {/* Body */}
       <div className="px-5 py-4 space-y-3">
-        <DetailRow label="Spender" value={shortenAddress(GMX_CONTRACTS.syntheticsRouter)} />
+        <DetailRow
+          label="Spender"
+          value={shortenAddress(GMX_CONTRACTS.syntheticsRouter)}
+        />
         <DetailRow label="Token" value="USDC" />
         <DetailRow label="Amount" value="Unlimited" highlight />
         <DetailRow label="Est. Gas" value="~$0.42" />
@@ -55,8 +67,8 @@ function ApprovalPopupInner({
       {/* Disclaimer */}
       <div className="mx-5 mb-4 rounded-lg bg-bg-input px-3 py-2">
         <p className="text-[10px] text-text-muted leading-relaxed text-center">
-          Granting permission allows the GMX Router to spend your USDC.
-          This is a simulation — no real transaction is created.
+          Granting permission allows the GMX Router to spend your USDC. This is
+          a simulation — no real transaction is created.
         </p>
       </div>
 

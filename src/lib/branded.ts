@@ -64,7 +64,7 @@ export function decimalToBps(decimal: number): BPS {
 
 /** Apply BPS rate to a USD amount (e.g., 50 BPS of $1000 = $0.50) */
 export function applyBps(amount: USD, bpsValue: BPS): USD {
-  return usd(amount * bpsValue / 10_000);
+  return usd((amount * bpsValue) / 10_000);
 }
 
 // ─── Type Guards ───────────────────────────────────────────
@@ -82,20 +82,23 @@ export function isPrice(value: unknown): value is Price {
 /** Add two USD amounts, returns NaN-safe result */
 export function addUSD(a: USD, b: USD): USD {
   const result = a + b;
-  if (!Number.isFinite(result)) throw new Error(`USD addition overflow: ${a} + ${b}`);
+  if (!Number.isFinite(result))
+    throw new Error(`USD addition overflow: ${a} + ${b}`);
   return usd(result);
 }
 
 /** Subtract two USD amounts, returns NaN-safe result */
 export function subUSD(a: USD, b: USD): USD {
   const result = a - b;
-  if (!Number.isFinite(result)) throw new Error(`USD subtraction error: ${a} - ${b}`);
+  if (!Number.isFinite(result))
+    throw new Error(`USD subtraction error: ${a} - ${b}`);
   return usd(result);
 }
 
 /** Multiply USD by a scalar */
 export function mulUSD(amount: USD, scalar: number): USD {
   const result = amount * scalar;
-  if (!Number.isFinite(result)) throw new Error(`USD multiplication error: ${amount} * ${scalar}`);
+  if (!Number.isFinite(result))
+    throw new Error(`USD multiplication error: ${amount} * ${scalar}`);
   return usd(result);
 }

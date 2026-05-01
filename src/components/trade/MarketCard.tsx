@@ -18,17 +18,20 @@ function MarketCardInner({ slug, onClick }: MarketCardProps) {
   const priceData = usePaperStore(useShallow((s) => s.prices[slug]));
   const info = usePaperStore(useShallow((s) => s.marketInfo[slug]));
   const hasPosition = usePaperStore(
-    useShallow((s) => s.activePosition?.market === slug)
+    useShallow((s) => s.activePosition?.market === slug),
   );
 
   const currentPrice = priceData?.last ?? 0;
   const change24h = priceData?.change24h ?? 0;
-  const totalOi = info ? (info.longOi + info.shortOi) : 0;
+  const totalOi = info ? info.longOi + info.shortOi : 0;
 
   // Pre-computed annualized borrow rate for display (from parseGmxAnnualRate)
   const borrowRateAnnualized = useMemo(() => {
     if (!info) return "—";
-    const annual = Math.max(info.borrowRateLongAnnualized, info.borrowRateShortAnnualized);
+    const annual = Math.max(
+      info.borrowRateLongAnnualized,
+      info.borrowRateShortAnnualized,
+    );
     if (annual <= 0) return "—";
     if (annual > 1000) return ">1000%";
     return `${annual.toFixed(0)}%`;
@@ -47,7 +50,9 @@ function MarketCardInner({ slug, onClick }: MarketCardProps) {
       {/* Top row: Icon + Name + Position badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-2xl" aria-hidden="true">{market.icon}</span>
+          <span className="text-2xl" aria-hidden="true">
+            {market.icon}
+          </span>
           <div>
             <h3 className="text-sm font-semibold text-text-primary">
               {market.pair}

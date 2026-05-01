@@ -20,11 +20,7 @@ function DirectionToggleInner({
   disabled = false,
 }: DirectionToggleProps) {
   return (
-    <div
-      className="flex gap-2"
-      role="radiogroup"
-      aria-label="Trade direction"
-    >
+    <div className="flex gap-2" role="radiogroup" aria-label="Trade direction">
       {/* Long Button */}
       <button
         role="radio"

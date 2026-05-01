@@ -1,7 +1,11 @@
 "use client";
 
 import { usePaperStore } from "@/store/usePaperStore";
-import { BALANCE_PRESETS, MAX_BALANCE, MIN_TRADE_AMOUNT } from "@/lib/constants";
+import {
+  BALANCE_PRESETS,
+  MAX_BALANCE,
+  MIN_TRADE_AMOUNT,
+} from "@/lib/constants";
 import { formatUSD } from "@/lib/format";
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -103,17 +107,15 @@ export default function BalanceSelector() {
               error
                 ? "border-red-primary"
                 : customAmount
-                ? "border-blue-primary"
-                : "border-border-primary"
+                  ? "border-blue-primary"
+                  : "border-border-primary"
             } focus:border-blue-primary`}
           />
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-text-muted">
             USDC
           </span>
         </div>
-        {error && (
-          <p className="mt-1.5 text-xs text-red-primary">{error}</p>
-        )}
+        {error && <p className="mt-1.5 text-xs text-red-primary">{error}</p>}
       </div>
 
       {/* Start Trading Button */}

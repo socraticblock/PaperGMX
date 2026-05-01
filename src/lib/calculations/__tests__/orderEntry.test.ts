@@ -46,13 +46,13 @@ function runOrderEntryScenario({
     price(oracleMin),
     price(oracleMax),
     direction,
-    false
+    false,
   );
   const acceptablePrice = calculateAcceptablePrice(
     fillPrice,
     bps(50), // 0.5% slippage
     direction,
-    false
+    false,
   );
   const positionFee = calculatePositionFee(sizeUsd, bps(positionFeeBps));
   const liquidationPrice = calculateLiquidationPrice(
@@ -62,9 +62,12 @@ function runOrderEntryScenario({
     sizeUsd,
     bps(maintenanceMarginBps),
     positionFee, // Position fee reduces effective collateral
-    usd(0)       // No accrued fees at open
+    usd(0), // No accrued fees at open
   );
-  const hourlyBorrowFee = calculateHourlyBorrowFee(sizeUsd, borrowRatePerSecond);
+  const hourlyBorrowFee = calculateHourlyBorrowFee(
+    sizeUsd,
+    borrowRatePerSecond,
+  );
 
   return {
     sizeUsd,
@@ -175,7 +178,8 @@ describe("Order Entry Integration", () => {
     });
 
     it("liquidation is very close to entry (high leverage + high margin)", () => {
-      const distanceFromEntry = ((result.fillPrice - result.liquidationPrice) / result.fillPrice) * 100;
+      const distanceFromEntry =
+        ((result.fillPrice - result.liquidationPrice) / result.fillPrice) * 100;
       // With 25x and 1% maintenance margin, liquidation is very close
       expect(distanceFromEntry).toBeLessThan(5);
     });
@@ -218,7 +222,13 @@ describe("Order Entry Integration", () => {
     const positionFeeClose = usd(6);
 
     const grossPnl = calculateGrossPnl("long", entryPrice, exitPrice, sizeUsd);
-    const netPnl = calculateNetPnl(grossPnl, positionFeeOpen, positionFeeClose, usd(0.5), usd(0));
+    const netPnl = calculateNetPnl(
+      grossPnl,
+      positionFeeOpen,
+      positionFeeClose,
+      usd(0.5),
+      usd(0),
+    );
 
     it("gross P&L is 10% of size", () => {
       expect(grossPnl).toBeCloseTo(1000, 0); // 10000 * 10% = $1000
@@ -238,7 +248,13 @@ describe("Order Entry Integration", () => {
     const positionFeeClose = usd(6);
 
     const grossPnl = calculateGrossPnl("short", entryPrice, exitPrice, sizeUsd);
-    const netPnl = calculateNetPnl(grossPnl, positionFeeOpen, positionFeeClose, usd(0.5), usd(0));
+    const netPnl = calculateNetPnl(
+      grossPnl,
+      positionFeeOpen,
+      positionFeeClose,
+      usd(0.5),
+      usd(0),
+    );
 
     it("gross P&L is negative", () => {
       expect(grossPnl).toBeLessThan(0);

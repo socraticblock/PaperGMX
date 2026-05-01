@@ -18,7 +18,12 @@ import {
   determineFillPrice,
 } from "@/lib/calculations";
 import { formatUSD, formatPrice } from "@/lib/format";
-import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, FAKE_WALLET_ADDRESS } from "@/lib/constants";
+import {
+  MARKETS,
+  DEFAULT_POSITION_FEE_BPS,
+  SLIPPAGE_OPEN_BPS,
+  FAKE_WALLET_ADDRESS,
+} from "@/lib/constants";
 import { DetailRow } from "./shared";
 
 // ─── Props ───────────────────────────────────────────────
@@ -58,8 +63,18 @@ function SigningPopupInner({
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
     const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
     const positionFee = calculatePositionFee(sizeUsd, feeBps);
-    const fillPrice = determineFillPrice(priceData.min, priceData.max, direction, false);
-    const acceptablePrice = calculateAcceptablePrice(fillPrice, SLIPPAGE_OPEN_BPS, direction, false);
+    const fillPrice = determineFillPrice(
+      priceData.min,
+      priceData.max,
+      direction,
+      false,
+    );
+    const acceptablePrice = calculateAcceptablePrice(
+      fillPrice,
+      SLIPPAGE_OPEN_BPS,
+      direction,
+      false,
+    );
 
     return { sizeUsd, positionFee, fillPrice, acceptablePrice, feeBps };
   }, [collateralUsd, leverage, direction, priceData, marketInfo]);
@@ -78,12 +93,34 @@ function SigningPopupInner({
           }`}
         >
           {isLong ? (
-            <svg className="h-4 w-4 text-green-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+            <svg
+              className="h-4 w-4 text-green-primary"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25"
+              />
             </svg>
           ) : (
-            <svg className="h-4 w-4 text-red-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 4.5l15 15m0 0V8.25m0 11.25H8.25" />
+            <svg
+              className="h-4 w-4 text-red-primary"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M4.5 4.5l15 15m0 0V8.25m0 11.25H8.25"
+              />
             </svg>
           )}
         </div>
@@ -115,10 +152,7 @@ function SigningPopupInner({
           highlight
         />
         <DetailRow label="Leverage" value={`${leverage}x`} />
-        <DetailRow
-          label="Collateral"
-          value={formatUSD(collateralUsd)}
-        />
+        <DetailRow label="Collateral" value={formatUSD(collateralUsd)} />
         <DetailRow
           label="Est. Entry"
           value={
@@ -147,7 +181,8 @@ function SigningPopupInner({
       {/* Disclaimer */}
       <div className="mx-5 mb-4 rounded-lg bg-bg-input px-3 py-2">
         <p className="text-[10px] text-text-muted leading-relaxed text-center">
-          Paper trading simulation. Same fees & pricing as GMX V2, zero real risk.
+          Paper trading simulation. Same fees & pricing as GMX V2, zero real
+          risk.
         </p>
       </div>
 

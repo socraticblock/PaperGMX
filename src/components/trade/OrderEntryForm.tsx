@@ -68,7 +68,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       lockCollateral: s.lockCollateral,
       setActivePosition: s.setActivePosition,
       setOrderStatus: s.setOrderStatus,
-    }))
+    })),
   );
 
   // ─── Wallet simulation hook ─────────────────────────────
@@ -91,9 +91,9 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
 
   // ─── Liquidation screen state ────────────────────────────
   // Track dismissed liquidation trade IDs so the screen doesn't re-show
-  const [dismissedLiquidationIds, setDismissedLiquidationIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [dismissedLiquidationIds, setDismissedLiquidationIds] = useState<
+    Set<string>
+  >(() => new Set());
 
   // Derive whether to show the LiquidationScreen from trade history
   const lastTrade = tradeHistory.length > 0 ? tradeHistory[0] : null;
@@ -133,14 +133,14 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       lockCollateral(position.collateralUsd);
       setActivePosition(position);
     },
-    [lockCollateral, setActivePosition]
+    [lockCollateral, setActivePosition],
   );
 
   const handleStatusChange = useCallback(
     (status: import("@/types").OrderStatus) => {
       setOrderStatus(status);
     },
-    [setOrderStatus]
+    [setOrderStatus],
   );
 
   const handleResultDismiss = useCallback(() => {

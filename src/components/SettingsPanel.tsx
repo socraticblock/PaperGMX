@@ -49,7 +49,7 @@ function SettingsPanelInner() {
       setSimulateKeeperDelay: s.setSimulateKeeperDelay,
       oneClickTrading: s.oneClickTrading,
       tradeHistory: s.tradeHistory,
-    }))
+    })),
   );
 
   const [topUpAmount, setTopUpAmount] = useState("");
@@ -74,7 +74,7 @@ function SettingsPanelInner() {
         setSettingsOpen(false);
       }
     },
-    [setSettingsOpen]
+    [setSettingsOpen],
   );
 
   const handleTopUp = () => {
@@ -144,7 +144,10 @@ function SettingsPanelInner() {
                   {/* ─── Balance Section ───────────────── */}
                   <section>
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                      <InformationCircleIcon className="h-4 w-4" aria-hidden="true" />
+                      <InformationCircleIcon
+                        className="h-4 w-4"
+                        aria-hidden="true"
+                      />
                       Balance
                     </h3>
                     <div className="rounded-xl border border-border-primary bg-bg-card p-4">
@@ -196,7 +199,11 @@ function SettingsPanelInner() {
                       <BoltIcon className="h-4 w-4" aria-hidden="true" />
                       Trading Mode
                     </h3>
-                    <div className="flex gap-2" role="radiogroup" aria-label="Trading mode">
+                    <div
+                      className="flex gap-2"
+                      role="radiogroup"
+                      aria-label="Trading mode"
+                    >
                       <button
                         role="radio"
                         aria-checked={tradingMode === "classic"}
@@ -208,7 +215,9 @@ function SettingsPanelInner() {
                         }`}
                       >
                         <p className="text-sm font-semibold">Classic</p>
-                        <p className="mt-1 text-xs opacity-70">Full wallet flow</p>
+                        <p className="mt-1 text-xs opacity-70">
+                          Full wallet flow
+                        </p>
                       </button>
                       <button
                         role="radio"
@@ -281,7 +290,10 @@ function SettingsPanelInner() {
                     <div className="space-y-3 rounded-xl border border-border-primary bg-bg-card p-4">
                       {/* Tutorial Toggle */}
                       <div className="flex items-center justify-between">
-                        <label htmlFor="toggle-tutorial" className="cursor-pointer">
+                        <label
+                          htmlFor="toggle-tutorial"
+                          className="cursor-pointer"
+                        >
                           <p className="text-sm font-medium text-text-primary">
                             Tutorial Mode
                           </p>
@@ -296,12 +308,16 @@ function SettingsPanelInner() {
                           aria-label="Tutorial Mode"
                           onClick={() => setTutorialEnabled(!tutorialEnabled)}
                           className={`relative h-6 w-11 rounded-full transition-colors ${
-                            tutorialEnabled ? "bg-blue-primary" : "bg-border-primary"
+                            tutorialEnabled
+                              ? "bg-blue-primary"
+                              : "bg-border-primary"
                           }`}
                         >
                           <span
                             className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                              tutorialEnabled ? "translate-x-5" : "translate-x-0.5"
+                              tutorialEnabled
+                                ? "translate-x-5"
+                                : "translate-x-0.5"
                             }`}
                           />
                         </button>
@@ -309,7 +325,10 @@ function SettingsPanelInner() {
 
                       {/* P&L After Fees Toggle */}
                       <div className="flex items-center justify-between">
-                        <label htmlFor="toggle-pnl-fees" className="cursor-pointer">
+                        <label
+                          htmlFor="toggle-pnl-fees"
+                          className="cursor-pointer"
+                        >
                           <p className="text-sm font-medium text-text-primary">
                             P&L After Fees
                           </p>
@@ -324,12 +343,16 @@ function SettingsPanelInner() {
                           aria-label="Show P&L after fees"
                           onClick={() => setShowPnlAfterFees(!showPnlAfterFees)}
                           className={`relative h-6 w-11 rounded-full transition-colors ${
-                            showPnlAfterFees ? "bg-blue-primary" : "bg-border-primary"
+                            showPnlAfterFees
+                              ? "bg-blue-primary"
+                              : "bg-border-primary"
                           }`}
                         >
                           <span
                             className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                              showPnlAfterFees ? "translate-x-5" : "translate-x-0.5"
+                              showPnlAfterFees
+                                ? "translate-x-5"
+                                : "translate-x-0.5"
                             }`}
                           />
                         </button>
@@ -337,7 +360,10 @@ function SettingsPanelInner() {
 
                       {/* Keeper Delay Toggle */}
                       <div className="flex items-center justify-between">
-                        <label htmlFor="toggle-keeper-delay" className="cursor-pointer">
+                        <label
+                          htmlFor="toggle-keeper-delay"
+                          className="cursor-pointer"
+                        >
                           <p className="text-sm font-medium text-text-primary">
                             Keeper Delay
                           </p>
@@ -429,10 +455,14 @@ function SettingsPanelInner() {
                         Reset & Start Over
                       </button>
                     ) : (
-                      <div className="rounded-xl border border-red-primary bg-red-bg p-4" role="alertdialog" aria-label="Confirm reset">
+                      <div
+                        className="rounded-xl border border-red-primary bg-red-bg p-4"
+                        role="alertdialog"
+                        aria-label="Confirm reset"
+                      >
                         <p className="mb-3 text-sm text-red-primary">
-                          This will erase all data and return to the landing page.
-                          Are you sure?
+                          This will erase all data and return to the landing
+                          page. Are you sure?
                         </p>
                         <div className="flex gap-2">
                           <button
@@ -456,10 +486,11 @@ function SettingsPanelInner() {
                   <section className="pb-6">
                     <div className="rounded-xl border border-border-primary bg-bg-card p-4">
                       <p className="text-xs text-text-muted leading-relaxed">
-                        PaperGMX is a paper trading simulator for GMX V2 perpetual
-                        futures. It uses real market prices and fee structures but
-                        fake money. No wallet, no crypto, no risk. This is a
-                        simulation for educational purposes only.
+                        PaperGMX is a paper trading simulator for GMX V2
+                        perpetual futures. It uses real market prices and fee
+                        structures but fake money. No wallet, no crypto, no
+                        risk. This is a simulation for educational purposes
+                        only.
                       </p>
                       <a
                         href="https://app.gmx.io"

@@ -4,7 +4,11 @@ import { useEffect, useRef } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import { startPriceService } from "@/lib/api/priceService";
 import type { MarketSlug } from "@/types";
-import type { ParsedMarketPrice, ParsedMarketInfo, ApiConnectionStatus } from "@/lib/api/types";
+import type {
+  ParsedMarketPrice,
+  ParsedMarketInfo,
+  ApiConnectionStatus,
+} from "@/lib/api/types";
 import { price, usd, bps, percent } from "@/lib/branded";
 import { calculatePriceChangePercent } from "@/lib/api/gmxPrice";
 
@@ -12,10 +16,10 @@ import { calculatePriceChangePercent } from "@/lib/api/gmxPrice";
  * Hook that manages the price service lifecycle.
  * Starts polling when mounted, stops when unmounted.
  * Updates the Zustand store with price data.
- * 
+ *
  * Tracks 24h price change by storing the first price seen on each
  * session and computing the percentage change from that baseline.
- * 
+ *
  * Only ONE instance of this hook should be active at a time.
  * The priceService.ts singleton guard ensures this.
  */
@@ -35,7 +39,10 @@ export function usePriceService(): void {
     cleanupRef.current = startPriceService({
       onPriceUpdate: (rawPrices: Record<MarketSlug, ParsedMarketPrice>) => {
         // Convert ParsedMarketPrice to our branded PriceData format
-        const brandedPrices = {} as Record<MarketSlug, import("@/types").PriceData>;
+        const brandedPrices = {} as Record<
+          MarketSlug,
+          import("@/types").PriceData
+        >;
 
         for (const [slug, data] of Object.entries(rawPrices)) {
           const midPrice = data.midPrice;
@@ -51,7 +58,7 @@ export function usePriceService(): void {
           if (startPrice && startPrice > 0 && midPrice > 0) {
             change24h = calculatePriceChangePercent(
               price(midPrice),
-              price(startPrice)
+              price(startPrice),
             );
           }
 
@@ -67,7 +74,10 @@ export function usePriceService(): void {
       },
       onMarketInfoUpdate: (rawInfo: Record<MarketSlug, ParsedMarketInfo>) => {
         // Convert to our branded MarketInfo format
-        const brandedInfo = {} as Record<MarketSlug, import("@/types").MarketInfo>;
+        const brandedInfo = {} as Record<
+          MarketSlug,
+          import("@/types").MarketInfo
+        >;
 
         for (const [slug, data] of Object.entries(rawInfo)) {
           brandedInfo[slug as MarketSlug] = {

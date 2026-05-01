@@ -11,7 +11,10 @@ export interface MarketGridProps {
   onSelectMarket: (slug: MarketSlug) => void;
 }
 
-const STATUS_CONFIG: Record<ApiConnectionStatus, { label: string; color: string }> = {
+const STATUS_CONFIG: Record<
+  ApiConnectionStatus,
+  { label: string; color: string }
+> = {
   connected: { label: "Live", color: "bg-green-primary" },
   degraded: { label: "Slow", color: "bg-yellow-primary" },
   fallback: { label: "Binance", color: "bg-yellow-primary" },
@@ -50,12 +53,19 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
       {/* Header with connection status */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-bold text-text-primary">Select a Market</h2>
+          <h2 className="text-lg font-bold text-text-primary">
+            Select a Market
+          </h2>
           <p className="text-sm text-text-muted">4 Perpetual Futures</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`h-2 w-2 rounded-full ${statusConfig.color}`} aria-hidden="true" />
-          <span className="text-xs text-text-secondary">{statusConfig.label}</span>
+          <div
+            className={`h-2 w-2 rounded-full ${statusConfig.color}`}
+            aria-hidden="true"
+          />
+          <span className="text-xs text-text-secondary">
+            {statusConfig.label}
+          </span>
         </div>
       </div>
 
@@ -70,7 +80,8 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
       {connectionStatus === "fallback" && (
         <div className="mb-4 rounded-lg border border-yellow-primary/30 bg-yellow-bg p-3">
           <p className="text-xs text-yellow-primary">
-            GMX API unavailable. Using Binance data — prices may differ slightly from GMX oracle.
+            GMX API unavailable. Using Binance data — prices may differ slightly
+            from GMX oracle.
           </p>
         </div>
       )}
@@ -92,8 +103,7 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
                 slug={slug as MarketSlug}
                 onClick={onSelectMarket}
               />
-            ))
-        }
+            ))}
       </div>
     </div>
   );
