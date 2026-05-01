@@ -7,7 +7,10 @@ import {
   calculateGrossPnl,
   calculateNetPnl,
   calculatePositionFee,
+  calculateLiquidationPrice,
+  calculateBorrowFee,
 } from "@/lib/calculations";
+import { MARKETS } from "@/lib/constants";
 
 // ─── Return type ─────────────────────────────────────────
 
@@ -20,14 +23,16 @@ export interface PositionPnlResult {
   pnlPercent: Percent;
   /** Distance from current price to liquidation price, as % */
   distanceToLiq: Percent;
-  /** Current market price (worst price for trader on close) */
-  currentPrice: Price;
+  /** Current market price (worst price for trader on close), null if unavailable */
+  currentPrice: Price | null;
   /** Estimated hourly borrow fee */
   hourlyBorrowFee: USD;
   /** Whether the position is liquidatable */
   isLiquidatable: boolean;
   /** Close reason to use if liquidated */
   liquidationReason: ClosedTrade["closeReason"] | null;
+  /** Recalculated liquidation price (accounts for accrued fees) */
+  recalculatedLiqPrice: Price | null;
 }
 
 // ─── Null result (when no position or no price data) ────
@@ -37,10 +42,11 @@ const NULL_RESULT: PositionPnlResult = {
   netPnl: usd(0),
   pnlPercent: percent(0),
   distanceToLiq: percent(0),
-  currentPrice: 0 as Price,
+  currentPrice: null,
   hourlyBorrowFee: usd(0),
   isLiquidatable: false,
   liquidationReason: null,
+  recalculatedLiqPrice: null,
 };
 
 // ─── Hook ────────────────────────────────────────────────
@@ -49,10 +55,16 @@ const NULL_RESULT: PositionPnlResult = {
  * Computes live P&L from the active position and current prices.
  * Updates every time prices change (prices update every 3 seconds).
  * Uses the existing pure calculation functions from @/lib/calculations.
+ *
+ * Key improvements:
+ * - Recalculates liquidation price using accrued fees (was stale before)
+ * - Returns null currentPrice instead of 0 (prevents NaN cascades)
+ * - Computes hourly borrow fee from market info
  */
 export function usePositionPnl(
   position: Position | null,
-  prices: Record<MarketSlug, PriceData>
+  prices: Record<MarketSlug, PriceData>,
+  marketInfo?: Record<MarketSlug, import("@/types").MarketInfo>,
 ): PositionPnlResult {
   return useMemo(() => {
     if (!position) return NULL_RESULT;
@@ -93,18 +105,45 @@ export function usePositionPnl(
         ? percent((netPnl / position.collateralUsd) * 100)
         : percent(0);
 
-    // Distance to liquidation
+    // ─── Recalculate liquidation price with accrued fees ───
+    // The stored liquidation price was calculated at position open with zero fees.
+    // As borrow/funding fees accrue, the actual liquidation price moves closer.
+    const marketConfig = MARKETS[position.market];
+    const recalculatedLiqPrice = calculateLiquidationPrice(
+      position.direction,
+      position.entryPrice,
+      position.collateralUsd,
+      position.sizeUsd,
+      marketConfig.maintenanceMarginBps,
+      marketConfig.liquidationFeeBps,
+      position.positionFeePaid,
+      usd(position.borrowFeeAccrued + position.fundingFeeAccrued),
+    );
+
+    // Distance to liquidation (using recalculated price)
     const distanceToLiq = calculateDistanceToLiq(
       position.direction,
       currentPrice,
-      position.liquidationPrice
+      recalculatedLiqPrice
     );
 
     // Is liquidatable? Check if current price crossed liquidation price
     const isLiquidatable = checkLiquidatable(
       position.direction,
       currentPrice,
-      position.liquidationPrice
+      recalculatedLiqPrice
+    );
+
+    // Hourly borrow fee from market info
+    const info = marketInfo?.[position.market];
+    const borrowRatePerSecond =
+      position.direction === "long"
+        ? (info?.borrowRateLong ?? 0)
+        : (info?.borrowRateShort ?? 0);
+    const hourlyBorrowFee = calculateBorrowFee(
+      position.sizeUsd,
+      borrowRatePerSecond,
+      3600_000,
     );
 
     return {
@@ -113,11 +152,12 @@ export function usePositionPnl(
       pnlPercent,
       distanceToLiq,
       currentPrice,
-      hourlyBorrowFee: usd(0), // Requires marketInfo — component can calculate separately
+      hourlyBorrowFee,
       isLiquidatable,
       liquidationReason: isLiquidatable ? "liquidated" : null,
+      recalculatedLiqPrice,
     };
-  }, [position, prices]);
+  }, [position, prices, marketInfo]);
 }
 
 // ─── Helpers ─────────────────────────────────────────────

@@ -16,7 +16,7 @@ import type {
   MarketInfo,
   ApiConnectionStatus,
 } from "@/types";
-import { usd, timestamp, addUSD } from "@/lib/branded";
+import { usd, timestamp, addUSD, subUSD } from "@/lib/branded";
 import { isValidTransition } from "@/types";
 import { validateBalanceAmount } from "@/lib/validation";
 import { calculateClosePosition } from "@/lib/calculations";
@@ -140,7 +140,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 );
                 return state; // No change
               }
-              return { balance: usd(state.balance - amount) };
+              return { balance: subUSD(state.balance, amount) };
             },
             false,
             "lockCollateral",
@@ -166,11 +166,11 @@ export const usePaperStore = create<PaperStoreState>()(
               return {
                 activePosition: {
                   ...state.activePosition,
-                  borrowFeeAccrued: usd(
-                    state.activePosition.borrowFeeAccrued + borrowFeeDelta,
+                  borrowFeeAccrued: addUSD(
+                    state.activePosition.borrowFeeAccrued, borrowFeeDelta,
                   ),
-                  fundingFeeAccrued: usd(
-                    state.activePosition.fundingFeeAccrued + fundingFeeDelta,
+                  fundingFeeAccrued: addUSD(
+                    state.activePosition.fundingFeeAccrued, fundingFeeDelta,
                   ),
                 },
               };
@@ -224,9 +224,12 @@ export const usePaperStore = create<PaperStoreState>()(
 
               return {
                 activePosition: null,
-                orderStatus: "idle" as OrderStatus,
-                balance: usd(state.balance + result.returnedCollateral),
-                tradeHistory: [closedTrade, ...state.tradeHistory],
+                // NOTE: orderStatus is NOT reset here — the caller (useCloseKeeper)
+                // manages the state machine transition via setOrderStatus.
+                // Previously this set orderStatus: "idle" which bypassed the
+                // state machine and blocked the subsequent "filled" transition.
+                balance: addUSD(state.balance, result.returnedCollateral),
+                tradeHistory: [closedTrade, ...state.tradeHistory].slice(0, 100),
               };
             },
             false,

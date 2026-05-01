@@ -12,6 +12,7 @@ import OrderSummary from "./OrderSummary";
 import SubmitOrderButton from "./SubmitOrderButton";
 import { useWalletSimulation } from "@/hooks/useWalletSimulation";
 import { useLiquidationChecker } from "@/hooks/useLiquidationChecker";
+import { useFeeAccrual } from "@/hooks/useFeeAccrual";
 import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
 import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
@@ -85,6 +86,10 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   // consumers that need real-time liquidation status, but we don't use it
   // directly here since the LiquidationScreen is triggered via trade history.
   useLiquidationChecker(activePosition, prices);
+
+  // ─── Fee accrual (runs while position is active) ─────────
+  // Accrues borrow and funding fees every price update cycle.
+  useFeeAccrual(activePosition, prices);
 
   // ─── Trade history for liquidation detection ─────────────
   const tradeHistory = usePaperStore(useShallow((s) => s.tradeHistory));

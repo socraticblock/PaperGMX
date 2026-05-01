@@ -76,6 +76,8 @@ export function useLiquidationChecker(
     });
 
     // Use the current oracle worst price as exit price
+    // currentPrice is null when no price data is available — skip liquidation
+    if (!currentPnl.currentPrice) return;
     const exitPrice: Price = currentPnl.currentPrice;
 
     // Close the position with liquidated reason
@@ -110,7 +112,7 @@ export function useLiquidationChecker(
     }, PRICE_POLL_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [position?.id, position?.status, position, triggerLiquidation]);
+  }, [position?.id, position?.status, triggerLiquidation]);
 
   return {
     isLiquidatable: pnl.isLiquidatable,

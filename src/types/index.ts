@@ -52,14 +52,14 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   keeper_step_1: ["keeper_step_2", "failed", "cancelled"],
   keeper_step_2: ["keeper_step_3", "failed", "cancelled"],
   keeper_step_3: ["keeper_step_4", "failed"],
-  keeper_step_4: ["filled"],
+  keeper_step_4: ["filled", "failed"],
   filled: [],
   cancelled: ["idle"],
   failed: ["idle"],
 } as const;
 
 export function isValidTransition(from: OrderStatus, to: OrderStatus): boolean {
-  return ORDER_TRANSITIONS[from].includes(to as never);
+  return (ORDER_TRANSITIONS[from] as readonly OrderStatus[]).includes(to);
 }
 
 // ─── Market ───────────────────────────────────────────────

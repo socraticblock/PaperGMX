@@ -25,7 +25,6 @@ import { formatUSD, formatPrice } from "@/lib/format";
 import { MARKETS, SLIPPAGE_CLOSE_BPS } from "@/lib/constants";
 import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
-import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
 
 // ─── Props ───────────────────────────────────────────────
 
@@ -59,9 +58,9 @@ function isKeeperPhase(status: string): boolean {
 
 // ─── Component ───────────────────────────────────────────
 
-function ClosePositionFormInner({ position, prices }: ClosePositionFormProps) {
+function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionFormProps) {
   const marketConfig = MARKETS[position.market];
-  const pnl = usePositionPnl(position, prices);
+  const pnl = usePositionPnl(position, prices, marketInfo);
 
   // ─── Store ─────────────────────────────────────────────
   const { orderStatus, simulateKeeperDelay, setOrderStatus } = usePaperStore(
@@ -275,13 +274,7 @@ function ClosePositionFormInner({ position, prices }: ClosePositionFormProps) {
       <WalletOverlay visible={wallet.isVisible} />
 
       <WalletAnimator visible={wallet.isVisible}>
-        {wallet.showApproval ? (
-          <ApprovalPopup
-            processing={wallet.processing}
-            onApprove={wallet.handleApprove}
-            onReject={wallet.handleRejectApproval}
-          />
-        ) : wallet.showSigning ? (
+        {wallet.showSigning ? (
           <CloseSigningPopup
             position={position}
             closeEstimate={closeEstimate}

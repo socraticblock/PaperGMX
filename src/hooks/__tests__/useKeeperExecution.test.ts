@@ -77,15 +77,15 @@ describe("Keeper Execution Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("filled");
     });
 
-    it("blocks keeper_step_4 → failed (only filled is valid from step_4)", () => {
+    it("allows keeper_step_4 → failed (keeper can report failure at final step)", () => {
       reachSubmitted();
       const store = usePaperStore.getState();
       store.setOrderStatus("keeper_step_1");
       store.setOrderStatus("keeper_step_2");
       store.setOrderStatus("keeper_step_3");
       store.setOrderStatus("keeper_step_4");
-      store.setOrderStatus("failed"); // Should be blocked
-      expect(usePaperStore.getState().orderStatus).toBe("keeper_step_4"); // Stays
+      store.setOrderStatus("failed"); // Valid — keeper can fail at step 4
+      expect(usePaperStore.getState().orderStatus).toBe("failed");
     });
   });
 

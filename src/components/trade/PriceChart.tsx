@@ -133,6 +133,13 @@ function PriceChartInner({ market, priceData }: PriceChartProps) {
   useEffect(() => {
     historyRef.current = [];
     lastTimeRef.current = 0 as UTCTimestamp;
+    // Clear the series and refit the chart to show correct time range
+    if (seriesRef.current) {
+      seriesRef.current.setData([]);
+    }
+    if (chartRef.current) {
+      chartRef.current.timeScale().fitContent();
+    }
   }, [market]);
 
   // ─── Update chart data when priceData changes ────────────

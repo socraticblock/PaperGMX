@@ -115,6 +115,23 @@ export const KEEPER_TIMING_WEIGHTS = [
   { seconds: 7, weight: 5 },
 ] as const;
 
+/** Sample a keeper delay from the weighted distribution. */
+export function sampleKeeperDelay(): number {
+  const totalWeight = KEEPER_TIMING_WEIGHTS.reduce(
+    (sum, d) => sum + d.weight,
+    0,
+  );
+  let random = Math.random() * totalWeight;
+  for (const delay of KEEPER_TIMING_WEIGHTS) {
+    random -= delay.weight;
+    if (random <= 0) return delay.seconds * 1000;
+  }
+  return 3000;
+}
+
+/** Simulated keeper execution failure rate (5%). */
+export const KEEPER_FAILURE_RATE = 0.05;
+
 // ─── 1CT Settings ─────────────────────────────────────────
 export const ONE_CLICK_MAX_ACTIONS = 90;
 export const ONE_CLICK_DURATION_DAYS = 7;
@@ -143,5 +160,6 @@ export function generatePositionId(
   market: MarketSlug,
   direction: string,
 ): string {
-  return `${market}-${direction}-${Date.now()}`;
+  // Append random suffix to prevent collisions under rapid trading
+  return `${market}-${direction}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }

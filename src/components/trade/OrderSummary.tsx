@@ -110,12 +110,14 @@ function OrderSummaryInner({
 
     // Liquidation price (at entry, no accrued fees)
     const maintenanceMarginBps = marketConfig.maintenanceMarginBps;
+    const liquidationFeeBps = marketConfig.liquidationFeeBps;
     const liquidationPrice = calculateLiquidationPrice(
       direction,
       fillPrice,
       collateralUsd,
       sizeUsd,
       maintenanceMarginBps,
+      liquidationFeeBps,
       positionFee, // Position fee reduces effective collateral
       usd(0), // No accrued fees at open
     );

@@ -157,7 +157,7 @@ describe("Store: Position Close Flow", () => {
     expect(state.balance).toBe(9000); // Lost the collateral
   });
 
-  it("resets orderStatus to idle after close", () => {
+  it("closePosition does NOT reset orderStatus — caller manages state machine", () => {
     // Walk through valid transitions to get to "filled"
     const { setOrderStatus } = usePaperStore.getState();
     setOrderStatus("approving");
@@ -171,8 +171,17 @@ describe("Store: Position Close Flow", () => {
     setOrderStatus("filled");
     expect(usePaperStore.getState().orderStatus).toBe("filled");
 
+    // closePosition no longer resets orderStatus — the caller (useCloseKeeper)
+    // manages the state machine transition via setOrderStatus.
+    // This prevents the state machine bypass bug where closePosition set
+    // orderStatus to "idle" which blocked the subsequent "filled" transition.
     usePaperStore.getState().closePosition(price(3300), "take_profit");
-    expect(usePaperStore.getState().orderStatus).toBe("idle");
+    expect(usePaperStore.getState().orderStatus).toBe("filled"); // unchanged
+
+    // The caller should transition to "idle" via setOrderStatus("failed") → "idle"
+    // or directly if the flow ends at "filled" (which has no transitions out).
+    // In practice, the UI reads "filled" and then calls setOrderStatus after
+    // the user dismisses the result screen.
   });
 
   it("adds closed trade to history", () => {

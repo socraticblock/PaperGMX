@@ -80,9 +80,13 @@ function KeeperWaitScreenInner({
           direction,
           false,
         );
+        // Only start keeper when we have a valid acceptable price
+        keeper.start(orderTimeAcceptablePriceRef.current);
+      } else {
+        // No price data available — fail the order rather than skip slippage check
+        console.warn("[PaperGMX] No price data available, failing order");
+        usePaperStore.getState().setOrderStatus("failed");
       }
-
-      keeper.start(orderTimeAcceptablePriceRef.current!);
     }
   }, [keeper.start, market, direction]);
 

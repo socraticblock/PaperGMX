@@ -145,7 +145,7 @@ export function calculateNetPnl(
  * For Long: liqPrice = entryPrice * (1 - (collateral - fees) / size)
  * For Short: liqPrice = entryPrice * (1 + (collateral - fees) / size)
  *
- * Where fees = position fee + accumulated borrow + funding
+ * Where fees = position fee + liquidation fee + accumulated borrow + funding
  * Maintenance margin: 0.5% (BTC/ETH) or 1.0% (SOL/ARB)
  *
  * @param direction - Long or Short
@@ -153,6 +153,7 @@ export function calculateNetPnl(
  * @param collateralUsd - Collateral amount
  * @param sizeUsd - Position size
  * @param maintenanceMarginBps - Maintenance margin in BPS (50 or 100)
+ * @param liquidationFeeBps - Liquidation fee in BPS (20 for BTC/ETH, 30 for SOL/ARB)
  * @param positionFee - Position fee paid at open (deducted from effective collateral)
  * @param accruedFees - Total accrued fees (borrow + funding)
  */
@@ -162,6 +163,7 @@ export function calculateLiquidationPrice(
   collateralUsd: USD,
   sizeUsd: USD,
   maintenanceMarginBps: BPS,
+  liquidationFeeBps: BPS,
   positionFee: USD,
   accruedFees: USD,
 ): Price {
@@ -171,10 +173,12 @@ export function calculateLiquidationPrice(
   if (sizeUsd <= 0) throw new Error(`Invalid size: ${sizeUsd}`);
 
   const maintenanceMargin = bpsToDecimal(maintenanceMarginBps);
-  // GMX V2: effectiveCollateral = collateral - positionFee - accruedFees - maintenanceMargin
+  const liquidationFee = applyBps(sizeUsd, liquidationFeeBps);
+  // GMX V2: effectiveCollateral = collateral - positionFee - liquidationFee - accruedFees - maintenanceMargin
   // Position fee is deducted from collateral at open in GMX V2
+  // Liquidation fee is deducted when position is liquidated
   const effectiveCollateral =
-    collateralUsd - positionFee - accruedFees - sizeUsd * maintenanceMargin;
+    collateralUsd - positionFee - liquidationFee - accruedFees - sizeUsd * maintenanceMargin;
 
   if (direction === "long") {
     // Long liq: price drops so that collateral is wiped out

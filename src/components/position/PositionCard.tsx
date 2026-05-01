@@ -70,10 +70,10 @@ function useTimeSinceOpen(position: Position): string {
 
 // ─── Main Component ──────────────────────────────────────
 
-function PositionCardInner({ position, prices }: PositionCardProps) {
+function PositionCardInner({ position, prices, marketInfo }: PositionCardProps) {
   const marketConfig = MARKETS[position.market];
   const isLong = position.direction === "long";
-  const pnl = usePositionPnl(position, prices);
+  const pnl = usePositionPnl(position, prices, marketInfo);
   const timeSinceOpen = useTimeSinceOpen(position);
 
   // Total fees
@@ -174,7 +174,7 @@ function PositionCardInner({ position, prices }: PositionCardProps) {
         <StatRow
           label="Current Price"
           value={
-            pnl.currentPrice > 0
+            pnl.currentPrice && pnl.currentPrice > 0
               ? `$${formatPrice(pnl.currentPrice, marketConfig.decimals)}`
               : "—"
           }
@@ -182,9 +182,13 @@ function PositionCardInner({ position, prices }: PositionCardProps) {
         />
         <StatRow
           label="Liquidation Price"
-          value={`$${formatPrice(position.liquidationPrice, marketConfig.decimals)}`}
+          value={
+            pnl.recalculatedLiqPrice
+              ? `$${formatPrice(pnl.recalculatedLiqPrice, marketConfig.decimals)}`
+              : `$${formatPrice(position.liquidationPrice, marketConfig.decimals)}`
+          }
           valueColor={liqColorClass}
-          tooltip="Price at which your position is liquidated"
+          tooltip="Price at which your position is liquidated (recalculated with fees)"
         />
         <StatRow
           label="Distance to Liq."
