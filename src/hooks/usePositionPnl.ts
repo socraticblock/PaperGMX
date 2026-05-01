@@ -9,6 +9,7 @@ import {
   calculatePositionFee,
   calculateLiquidationPrice,
   calculateBorrowFee,
+  determinePositionFeeBps,
 } from "@/lib/calculations";
 import { MARKETS } from "@/lib/constants";
 
@@ -86,8 +87,12 @@ export function usePositionPnl(
       position.sizeUsd
     );
 
-    // Estimate closing position fee
-    const closeFeeBps = position.positionFeeBps;
+    // Estimate closing position fee using current OI balance
+    // GMX V2: close fee BPS is determined at close time based on OI
+    const info = marketInfo?.[position.market];
+    const closeFeeBps = info
+      ? determinePositionFeeBps(position.direction, true, info.longOi, info.shortOi)
+      : position.positionFeeBps;
     const positionFeeClose = calculatePositionFee(position.sizeUsd, closeFeeBps);
 
     // Net P&L = gross - (open fee + close fee + borrow + funding)
@@ -138,8 +143,7 @@ export function usePositionPnl(
       position.sizeUsd * bpsToDecimal(marketConfig.maintenanceMarginBps);
     const isLiquidatable = remainingCollateral <= minCollateral;
 
-    // Hourly borrow fee from market info
-    const info = marketInfo?.[position.market];
+    // Hourly borrow fee from market info (reuses `info` declared above)
     const borrowRatePerSecond =
       position.direction === "long"
         ? (info?.borrowRateLong ?? 0)

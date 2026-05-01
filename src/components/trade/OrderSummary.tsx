@@ -16,6 +16,7 @@ import {
   calculateLiquidationPrice,
   calculateAcceptablePrice,
   determineFillPrice,
+  determinePositionFeeBps,
 } from "@/lib/calculations";
 import { usd } from "@/lib/branded";
 import { formatUSD, formatPrice, formatPercent } from "@/lib/format";
@@ -89,7 +90,11 @@ function OrderSummaryInner({
     if (collateralUsd <= 0) return null;
 
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
-    const feeBps: BPS = marketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
+    // GMX V2: position fee BPS depends on whether the trade balances or
+    // imbalances pool OI. We compute it from the current OI data.
+    const feeBps: BPS = marketInfo
+      ? determinePositionFeeBps(direction, false, marketInfo.longOi, marketInfo.shortOi)
+      : DEFAULT_POSITION_FEE_BPS;
     const positionFee = calculatePositionFee(sizeUsd, feeBps);
 
     // Fill price (worst oracle price for trader)

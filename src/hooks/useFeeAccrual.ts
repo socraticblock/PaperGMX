@@ -55,10 +55,19 @@ export function useFeeAccrual(
     if (!info) return;
 
     // Calculate borrow fee delta
-    const borrowRatePerSecond =
+    // GMX V2 invariant: the smaller OI side pays ZERO borrow fee.
+    // The API should already return 0 for the smaller side, but we enforce
+    // it client-side to guarantee fidelity even if the API data is stale.
+    const longOi = info.longOi ?? 0;
+    const shortOi = info.shortOi ?? 0;
+    const isSmallerSide =
       position.direction === "long"
-        ? info.borrowRateLong
-        : info.borrowRateShort;
+        ? longOi <= shortOi
+        : shortOi <= longOi;
+    const borrowRatePerSecond =
+      isSmallerSide
+        ? 0
+        : (position.direction === "long" ? info.borrowRateLong : info.borrowRateShort);
 
     const borrowFeeDelta = calculateBorrowFee(
       position.sizeUsd,
@@ -67,9 +76,18 @@ export function useFeeAccrual(
     );
 
     // Calculate funding fee delta
+    // GMX V2: longs and shorts have separate funding rates.
+    // fundingRateLong > 0 means longs pay shorts.
+    // fundingRateShort > 0 means shorts pay longs.
+    // Both can be non-zero simultaneously (different from perp exchanges).
+    const fundingRatePerSecond =
+      position.direction === "long"
+        ? info.fundingRateLong
+        : info.fundingRateShort;
+
     const fundingFeeDelta = calculateFundingFee(
       position.sizeUsd,
-      info.fundingRate,
+      fundingRatePerSecond,
       durationMs,
       position.direction,
     );

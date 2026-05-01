@@ -95,6 +95,14 @@ export function useLiquidationChecker(
     // close — it doesn't go through the normal keeper flow, so the
     // state machine doesn't have a path for it. Using setState directly
     // is the same pattern used in useWalletSimulation's unmount cleanup.
+    //
+    // IMPORTANT: Since we bypass setOrderStatus, we must manually handle
+    // the 1CT quota decrement that would normally happen in setOrderStatus.
+    // Liquidation always consumes a 1CT action if 1CT is active.
+    const store = usePaperStore.getState();
+    if (store.tradingMode === "1ct" && store.oneClickTrading.enabled) {
+      store.decrementOneClickActions();
+    }
     usePaperStore.setState(
       { orderStatus: "filled" as import("@/types").OrderStatus },
       false,

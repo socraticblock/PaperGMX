@@ -94,8 +94,8 @@ function OrderResultScreenInner({
           {isFilled
             ? "Your position has been opened successfully."
             : isFailed
-            ? "Price moved past your acceptable price. No position was opened."
-            : "Your order was cancelled before execution. No funds were spent."}
+            ? "Execution failed. No position was opened."
+            : "Price moved past your acceptable price. No position was opened."}
         </p>
       </div>
 

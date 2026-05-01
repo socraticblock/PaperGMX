@@ -308,7 +308,8 @@ export async function fetchMarketInfo(): Promise<
     // Parse rates as per-second values for our calculation functions
     const borrowRateLong = parseGmxPerSecondRate(validated.borrowingRateLong);
     const borrowRateShort = parseGmxPerSecondRate(validated.borrowingRateShort);
-    const fundingRate = parseGmxPerSecondRate(validated.fundingRateLong);
+    const fundingRateLong = parseGmxPerSecondRate(validated.fundingRateLong);
+    const fundingRateShort = parseGmxPerSecondRate(validated.fundingRateShort);
 
     // Annualized rates for display — uses parseGmxAnnualRate for
     // precise conversion from raw 30-decimal API strings
@@ -318,11 +319,17 @@ export async function fetchMarketInfo(): Promise<
     const borrowRateShortAnnualized = parseGmxAnnualRate(
       validated.borrowingRateShort,
     );
-    const fundingRateAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
+    const fundingRateLongAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
+    const fundingRateShortAnnualized = parseGmxAnnualRate(validated.fundingRateShort);
 
-    // Determine position fee BPS based on OI balance
-    // Conservative default: 6 BPS (imbalancing fee)
-    // TODO: Actual fee determined at execution time based on OI balance
+    // GMX V2: position fee is 4 BPS if the trade balances pool OI,
+    // 6 BPS if it imbalances. The conservative default (when we can't
+    // determine impact) is 6 BPS. We also provide the OI data so the
+    // keeper can determine the actual fee at execution time.
+    // For the default, we use the current OI imbalance as a heuristic:
+    // if the pool is already imbalanced, the default is 6; if balanced, 4.
+    // But since we don't know which side the *next* trade will be on,
+    // we default to 6 (conservative) — the keeper resolves the actual fee.
     const positionFeeBps = 6;
 
     result[slug] = {
@@ -336,8 +343,10 @@ export async function fetchMarketInfo(): Promise<
       borrowRateShortPerSecond: borrowRateShort,
       borrowRateLongAnnualized,
       borrowRateShortAnnualized,
-      fundingRatePerSecond: fundingRate,
-      fundingRateAnnualized,
+      fundingRateLongPerSecond: fundingRateLong,
+      fundingRateShortPerSecond: fundingRateShort,
+      fundingRateLongAnnualized,
+      fundingRateShortAnnualized,
       positionFeeBps,
     };
   }

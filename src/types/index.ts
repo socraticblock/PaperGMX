@@ -51,8 +51,8 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   submitted: ["keeper_step_1", "failed", "cancelled"],
   keeper_step_1: ["keeper_step_2", "failed", "cancelled"],
   keeper_step_2: ["keeper_step_3", "failed", "cancelled"],
-  keeper_step_3: ["keeper_step_4", "failed"],
-  keeper_step_4: ["filled", "failed"],
+  keeper_step_3: ["keeper_step_4", "failed", "cancelled"], // cancelled for slippage
+  keeper_step_4: ["filled", "failed", "cancelled"], // cancelled for slippage
   filled: ["idle"], // User dismisses the order result to return to idle
   cancelled: ["idle"],
   failed: ["idle"],
@@ -135,8 +135,10 @@ export interface MarketInfo {
   borrowRateShort: number; // per-second (for calculations)
   borrowRateLongAnnualized: number; // annualized % (for display)
   borrowRateShortAnnualized: number; // annualized % (for display)
-  fundingRate: number; // per-second (for calculations)
-  fundingRateAnnualized: number; // annualized % (for display)
+  fundingRateLong: number; // per-second (for calculations)
+  fundingRateShort: number; // per-second (for calculations)
+  fundingRateLongAnnualized: number; // annualized % (for display)
+  fundingRateShortAnnualized: number; // annualized % (for display)
   positionFeeBps: BPS; // 4 or 6 BPS depending on OI balance
 }
 
@@ -214,6 +216,7 @@ export interface PaperStoreState {
   closePosition: (
     exitPrice: Price,
     closeReason: ClosedTrade["closeReason"],
+    closeFeeBpsOverride?: BPS,
   ) => void;
   setPrices: (prices: Record<MarketSlug, PriceData>) => void;
   setMarketInfo: (info: Record<MarketSlug, MarketInfo>) => void;

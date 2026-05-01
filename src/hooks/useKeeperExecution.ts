@@ -17,6 +17,7 @@ import {
   calculatePositionFee,
   calculateLiquidationPrice,
   determineFillPrice,
+  determinePositionFeeBps,
 } from "@/lib/calculations";
 import { ORDER_TRANSITIONS } from "@/types";
 import {
@@ -182,7 +183,10 @@ export function useKeeperExecution(
             console.info(
               `[PaperGMX] Slippage exceeded: fillPrice=${fillPrice}, acceptablePrice=${orderAcceptablePrice}`,
             );
-            usePaperStore.getState().setOrderStatus("failed");
+            // GMX V2: slippage breach cancels the order, not fails it.
+            // The user didn't do anything wrong — the price simply moved
+            // beyond the acceptable range. "cancelled" is the correct semantic.
+            usePaperStore.getState().setOrderStatus("cancelled");
             runningRef.current = false;
             return;
           }
@@ -199,8 +203,17 @@ export function useKeeperExecution(
         }
 
         // Step 4: Calculate position values
-        const feeBps: BPS =
-          currentMarketInfo?.positionFeeBps ?? DEFAULT_POSITION_FEE_BPS;
+        // GMX V2: position fee is 4 BPS if the trade balances pool OI,
+        // 6 BPS if it imbalances. We determine this at execution time using
+        // the current OI data from the market info.
+        const feeBps: BPS = currentMarketInfo
+          ? determinePositionFeeBps(
+              directionRef.current,
+              false, // isClose = false (opening)
+              currentMarketInfo.longOi,
+              currentMarketInfo.shortOi,
+            )
+          : DEFAULT_POSITION_FEE_BPS;
         const sizeUsd = calculatePositionSize(
           collateralUsdRef.current,
           leverageRef.current,
@@ -284,9 +297,10 @@ export function useKeeperExecution(
       confirmationTimeoutRef.current = null;
     }
 
-    // Use "failed" as fallback if "cancelled" isn't a valid transition
-    // from the current state (e.g., keeper_step_3 only allows → failed,
-    // keeper_step_4 allows → filled or → failed)
+    // Use "cancelled" for user-initiated cancel — it's now valid from all
+    // keeper steps (steps 1-2 always allowed it; steps 3-4 now do too).
+    // "failed" is only for system-level errors (simulated execution failure,
+    // missing price data, unexpected errors).
     const current = usePaperStore.getState().orderStatus;
     const transitions = ORDER_TRANSITIONS[current];
     const targetStatus: OrderStatus = (

@@ -299,7 +299,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               balance={balance}
               orderStatus={orderStatus}
               priceData={priceData}
-              marketInfo={info}
               needsApproval={needsApproval}
               onStatusChange={handleStatusChange}
             />

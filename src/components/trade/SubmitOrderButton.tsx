@@ -9,7 +9,6 @@ import type {
   USD,
   MarketSlug,
   PriceData,
-  MarketInfo,
 } from "@/types";
 import { formatUSD } from "@/lib/format";
 import { calculatePositionSize } from "@/lib/calculations";
@@ -31,7 +30,6 @@ export interface SubmitOrderButtonProps {
   balance: USD;
   orderStatus: OrderStatus;
   priceData: PriceData | undefined;
-  marketInfo: MarketInfo | undefined;
   needsApproval: boolean;
   onStatusChange: (status: OrderStatus) => void;
 }
@@ -50,16 +48,14 @@ function SubmitOrderButtonInner({
   balance,
   orderStatus,
   priceData,
-  marketInfo,
   needsApproval,
   onStatusChange,
 }: SubmitOrderButtonProps) {
-  const { oneClickTrading, tradingMode, decrementOneClickActions } =
+  const { oneClickTrading, tradingMode } =
     usePaperStore(
       useShallow((s) => ({
         oneClickTrading: s.oneClickTrading,
         tradingMode: s.tradingMode,
-        decrementOneClickActions: s.decrementOneClickActions,
       })),
     );
 
@@ -93,7 +89,7 @@ function SubmitOrderButtonInner({
     !insufficientBalance &&
     !belowMinimum &&
     collateralUsd > 0 &&
-    (orderStatus === "idle" || orderStatus === "failed") &&
+    (orderStatus === "idle" || orderStatus === "failed" || orderStatus === "cancelled") &&
     !needsRenewal; // Can't submit if 1CT needs renewal
 
   // ─── Button click: start the wallet flow ────────────────
@@ -104,9 +100,8 @@ function SubmitOrderButtonInner({
     // In classic mode: show approval popup if needed
     if (is1ctMode) {
       // 1CT: idle → submitted (skip approval and signing popups).
-      // The 1CT action quota is decremented only when the order fills,
-      // not on click — so that failed/cancelled orders don't waste
-      // the action budget. A useEffect below handles the decrement.
+      // The 1CT action quota is decremented in the store when the order
+      // fills — so that failed/cancelled orders don't waste the action budget.
       onStatusChange("submitted");
     } else if (needsApproval) {
       onStatusChange("approving"); // Triggers ApprovalPopup
@@ -120,16 +115,11 @@ function SubmitOrderButtonInner({
     onStatusChange,
   ]);
 
-  // Decrement 1CT action quota only after a successful fill.
-  // Both opens and closes use the same pattern: consume on fill, not on
-  // click — so that failed/cancelled orders don't waste the action budget.
-  // This also eliminates the previous double-decrement on cancel (the old
-  // code decremented on click AND in useKeeperExecution.cancel()).
-  useEffect(() => {
-    if (orderStatus === "filled" && is1ctMode) {
-      decrementOneClickActions();
-    }
-  }, [orderStatus, is1ctMode, decrementOneClickActions]);
+  // 1CT action quota is now decremented in the store's setOrderStatus
+  // when transitioning to "filled" — not in this component's useEffect.
+  // Previously, this component used a useEffect to decrement, but it could
+  // unmount before the order fills (replaced by KeeperWaitScreen), causing
+  // the decrement to be missed. The store-level decrement is reliable.
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -272,7 +262,7 @@ function SubmitOrderButtonInner({
         <p>
           Paper trading only — no real funds at risk.
           <br />
-          Position fee: {marketInfo?.positionFeeBps ?? 6} BPS. Keeper execution
+          Position fee: 4-6 BPS (based on pool balance). Keeper execution
           simulated.
         </p>
         {is1ctMode && (

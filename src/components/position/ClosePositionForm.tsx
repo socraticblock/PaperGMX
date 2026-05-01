@@ -20,8 +20,10 @@ import {
   calculateAcceptablePrice,
   calculateClosePosition,
   determineFillPrice,
+  determinePositionFeeBps,
 } from "@/lib/calculations";
 import { formatUSD, formatPrice } from "@/lib/format";
+import { usd } from "@/lib/branded";
 import { MARKETS, SLIPPAGE_CLOSE_BPS } from "@/lib/constants";
 import { WalletOverlay } from "@/components/wallet/WalletOverlay";
 import { WalletAnimator } from "@/components/wallet/WalletAnimator";
@@ -70,7 +72,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     oneClickTrading,
     setOrderStatus,
     dismissOrderResult,
-    decrementOneClickActions,
   } = usePaperStore(
     useShallow((s) => ({
       orderStatus: s.orderStatus,
@@ -79,7 +80,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       oneClickTrading: s.oneClickTrading,
       setOrderStatus: s.setOrderStatus,
       dismissOrderResult: s.dismissOrderResult,
-      decrementOneClickActions: s.decrementOneClickActions,
     }))
   );
 
@@ -126,7 +126,12 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       position.sizeUsd,
       position.collateralUsd,
       position.positionFeePaid,
-      position.positionFeeBps,
+      determinePositionFeeBps(
+        position.direction,
+        true, // isClose
+        marketInfo[position.market]?.longOi ?? usd(0),
+        marketInfo[position.market]?.shortOi ?? usd(0),
+      ),
       position.borrowFeeAccrued,
       position.fundingFeeAccrued
     );
@@ -136,7 +141,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       acceptablePrice,
       ...closeResult,
     };
-  }, [pnl.currentPrice, prices, position]);
+  }, [pnl.currentPrice, prices, position, marketInfo]);
 
   // ─── Start keeper when order becomes "submitted" ────────
   const startedRef = useRef(false);
@@ -191,15 +196,10 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     [is1ctMode, setOrderStatus]
   );
 
-  // Decrement 1CT action quota only after a successful close.
-  // This mirrors the same pattern used in SubmitOrderButton — the quota
-  // should only burn when the order actually fills, not on button click,
-  // so that failed/cancelled orders don't waste the action budget.
-  useEffect(() => {
-    if (orderStatus === "filled" && is1ctMode) {
-      decrementOneClickActions();
-    }
-  }, [orderStatus, is1ctMode, decrementOneClickActions]);
+  // 1CT action quota is now decremented in the store's setOrderStatus
+  // when transitioning to "filled" — not in this component's useEffect.
+  // Same fix as SubmitOrderButton: the form can unmount during keeper
+  // execution, so the store-level decrement is the reliable path.
 
   const handleResultDismiss = useCallback(() => {
     dismissOrderResult(); // filled/failed/cancelled → idle
@@ -677,8 +677,8 @@ function OrderResultScreen({
           {isFilled
             ? "Your position has been closed successfully."
             : isFailed
-            ? "Price moved past your acceptable price. Position is still open."
-            : "Your close order was cancelled. Position is still open."}
+            ? "Execution failed. Your position is still open."
+            : "Price moved past your acceptable price. Position is still open."}
         </p>
       </div>
 

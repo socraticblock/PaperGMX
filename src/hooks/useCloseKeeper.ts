@@ -2,10 +2,10 @@
 
 import { useRef, useCallback, useMemo } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
-import type { OrderStatus, OrderDirection, Price, MarketSlug, ClosedTrade } from "@/types";
+import type { OrderStatus, OrderDirection, Price, MarketSlug, BPS, ClosedTrade } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
-import { determineFillPrice } from "@/lib/calculations";
-import { sampleKeeperDelay, KEEPER_FAILURE_RATE } from "@/lib/constants";
+import { determineFillPrice, determinePositionFeeBps } from "@/lib/calculations";
+import { sampleKeeperDelay, KEEPER_FAILURE_RATE, DEFAULT_POSITION_FEE_BPS } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -127,7 +127,9 @@ export function useCloseKeeper(
             console.info(
               `[PaperGMX] Close slippage exceeded: fillPrice=${fillPrice}, acceptablePrice=${orderAcceptablePrice}`
             );
-            usePaperStore.getState().setOrderStatus("failed");
+            // GMX V2: slippage breach cancels the order, not fails it.
+            // "cancelled" is the correct semantic — price moved beyond acceptable.
+            usePaperStore.getState().setOrderStatus("cancelled");
             runningRef.current = false;
             return;
           }
@@ -143,9 +145,21 @@ export function useCloseKeeper(
         }
 
         // Step 4: Close the position in the store
+        // GMX V2: close fee BPS is determined at close time based on OI balance.
+        // We compute the close fee here and pass it to closePosition.
+        const currentMarketInfo = usePaperStore.getState().marketInfo[marketRef.current];
+        const closeFeeBps: BPS = currentMarketInfo
+          ? determinePositionFeeBps(
+              directionRef.current,
+              true, // isClose = true
+              currentMarketInfo.longOi,
+              currentMarketInfo.shortOi,
+            )
+          : DEFAULT_POSITION_FEE_BPS;
+
         // closePosition no longer resets orderStatus — we manage the state machine here
         const positionBeforeClose = usePaperStore.getState().activePosition;
-        usePaperStore.getState().closePosition(fillPrice, closeReasonRef.current);
+        usePaperStore.getState().closePosition(fillPrice, closeReasonRef.current, closeFeeBps);
         const positionAfterClose = usePaperStore.getState().activePosition;
 
         // Only transition to "filled" if closePosition actually closed a position.

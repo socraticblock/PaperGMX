@@ -10,6 +10,7 @@ import type {
   OrderStatus,
   USD,
   Price,
+  BPS,
   Timestamp,
   MarketSlug,
   PriceData,
@@ -159,6 +160,19 @@ export const usePaperStore = create<PaperStoreState>()(
             return; // Do NOT apply the transition
           }
           set({ orderStatus: status }, false, "setOrderStatus");
+
+          // GMX V2 1CT: decrement the action quota when the order fills.
+          // This MUST happen in the store (not in a useEffect on a form
+          // component) because the form component can unmount before the
+          // order fills (e.g., replaced by KeeperWaitScreen during keeper
+          // execution). Doing it here guarantees the decrement regardless
+          // of which React component tree is currently rendered.
+          if (status === "filled") {
+            const state = get();
+            if (state.tradingMode === "1ct" && state.oneClickTrading.enabled) {
+              get().decrementOneClickActions();
+            }
+          }
         },
 
         dismissOrderResult: () => {
@@ -198,6 +212,7 @@ export const usePaperStore = create<PaperStoreState>()(
         closePosition: (
           exitPrice: Price,
           closeReason: ClosedTrade["closeReason"],
+          closeFeeBpsOverride?: BPS,
         ) =>
           set(
             (state) => {
@@ -205,7 +220,16 @@ export const usePaperStore = create<PaperStoreState>()(
 
               const pos = state.activePosition;
 
+              // GMX V2: close fee BPS is determined at close time based on OI
+              // balance, not from the open-time snapshot. The caller should
+              // compute the close fee BPS using determinePositionFeeBps() and
+              // pass it via closeFeeBpsOverride. Falls back to the stored
+              // positionFeeBps if not provided (backward-compatible).
+              const closeFeeBps = closeFeeBpsOverride ?? pos.positionFeeBps;
+
               // Use pure calculation function — single source of truth
+              // For liquidation: GMX V2 full-liquidation semantics — all collateral forfeited
+              const isLiquidation = closeReason === "liquidated";
               const result = calculateClosePosition(
                 pos.direction,
                 pos.entryPrice,
@@ -213,9 +237,10 @@ export const usePaperStore = create<PaperStoreState>()(
                 pos.sizeUsd,
                 pos.collateralUsd,
                 pos.positionFeePaid,
-                pos.positionFeeBps, // Use the SAME fee rate as open
+                closeFeeBps,
                 pos.borrowFeeAccrued,
                 pos.fundingFeeAccrued,
+                isLiquidation,
               );
 
               const closedTrade: ClosedTrade = {

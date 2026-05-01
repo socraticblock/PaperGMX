@@ -8,6 +8,10 @@ import {
   subUSD,
   mulUSD,
 } from "@/lib/branded";
+import {
+  POSITION_FEE_BALANCING_BPS,
+  POSITION_FEE_IMBALANCING_BPS,
+} from "@/lib/constants";
 
 // ─── Position Fee ──────────────────────────────────────────
 
@@ -20,6 +24,63 @@ import {
 export function calculatePositionFee(sizeUsd: USD, feeBps: BPS): USD {
   if (sizeUsd < 0) throw new Error(`Invalid position size: ${sizeUsd}`);
   return applyBps(sizeUsd, feeBps);
+}
+
+/**
+ * Determine the position fee BPS based on whether a trade balances or
+ * imbalances the pool's open interest.
+ *
+ * GMX V2 logic:
+ * - If a trade increases the larger-OI side or decreases the smaller-OI side,
+ *   it IMBALANCES the pool → 6 BPS (0.06%)
+ * - If a trade increases the smaller-OI side or decreases the larger-OI side,
+ *   it BALANCES the pool → 4 BPS (0.04%)
+ * - If OI is equal, longs and shorts both balance → 4 BPS
+ *
+ * @param direction - Trade direction (long or short)
+ * @param isClose - Whether this is a close (decrease) order
+ * @param longOi - Current long OI in USD
+ * @param shortOi - Current short OI in USD
+ * @returns Fee rate in BPS (4 or 6)
+ */
+export function determinePositionFeeBps(
+  direction: OrderDirection,
+  isClose: boolean,
+  longOi: USD,
+  shortOi: USD,
+): BPS {
+  // Determine which side the trade is ADDING to (before considering close).
+  // For an open: long adds to long OI, short adds to short OI.
+  // For a close: long close REMOVES from long OI, short close REMOVES from short OI.
+  const isAddingToLong = direction === "long" && !isClose;
+  const isAddingToShort = direction === "short" && !isClose;
+  const isRemovingFromLong = direction === "long" && isClose;
+  const isRemovingFromShort = direction === "short" && isClose;
+
+  // A trade is BALANCING if it adds to the smaller side or removes from the larger side.
+  if (longOi === shortOi) {
+    // Equal OI: any trade is balancing (or neutral)
+    return POSITION_FEE_BALANCING_BPS;
+  }
+
+  const longIsLarger = longOi > shortOi;
+
+  if (longIsLarger) {
+    // Balancing: add to short side, or remove from long side
+    if (isAddingToShort || isRemovingFromLong) {
+      return POSITION_FEE_BALANCING_BPS;
+    }
+    // Imbalancing: add to long side, or remove from short side
+    return POSITION_FEE_IMBALANCING_BPS;
+  } else {
+    // shortOi > longOi
+    // Balancing: add to long side, or remove from short side
+    if (isAddingToLong || isRemovingFromShort) {
+      return POSITION_FEE_BALANCING_BPS;
+    }
+    // Imbalancing: add to short side, or remove from long side
+    return POSITION_FEE_IMBALANCING_BPS;
+  }
 }
 
 // ─── Borrow Fee ────────────────────────────────────────────
@@ -277,6 +338,11 @@ export interface ClosePositionResult {
 /**
  * Calculate all values for closing a position.
  * This is the single source of truth for close calculations.
+ *
+ * @param isLiquidation - If true, applies GMX V2 full-liquidation semantics:
+ *   the entire collateral is forfeited (returnedCollateral = 0). GMX V2 uses
+ *   full liquidation — when a position's effective collateral falls below the
+ *   maintenance margin, the protocol seizes all remaining collateral.
  */
 export function calculateClosePosition(
   direction: OrderDirection,
@@ -288,6 +354,7 @@ export function calculateClosePosition(
   positionFeeCloseBps: BPS,
   borrowFeeAccrued: USD,
   fundingFeeAccrued: USD,
+  isLiquidation: boolean = false,
 ): ClosePositionResult {
   const grossPnl = calculateGrossPnl(direction, entryPrice, exitPrice, sizeUsd);
   const positionFeeClose = calculatePositionFee(sizeUsd, positionFeeCloseBps);
@@ -299,9 +366,12 @@ export function calculateClosePosition(
     fundingFeeAccrued,
   );
 
-  // Returned collateral = original collateral + net P&L
-  // If net P&L is very negative, this could be < 0 (liquidation handles this)
-  const returnedCollateral = Math.max(0, collateralUsd + netPnl);
+  // GMX V2: full liquidation means ALL collateral is forfeited.
+  // The trader receives nothing back. This differs from a normal close
+  // where returnedCollateral = max(0, collateral + netPnl).
+  const returnedCollateral = isLiquidation
+    ? usd(0)
+    : usd(Math.max(0, collateralUsd + netPnl));
 
   return {
     grossPnl,
@@ -309,6 +379,6 @@ export function calculateClosePosition(
     positionFeeClose,
     borrowFeeTotal: borrowFeeAccrued,
     fundingFeeTotal: fundingFeeAccrued,
-    returnedCollateral: usd(returnedCollateral),
+    returnedCollateral,
   };
 }
