@@ -212,6 +212,7 @@ export function useKeeperExecution(
           collateralUsdRef.current,
           leverageRef.current,
         );
+        const sizeInTokens = sizeUsd / fillPrice;
         const positionFeePaid = calculatePositionFee(sizeUsd, feeBps);
         const currentMarketConfig = MARKETS[marketRef.current];
 
@@ -234,6 +235,7 @@ export function useKeeperExecution(
           collateralUsd: collateralUsdRef.current,
           leverage: leverageRef.current,
           sizeUsd,
+          sizeInTokens,
           entryPrice: fillPrice,
           acceptablePrice: orderTimeAcceptablePriceRef.current ?? fillPrice,
           liquidationPrice,

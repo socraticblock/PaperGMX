@@ -85,6 +85,8 @@ export interface Position {
   collateralUsd: USD;
   leverage: number;
   sizeUsd: USD;
+  /** Position size in index tokens (sizeUsd / entryPrice at open). */
+  sizeInTokens?: number;
   entryPrice: Price;
   acceptablePrice: Price;
   liquidationPrice: Price | null;
@@ -103,6 +105,7 @@ export interface ClosedTrade {
   direction: OrderDirection;
   leverage: number;
   sizeUsd: USD;
+  sizeInTokens?: number;
   entryPrice: Price;
   exitPrice: Price;
   collateralUsd: USD;
@@ -112,6 +115,7 @@ export interface ClosedTrade {
   fundingFeeTotal: USD;
   netPnl: USD;
   grossPnl: USD;
+  returnedCollateral: USD;
   openedAt: Timestamp;
   closedAt: Timestamp;
   closeReason: "take_profit" | "cut_loss" | "liquidated";

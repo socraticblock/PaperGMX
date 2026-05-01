@@ -116,11 +116,10 @@ describe("Order Entry Integration", () => {
     });
 
     it("liquidation price is roughly 9.5% below entry", () => {
-      // collateral=1000, size=10000, positionFee=6, liquidationFee=2, maintenanceMargin=50bps
-      // effectiveCollateral = 1000 - 6 - (10000*0.002) - 0 - 10000*0.005
-      //                     = 1000 - 6 - 20 - 0 - 50 = 924
-      // liqPrice = 3001 * (1 - 924/10000) = 3001 * 0.9076 = 2723.7
-      expect(result.liquidationPrice).toBeCloseTo(2723.7, 0);
+      // Trigger semantics exclude liquidation fee:
+      // effectiveCollateral = 1000 - 6 - 0 - 10000*0.005 = 944
+      // liqPrice = 3001 * (1 - 944/10000) = 2717.7056
+      expect(result.liquidationPrice).toBeCloseTo(2717.7, 0);
     });
 
     it("estimates hourly borrow fee", () => {

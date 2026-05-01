@@ -169,14 +169,16 @@ export function calculateGrossPnl(
   entryPrice: Price,
   exitPrice: Price,
   sizeUsd: USD,
+  sizeInTokens?: number,
 ): USD {
   if (entryPrice <= 0) throw new Error(`Invalid entry price: ${entryPrice}`);
   if (exitPrice <= 0) throw new Error(`Invalid exit price: ${exitPrice}`);
   if (sizeUsd < 0) throw new Error(`Invalid position size: ${sizeUsd}`);
 
   const directionMultiplier = direction === "long" ? 1 : -1;
-  const priceChangePercent = (exitPrice - entryPrice) / entryPrice;
-  const result = directionMultiplier * priceChangePercent * sizeUsd;
+  const resolvedSizeInTokens = sizeInTokens ?? sizeUsd / entryPrice;
+  const result =
+    directionMultiplier * resolvedSizeInTokens * (exitPrice - entryPrice);
 
   if (!Number.isFinite(result)) throw new Error(`Non-finite PnL: ${result}`);
   return usd(result);
@@ -212,7 +214,7 @@ export function calculateNetPnl(
  * For Long: liqPrice = entryPrice * (1 - (collateral - fees) / size)
  * For Short: liqPrice = entryPrice * (1 + (collateral - fees) / size)
  *
- * Where fees = position fee + liquidation fee + accumulated borrow + funding
+ * Where fees = position fee + accumulated borrow + funding
  * Maintenance margin: 0.5% (BTC/ETH) or 1.0% (SOL/ARB)
  *
  * @param direction - Long or Short
@@ -220,7 +222,7 @@ export function calculateNetPnl(
  * @param collateralUsd - Collateral amount
  * @param sizeUsd - Position size
  * @param maintenanceMarginBps - Maintenance margin in BPS (50 or 100)
- * @param liquidationFeeBps - Liquidation fee in BPS (20 for BTC/ETH, 30 for SOL/ARB)
+ * @param _liquidationFeeBps - Unused in trigger-based liquidation price estimate.
  * @param positionFee - Position fee paid at open (deducted from effective collateral)
  * @param accruedFees - Total accrued fees (borrow + funding)
  */
@@ -230,7 +232,7 @@ export function calculateLiquidationPrice(
   collateralUsd: USD,
   sizeUsd: USD,
   maintenanceMarginBps: BPS,
-  liquidationFeeBps: BPS,
+  _liquidationFeeBps: BPS,
   positionFee: USD,
   accruedFees: USD,
 ): Price | null {
@@ -240,12 +242,12 @@ export function calculateLiquidationPrice(
   if (sizeUsd <= 0) throw new Error(`Invalid size: ${sizeUsd}`);
 
   const maintenanceMargin = bpsToDecimal(maintenanceMarginBps);
-  const liquidationFee = applyBps(sizeUsd, liquidationFeeBps);
-  // GMX V2: effectiveCollateral = collateral - positionFee - liquidationFee - accruedFees - maintenanceMargin
+  // GMX V2: liquidation trigger check excludes liquidation fee.
+  // effectiveCollateral = collateral - positionFee - accruedFees - maintenanceMargin
   // Position fee is deducted from collateral at open in GMX V2
-  // Liquidation fee is deducted when position is liquidated
+  // Liquidation fee is deducted at settlement time.
   const effectiveCollateral =
-    collateralUsd - positionFee - liquidationFee - accruedFees - sizeUsd * maintenanceMargin;
+    collateralUsd - positionFee - accruedFees - sizeUsd * maintenanceMargin;
 
   if (direction === "long") {
     // Long liq: price drops so that collateral is wiped out
@@ -345,10 +347,7 @@ export interface ClosePositionResult {
  * Calculate all values for closing a position.
  * This is the single source of truth for close calculations.
  *
- * @param isLiquidation - If true, applies GMX V2 full-liquidation semantics:
- *   the entire collateral is forfeited (returnedCollateral = 0). GMX V2 uses
- *   full liquidation — when a position's effective collateral falls below the
- *   maintenance margin, the protocol seizes all remaining collateral.
+ * @param _isLiquidation - Preserved for call-site compatibility.
  */
 export function calculateClosePosition(
   direction: OrderDirection,
@@ -360,9 +359,17 @@ export function calculateClosePosition(
   positionFeeCloseBps: BPS,
   borrowFeeAccrued: USD,
   fundingFeeAccrued: USD,
-  isLiquidation: boolean = false,
+  sizeInTokens?: number,
+  _isLiquidation: boolean = false,
 ): ClosePositionResult {
-  const grossPnl = calculateGrossPnl(direction, entryPrice, exitPrice, sizeUsd);
+  void _isLiquidation;
+  const grossPnl = calculateGrossPnl(
+    direction,
+    entryPrice,
+    exitPrice,
+    sizeUsd,
+    sizeInTokens,
+  );
   const positionFeeClose = calculatePositionFee(sizeUsd, positionFeeCloseBps);
   const netPnl = calculateNetPnl(
     grossPnl,
@@ -372,12 +379,9 @@ export function calculateClosePosition(
     fundingFeeAccrued,
   );
 
-  // GMX V2: full liquidation means ALL collateral is forfeited.
-  // The trader receives nothing back. This differs from a normal close
-  // where returnedCollateral = max(0, collateral + netPnl).
-  const returnedCollateral = isLiquidation
-    ? usd(0)
-    : usd(Math.max(0, collateralUsd + netPnl));
+  // GMX V2 liquidation does not imply full forfeiture. Remaining collateral
+  // after realized PnL and fees is returned, floored at zero.
+  const returnedCollateral = usd(Math.max(0, collateralUsd + netPnl));
 
   return {
     grossPnl,

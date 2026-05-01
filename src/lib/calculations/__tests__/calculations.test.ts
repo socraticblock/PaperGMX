@@ -97,7 +97,7 @@ describe("calculateBorrowFee", () => {
 });
 
 describe("calculateLiquidationPrice", () => {
-  it("calculates long liquidation price for BTC/ETH (0.5% maintenance, no fees)", () => {
+  it("calculates long liquidation price for BTC/ETH (trigger semantics)", () => {
     const liqPrice = calculateLiquidationPrice(
       "long",
       price(2000),
@@ -108,10 +108,9 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
       usd(0),
     );
-    // effectiveCollateral = 1000 - 0 - (5000*0.002) - 0 - 5000*0.005
-    //                     = 1000 - 10 - 0 - 25 = 965
-    // liqPrice = 2000 * (1 - 965/5000) = 2000 * 0.807 = 1614
-    expect(liqPrice).toBeCloseTo(1614, 0);
+    // effectiveCollateral = 1000 - 0 - 0 - 5000*0.005 = 975
+    // liqPrice = 2000 * (1 - 975/5000) = 1610
+    expect(liqPrice).toBeCloseTo(1610, 0);
   });
 
   it("calculates short liquidation price", () => {
@@ -125,9 +124,9 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
       usd(0),
     );
-    // effectiveCollateral = 1000 - 0 - 10 - 0 - 25 = 965
-    // liqPrice = 2000 * (1 + 965/5000) = 2000 * 1.193 = 2386
-    expect(liqPrice).toBeCloseTo(2386, 0);
+    // effectiveCollateral = 1000 - 0 - 0 - 25 = 975
+    // liqPrice = 2000 * (1 + 975/5000) = 2390
+    expect(liqPrice).toBeCloseTo(2390, 0);
   });
 
   it("liquidation price moves closer with accrued fees", () => {
@@ -179,7 +178,7 @@ describe("calculateLiquidationPrice", () => {
     expect(liqPriceWithPositionFee!).toBeGreaterThan(liqPriceNoPositionFee!);
   });
 
-  it("liquidation fee moves liq price closer than without", () => {
+  it("liquidation fee input does not change trigger-based liquidation price", () => {
     const liqPriceNoLiqFee = calculateLiquidationPrice(
       "long",
       price(2000),
@@ -200,8 +199,7 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
       usd(0),
     );
-    // Liquidation fee reduces effective collateral, moving liq price closer
-    expect(liqPriceWithLiqFee!).toBeGreaterThan(liqPriceNoLiqFee!);
+    expect(liqPriceWithLiqFee!).toBeCloseTo(liqPriceNoLiqFee!, 10);
   });
 
   it("short liquidation returns null when underwater (negative effective collateral)", () => {
@@ -444,8 +442,8 @@ describe("GMX V2: Dynamic position fee (4/6 BPS based on OI balance)", () => {
   });
 });
 
-describe("GMX V2: Liquidation zero-return settlement", () => {
-  it("liquidation returns zero collateral regardless of PnL", () => {
+describe("GMX V2: Liquidation returns remaining collateral", () => {
+  it("liquidation returns remaining collateral (not forced to zero)", () => {
     const result = calculateClosePosition(
       "long",
       price(2000),
@@ -456,12 +454,13 @@ describe("GMX V2: Liquidation zero-return settlement", () => {
       bps(6),
       usd(1),
       usd(0.5),
+      undefined,
       true, // isLiquidation
     );
-    expect(result.returnedCollateral).toBe(0);
+    expect(result.returnedCollateral).toBeGreaterThan(0);
   });
 
-  it("liquidation returns zero even for a profitable position", () => {
+  it("liquidation with profitable move still returns computed collateral", () => {
     // Edge case: position is technically profitable but got liquidated
     // (e.g., massive accrued fees pushed effective collateral below maintenance)
     const result = calculateClosePosition(
@@ -474,12 +473,13 @@ describe("GMX V2: Liquidation zero-return settlement", () => {
       bps(6),
       usd(50), // large accrued fees
       usd(30),
+      undefined,
       true, // isLiquidation
     );
-    expect(result.returnedCollateral).toBe(0);
+    expect(result.returnedCollateral).toBeGreaterThan(0);
   });
 
-  it("non-liquidation close returns collateral (not zero)", () => {
+  it("non-liquidation close returns collateral as before", () => {
     const result = calculateClosePosition(
       "long",
       price(2000),
@@ -490,6 +490,7 @@ describe("GMX V2: Liquidation zero-return settlement", () => {
       bps(6),
       usd(1),
       usd(0.5),
+      undefined,
       false, // NOT liquidation
     );
     expect(result.returnedCollateral).toBeGreaterThan(0);
@@ -506,9 +507,10 @@ describe("GMX V2: Liquidation zero-return settlement", () => {
       bps(6),
       usd(1),
       usd(0.5),
+      undefined,
       true,
     );
-    // Even though collateral is forfeited, PnL is still computed for records
+    // PnL is computed for records regardless of liquidation path
     expect(result.grossPnl).toBeCloseTo(-500, 1);
     expect(result.netPnl).toBeCloseTo(-507.5, 1);
   });

@@ -92,8 +92,8 @@ export function getBorrowRateForPosition(
 ): number {
   const isSmallerSide =
     direction === "long"
-      ? marketInfo.longOi <= marketInfo.shortOi
-      : marketInfo.shortOi <= marketInfo.longOi;
+      ? marketInfo.longOi < marketInfo.shortOi
+      : marketInfo.shortOi < marketInfo.longOi;
 
   if (isSmallerSide) return 0;
 

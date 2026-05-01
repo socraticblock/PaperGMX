@@ -228,7 +228,8 @@ export const usePaperStore = create<PaperStoreState>()(
               const closeFeeBps = closeFeeBpsOverride ?? pos.positionFeeBps;
 
               // Use pure calculation function — single source of truth
-              // For liquidation: GMX V2 full-liquidation semantics — all collateral forfeited
+              // Liquidation uses the same close calculator and returns any
+              // remaining collateral after realized PnL and fees.
               const isLiquidation = closeReason === "liquidated";
               const result = calculateClosePosition(
                 pos.direction,
@@ -240,6 +241,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 closeFeeBps,
                 pos.borrowFeeAccrued,
                 pos.fundingFeeAccrued,
+                pos.sizeInTokens,
                 isLiquidation,
               );
 
@@ -249,6 +251,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 direction: pos.direction,
                 leverage: pos.leverage,
                 sizeUsd: pos.sizeUsd,
+                sizeInTokens: pos.sizeInTokens,
                 entryPrice: pos.entryPrice,
                 exitPrice,
                 collateralUsd: pos.collateralUsd,
@@ -258,6 +261,7 @@ export const usePaperStore = create<PaperStoreState>()(
                 fundingFeeTotal: result.fundingFeeTotal,
                 netPnl: result.netPnl,
                 grossPnl: result.grossPnl,
+                returnedCollateral: result.returnedCollateral,
                 openedAt: pos.openedAt,
                 closedAt: timestamp(Date.now()),
                 closeReason,

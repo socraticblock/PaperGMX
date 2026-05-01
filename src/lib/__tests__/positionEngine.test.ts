@@ -39,6 +39,7 @@ function position(overrides?: Partial<Position>): Position {
     collateralUsd: usd(1_000),
     leverage: 5,
     sizeUsd: usd(5_000),
+    sizeInTokens: 2.5,
     entryPrice: price(2_000),
     acceptablePrice: price(2_010),
     liquidationPrice: price(1_600),
@@ -98,6 +99,12 @@ describe("positionEngine fees", () => {
 
     expect(getBorrowRateForPosition("short", info)).toBe(0);
     expect(getBorrowRateForPosition("long", info)).toBe(info.borrowRateLong);
+  });
+
+  it("does not zero borrow fee when OI is exactly equal", () => {
+    const info = marketInfo({ longOi: usd(150_000), shortOi: usd(150_000) });
+    expect(getBorrowRateForPosition("long", info)).toBe(info.borrowRateLong);
+    expect(getBorrowRateForPosition("short", info)).toBe(info.borrowRateShort);
   });
 
   it("selects the signed funding rate for the position side", () => {

@@ -135,7 +135,8 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         marketInfo[position.market],
       ),
       position.borrowFeeAccrued,
-      position.fundingFeeAccrued
+      position.fundingFeeAccrued,
+      position.sizeInTokens,
     );
 
     return {

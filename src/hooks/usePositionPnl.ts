@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Position, PriceData, MarketSlug, USD, Price, ClosedTrade } from "@/types";
-import { applyBps, bpsToDecimal, usd, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
+import { bpsToDecimal, usd, percent, addUSD, type Percent } from "@/lib/branded";
 import {
   calculateGrossPnl,
   calculateNetPnl,
@@ -104,7 +104,8 @@ export function usePositionPnl(
       position.direction,
       position.entryPrice,
       currentPrice,
-      position.sizeUsd
+      position.sizeUsd,
+      position.sizeInTokens,
     );
 
     // Estimate closing position fee using current OI balance
@@ -152,14 +153,12 @@ export function usePositionPnl(
     // Spec 8.5: liquidation is determined by remaining collateral falling
     // below the market minimum collateral requirement. The price threshold is
     // display guidance; the collateral invariant decides the actual trigger.
-    const liquidationFee = applyBps(
-      position.sizeUsd,
-      marketConfig.liquidationFeeBps,
-    );
-    const remainingCollateral = subUSD(addUSD(position.collateralUsd, netPnl), liquidationFee);
+    const minCollateralUsdFloor = usd(1);
+    const remainingCollateral = addUSD(position.collateralUsd, netPnl);
     const minCollateral =
       position.sizeUsd * bpsToDecimal(marketConfig.maintenanceMarginBps);
-    const isLiquidatable = remainingCollateral <= minCollateral;
+    const requiredMinCollateral = Math.max(minCollateral, minCollateralUsdFloor);
+    const isLiquidatable = remainingCollateral <= requiredMinCollateral;
 
     // Hourly borrow fee from market info (reuses `info` declared above)
     const hourlyBorrowFee = calculateHourlyBorrowFeeForPosition(position, info);

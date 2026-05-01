@@ -170,15 +170,15 @@ export function LiquidationScreen({ trade, onDismiss }: LiquidationScreenProps) 
               <div className="flex items-center justify-center gap-2">
                 <FireIcon className="h-5 w-5 text-red-primary" aria-hidden="true" />
                 <span className="text-sm font-bold text-red-primary uppercase">
-                  Entire Collateral Forfeited
+                  Collateral Returned
                 </span>
               </div>
               <p className="text-2xl font-black font-mono text-red-primary">
-                {formatUSD(trade.collateralUsd)}
+                {formatUSD(trade.returnedCollateral ?? 0)}
               </p>
               <p className="text-[10px] text-text-muted leading-relaxed">
-                GMX V2 uses full liquidation. When your position&apos;s effective collateral reaches
-                zero, your entire margin is lost.
+                Liquidation returns any remaining collateral after realized PnL
+                and accrued fees.
               </p>
             </motion.div>
 
