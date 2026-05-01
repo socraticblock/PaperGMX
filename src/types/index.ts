@@ -53,7 +53,7 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   keeper_step_2: ["keeper_step_3", "failed", "cancelled"],
   keeper_step_3: ["keeper_step_4", "failed"],
   keeper_step_4: ["filled", "failed"],
-  filled: [],
+  filled: ["idle"], // User dismisses the order result to return to idle
   cancelled: ["idle"],
   failed: ["idle"],
 } as const;
@@ -197,6 +197,8 @@ export interface PaperStoreState {
   lockCollateral: (amount: USD) => void;
   setActivePosition: (position: Position | null) => void;
   setOrderStatus: (status: OrderStatus) => void;
+  /** Dismiss the current order result (filled/failed/cancelled) and return to idle. */
+  dismissOrderResult: () => void;
   addClosedTrade: (trade: ClosedTrade) => void;
   setSettingsOpen: (open: boolean) => void;
   setTutorialEnabled: (enabled: boolean) => void;

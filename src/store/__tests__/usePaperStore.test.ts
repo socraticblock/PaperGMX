@@ -178,10 +178,25 @@ describe("Store: Position Close Flow", () => {
     usePaperStore.getState().closePosition(price(3300), "take_profit");
     expect(usePaperStore.getState().orderStatus).toBe("filled"); // unchanged
 
-    // The caller should transition to "idle" via setOrderStatus("failed") → "idle"
-    // or directly if the flow ends at "filled" (which has no transitions out).
-    // In practice, the UI reads "filled" and then calls setOrderStatus after
-    // the user dismisses the result screen.
+    // The caller transitions to "idle" via dismissOrderResult() or
+    // setOrderStatus("idle") after the user dismisses the result screen.
+    // filled → idle is now a valid transition.
+  });
+
+  it("allows filled → idle via setOrderStatus (user dismisses result)", () => {
+    const { setOrderStatus } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("submitted");
+    setOrderStatus("keeper_step_1");
+    setOrderStatus("keeper_step_2");
+    setOrderStatus("keeper_step_3");
+    setOrderStatus("keeper_step_4");
+    setOrderStatus("filled");
+    expect(usePaperStore.getState().orderStatus).toBe("filled");
+
+    // Previously, filled: [] was a dead-end. Now filled → idle is valid.
+    setOrderStatus("idle");
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
   });
 
   it("adds closed trade to history", () => {
@@ -234,6 +249,86 @@ describe("Store: Order Status State Machine", () => {
 
     // The store rejects the transition and stays at idle
     expect(usePaperStore.getState().orderStatus).toBe("idle");
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("allows filled → idle (fixes state machine dead-end)", () => {
+    const { setOrderStatus } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("submitted");
+    setOrderStatus("keeper_step_1");
+    setOrderStatus("keeper_step_2");
+    setOrderStatus("keeper_step_3");
+    setOrderStatus("keeper_step_4");
+    setOrderStatus("filled");
+
+    // Previously, filled had no outgoing transitions — this was a dead-end.
+    // Now filled → idle allows the user to dismiss the result and return to form.
+    setOrderStatus("idle");
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+  });
+});
+
+describe("Store: dismissOrderResult", () => {
+  it("transitions filled → idle", () => {
+    const { setOrderStatus, dismissOrderResult } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("submitted");
+    setOrderStatus("keeper_step_1");
+    setOrderStatus("keeper_step_2");
+    setOrderStatus("keeper_step_3");
+    setOrderStatus("keeper_step_4");
+    setOrderStatus("filled");
+    expect(usePaperStore.getState().orderStatus).toBe("filled");
+
+    dismissOrderResult();
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+  });
+
+  it("transitions failed → idle", () => {
+    const { setOrderStatus, dismissOrderResult } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("failed");
+    expect(usePaperStore.getState().orderStatus).toBe("failed");
+
+    dismissOrderResult();
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+  });
+
+  it("transitions cancelled → idle", () => {
+    const { setOrderStatus, dismissOrderResult } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("cancelled");
+    expect(usePaperStore.getState().orderStatus).toBe("cancelled");
+
+    dismissOrderResult();
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+  });
+
+  it("is a no-op from idle (not a dismissable state)", () => {
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+
+    usePaperStore.getState().dismissOrderResult();
+    // Should still be idle — can't dismiss from idle
+    expect(usePaperStore.getState().orderStatus).toBe("idle");
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+
+  it("is a no-op from keeper_step_1 (not a dismissable state)", () => {
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { setOrderStatus } = usePaperStore.getState();
+    setOrderStatus("signing");
+    setOrderStatus("submitted");
+    setOrderStatus("keeper_step_1");
+
+    usePaperStore.getState().dismissOrderResult();
+    // Should still be keeper_step_1 — can't dismiss mid-keeper
+    expect(usePaperStore.getState().orderStatus).toBe("keeper_step_1");
     expect(consoleSpy).toHaveBeenCalled();
 
     consoleSpy.mockRestore();

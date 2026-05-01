@@ -8,7 +8,7 @@ import { MARKETS } from "@/lib/constants";
 // ─── Types ───────────────────────────────────────────────
 
 interface OrderResultScreenProps {
-  resultType: "failed" | "cancelled";
+  resultType: "filled" | "failed" | "cancelled";
   direction: OrderDirection;
   collateralUsd: USD;
   leverage: number;
@@ -27,6 +27,7 @@ function OrderResultScreenInner({
   onDismiss,
 }: OrderResultScreenProps) {
   const marketConfig = MARKETS[market];
+  const isFilled = resultType === "filled";
   const isFailed = resultType === "failed";
 
   return (
@@ -38,10 +39,24 @@ function OrderResultScreenInner({
           animate={{ scale: 1 }}
           transition={{ type: "spring", damping: 12, stiffness: 200 }}
           className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
-            isFailed ? "bg-red-primary/20" : "bg-yellow-primary/20"
+            isFilled ? "bg-green-primary/20" : isFailed ? "bg-red-primary/20" : "bg-yellow-primary/20"
           }`}
         >
-          {isFailed ? (
+          {isFilled ? (
+            <svg
+              className="h-6 w-6 text-green-primary"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          ) : isFailed ? (
             <svg
               className="h-6 w-6 text-red-primary"
               fill="none"
@@ -73,10 +88,12 @@ function OrderResultScreenInner({
         </motion.div>
 
         <h3 className="mt-3 text-sm font-semibold text-text-primary">
-          {isFailed ? "Order Failed" : "Order Cancelled"}
+          {isFilled ? "Order Filled" : isFailed ? "Order Failed" : "Order Cancelled"}
         </h3>
         <p className="mt-1 text-xs text-text-muted">
-          {isFailed
+          {isFilled
+            ? "Your position has been opened successfully."
+            : isFailed
             ? "Price moved past your acceptable price. No position was opened."
             : "Your order was cancelled before execution. No funds were spent."}
         </p>
@@ -96,9 +113,11 @@ function OrderResultScreenInner({
       {/* Dismiss button */}
       <button
         onClick={onDismiss}
-        className="w-full rounded-xl bg-blue-primary py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
+        className={`w-full rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] ${
+          isFilled ? "bg-green-primary" : "bg-blue-primary"
+        }`}
       >
-        Try Again
+        {isFilled ? "View Position" : "Try Again"}
       </button>
     </div>
   );

@@ -57,9 +57,6 @@ export function useKeeperExecution(
   simulateKeeperDelay: boolean,
   onSubmit: (position: Position) => void,
 ): KeeperExecutionResult {
-  // ─── Store subscriptions ─────────────────────────────────
-  const setOrderStatus = usePaperStore((s) => s.setOrderStatus);
-
   // ─── Refs for latest values (avoid stale closures) ───────
   // Refs are assigned during render so async callbacks always see the
   // latest values. This is an intentional pattern to avoid stale closures
@@ -82,9 +79,10 @@ export function useKeeperExecution(
   const onSubmitRef = useRef(onSubmit);
   // eslint-disable-next-line react-hooks/refs
   onSubmitRef.current = onSubmit;
-  const setOrderStatusRef = useRef(setOrderStatus);
-  // eslint-disable-next-line react-hooks/refs
-  setOrderStatusRef.current = setOrderStatus;
+  // NOTE: We intentionally do NOT use a ref for setOrderStatus.
+  // Instead, we call usePaperStore.getState().setOrderStatus() directly
+  // in the async flow. This avoids the stale-ref pattern where the ref
+  // could be outdated if the component re-renders during execution.
 
   // ─── Cancellation + generation tracking ──────────────────
   const cancelledRef = useRef(false);
@@ -118,7 +116,7 @@ export function useKeeperExecution(
               runningRef.current = false;
               return;
             }
-            setOrderStatusRef.current(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         } else {
           for (let step = 1; step <= 4; step++) {
@@ -126,7 +124,7 @@ export function useKeeperExecution(
               runningRef.current = false;
               return;
             }
-            setOrderStatusRef.current(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         }
 
@@ -143,7 +141,7 @@ export function useKeeperExecution(
           usePaperStore.getState().marketInfo[marketRef.current];
 
         if (!currentPriceData || currentPriceData.last <= 0) {
-          setOrderStatusRef.current("failed");
+          usePaperStore.getState().setOrderStatus("failed");
           runningRef.current = false;
           return;
         }
@@ -172,7 +170,7 @@ export function useKeeperExecution(
             console.info(
               `[PaperGMX] Slippage exceeded: fillPrice=${fillPrice}, acceptablePrice=${orderAcceptablePrice}`,
             );
-            setOrderStatusRef.current("failed");
+            usePaperStore.getState().setOrderStatus("failed");
             runningRef.current = false;
             return;
           }
@@ -183,7 +181,7 @@ export function useKeeperExecution(
         const simulatedFailure = Math.random() < KEEPER_FAILURE_RATE;
 
         if (simulatedFailure) {
-          setOrderStatusRef.current("failed");
+          usePaperStore.getState().setOrderStatus("failed");
           runningRef.current = false;
           return;
         }
@@ -230,7 +228,7 @@ export function useKeeperExecution(
         };
 
         onSubmitRef.current(position);
-        setOrderStatusRef.current("filled");
+        usePaperStore.getState().setOrderStatus("filled");
         runningRef.current = false;
 
         // Step 6: Confirmation delay — simulate on-chain confirmation
@@ -254,7 +252,7 @@ export function useKeeperExecution(
         ); // 2-3 seconds
       } catch (error) {
         console.error("[Keeper] Unexpected error:", error);
-        setOrderStatusRef.current("failed");
+        usePaperStore.getState().setOrderStatus("failed");
         runningRef.current = false;
       }
     };
@@ -285,7 +283,7 @@ export function useKeeperExecution(
       ? "cancelled"
       : "failed";
 
-    setOrderStatusRef.current(targetStatus);
+    usePaperStore.getState().setOrderStatus(targetStatus);
   }, []);
 
   return { start, cancel };

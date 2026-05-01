@@ -31,17 +31,15 @@ export function useCloseKeeper(
   closeReason: ClosedTrade["closeReason"],
   simulateKeeperDelay: boolean,
 ): CloseKeeperResult {
-  // ─── Store subscriptions ─────────────────────────────────
-  const setOrderStatus = usePaperStore((s) => s.setOrderStatus);
-  const closePosition = usePaperStore((s) => s.closePosition);
-
   // ─── Refs for latest values (avoid stale closures) ───────
+  // NOTE: We use usePaperStore.getState().setOrderStatus() directly
+  // in the async flow instead of a ref to avoid the stale-ref pattern.
   const marketRef = useRef(market);
   const directionRef = useRef(direction);
   const closeReasonRef = useRef(closeReason);
   const simulateKeeperDelayRef = useRef(simulateKeeperDelay);
-  const setOrderStatusRef = useRef(setOrderStatus);
-  const closePositionRef = useRef(closePosition);
+  // closePosition is called once at the end, but we use direct store access
+  // to avoid stale ref issues.
 
   // Update refs in useEffect to comply with React purity rules
   useEffect(() => {
@@ -49,9 +47,7 @@ export function useCloseKeeper(
     directionRef.current = direction;
     closeReasonRef.current = closeReason;
     simulateKeeperDelayRef.current = simulateKeeperDelay;
-    setOrderStatusRef.current = setOrderStatus;
-    closePositionRef.current = closePosition;
-  }, [market, direction, closeReason, simulateKeeperDelay, setOrderStatus, closePosition]);
+  }, [market, direction, closeReason, simulateKeeperDelay]);
 
   // ─── Cancellation + generation tracking ──────────────────
   const cancelledRef = useRef(false);
@@ -80,7 +76,7 @@ export function useCloseKeeper(
               runningRef.current = false;
               return;
             }
-            setOrderStatusRef.current(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         } else {
           for (let step = 1; step <= 4; step++) {
@@ -88,7 +84,7 @@ export function useCloseKeeper(
               runningRef.current = false;
               return;
             }
-            setOrderStatusRef.current(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         }
 
@@ -101,7 +97,7 @@ export function useCloseKeeper(
         const currentPriceData = usePaperStore.getState().prices[marketRef.current];
 
         if (!currentPriceData || currentPriceData.last <= 0) {
-          setOrderStatusRef.current("failed");
+          usePaperStore.getState().setOrderStatus("failed");
           runningRef.current = false;
           return;
         }
@@ -131,7 +127,7 @@ export function useCloseKeeper(
             console.info(
               `[PaperGMX] Close slippage exceeded: fillPrice=${fillPrice}, acceptablePrice=${orderAcceptablePrice}`
             );
-            setOrderStatusRef.current("failed");
+            usePaperStore.getState().setOrderStatus("failed");
             runningRef.current = false;
             return;
           }
@@ -141,19 +137,19 @@ export function useCloseKeeper(
         const simulatedFailure = Math.random() < KEEPER_FAILURE_RATE;
 
         if (simulatedFailure) {
-          setOrderStatusRef.current("failed");
+          usePaperStore.getState().setOrderStatus("failed");
           runningRef.current = false;
           return;
         }
 
         // Step 4: Close the position in the store
         // closePosition no longer resets orderStatus — we manage the state machine here
-        closePositionRef.current(fillPrice, closeReasonRef.current);
-        setOrderStatusRef.current("filled");
+        usePaperStore.getState().closePosition(fillPrice, closeReasonRef.current);
+        usePaperStore.getState().setOrderStatus("filled");
         runningRef.current = false;
       } catch (error) {
         console.error("[CloseKeeper] Unexpected error:", error);
-        setOrderStatusRef.current("failed");
+        usePaperStore.getState().setOrderStatus("failed");
         runningRef.current = false;
       }
     };
@@ -173,7 +169,7 @@ export function useCloseKeeper(
       ? "cancelled"
       : "failed";
 
-    setOrderStatusRef.current(targetStatus);
+    usePaperStore.getState().setOrderStatus(targetStatus);
   }, []);
 
   return { start, cancel };

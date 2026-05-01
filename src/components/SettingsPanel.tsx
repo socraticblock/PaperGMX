@@ -12,6 +12,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatBalance, formatUSD } from "@/lib/format";
 import { BALANCE_PRESETS, ONE_CLICK_MAX_ACTIONS } from "@/lib/constants";
+import { sanitizeNumericInput } from "@/lib/validation";
 import { motion, AnimatePresence } from "framer-motion";
 import { OneClickSetupModal } from "@/components/trade/OneClickSetupModal";
 
@@ -53,6 +54,7 @@ function SettingsPanelInner() {
   );
 
   const [topUpAmount, setTopUpAmount] = useState("");
+  const [topUpError, setTopUpError] = useState("");
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showOneClickModal, setShowOneClickModal] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -78,10 +80,17 @@ function SettingsPanelInner() {
   );
 
   const handleTopUp = () => {
-    const amount = parseFloat(topUpAmount);
-    if (amount > 0) {
+    setTopUpError("");
+    const amount = sanitizeNumericInput(topUpAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setTopUpError("Enter a valid positive amount");
+      return;
+    }
+    try {
       topUpBalance(amount);
       setTopUpAmount("");
+    } catch (err) {
+      setTopUpError(err instanceof Error ? err.message : "Invalid amount");
     }
   };
 
@@ -159,15 +168,37 @@ function SettingsPanelInner() {
                       </p>
 
                       <div className="mt-3 flex gap-2">
-                        <input
-                          id="topup-amount"
-                          type="number"
-                          value={topUpAmount}
-                          onChange={(e) => setTopUpAmount(e.target.value)}
-                          placeholder="Amount..."
-                          aria-label="Top-up amount in USDC"
-                          className="flex-1 rounded-lg border border-border-primary bg-bg-input px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:border-blue-primary focus:outline-none"
-                        />
+                        <div className="flex-1">
+                          <input
+                            id="topup-amount"
+                            type="number"
+                            value={topUpAmount}
+                            onChange={(e) => {
+                              setTopUpAmount(e.target.value);
+                              setTopUpError("");
+                            }}
+                            onKeyDown={(e) => {
+                              // Block 'e', 'E', '+', '-' which type=number allows but are invalid for USD amounts
+                              if (["e", "E", "+", "-"].includes(e.key)) {
+                                e.preventDefault();
+                              }
+                            }}
+                            min="1"
+                            placeholder="Amount..."
+                            aria-label="Top-up amount in USDC"
+                            aria-invalid={!!topUpError}
+                            className={`w-full rounded-lg border bg-bg-input px-3 py-2 text-sm text-text-primary placeholder-text-muted focus:outline-none ${
+                              topUpError
+                                ? "border-red-primary focus:border-red-primary"
+                                : "border-border-primary focus:border-blue-primary"
+                            }`}
+                          />
+                          {topUpError && (
+                            <p className="mt-1 text-xs text-red-primary" role="alert">
+                              {topUpError}
+                            </p>
+                          )}
+                        </div>
                         <button
                           onClick={handleTopUp}
                           className="rounded-lg bg-blue-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-hover"

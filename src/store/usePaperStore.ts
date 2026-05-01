@@ -159,6 +159,20 @@ export const usePaperStore = create<PaperStoreState>()(
           set({ orderStatus: status }, false, "setOrderStatus");
         },
 
+        dismissOrderResult: () => {
+          // Transition from a terminal state (filled/failed/cancelled) back to idle.
+          // Uses setOrderStatus to go through the state machine — the transition
+          // must be valid per ORDER_TRANSITIONS, otherwise it's a no-op.
+          const current = get().orderStatus;
+          if (!isValidTransition(current, "idle")) {
+            console.warn(
+              `[PaperGMX] dismissOrderResult: cannot dismiss from ${current}`,
+            );
+            return;
+          }
+          set({ orderStatus: "idle" as OrderStatus }, false, "dismissOrderResult");
+        },
+
         updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) =>
           set(
             (state) => {

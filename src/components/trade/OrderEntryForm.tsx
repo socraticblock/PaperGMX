@@ -57,6 +57,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     lockCollateral,
     setActivePosition,
     setOrderStatus,
+    dismissOrderResult,
   } = usePaperStore(
     useShallow((s) => ({
       balance: s.balance,
@@ -69,6 +70,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       lockCollateral: s.lockCollateral,
       setActivePosition: s.setActivePosition,
       setOrderStatus: s.setOrderStatus,
+      dismissOrderResult: s.dismissOrderResult,
     })),
   );
 
@@ -149,8 +151,8 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   );
 
   const handleResultDismiss = useCallback(() => {
-    setOrderStatus("idle"); // failed/cancelled → idle, back to form
-  }, [setOrderStatus]);
+    dismissOrderResult(); // filled/failed/cancelled → idle, back to form
+  }, [dismissOrderResult]);
 
   // ─── Show Liquidation Screen if position was just liquidated ──
   if (recentLiquidation) {
@@ -196,11 +198,13 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     );
   }
 
-  // ─── Order result screen (failed/cancelled) ────────────
-  if (orderStatus === "failed" || orderStatus === "cancelled") {
+  // ─── Order result screen (filled/failed/cancelled) ────
+  // filled = position opened successfully, user needs to dismiss to see PositionCard
+  // failed/cancelled = order did not complete, user dismisses to retry
+  if (orderStatus === "filled" || orderStatus === "failed" || orderStatus === "cancelled") {
     return (
       <OrderResultScreen
-        resultType={orderStatus === "failed" ? "failed" : "cancelled"}
+        resultType={orderStatus === "filled" ? "filled" : orderStatus === "failed" ? "failed" : "cancelled"}
         direction={direction}
         collateralUsd={collateralUsd}
         leverage={leverage}

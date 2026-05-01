@@ -63,11 +63,12 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const pnl = usePositionPnl(position, prices, marketInfo);
 
   // ─── Store ─────────────────────────────────────────────
-  const { orderStatus, simulateKeeperDelay, setOrderStatus } = usePaperStore(
+  const { orderStatus, simulateKeeperDelay, setOrderStatus, dismissOrderResult } = usePaperStore(
     useShallow((s) => ({
       orderStatus: s.orderStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
       setOrderStatus: s.setOrderStatus,
+      dismissOrderResult: s.dismissOrderResult,
     }))
   );
 
@@ -168,8 +169,8 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   );
 
   const handleResultDismiss = useCallback(() => {
-    setOrderStatus("idle");
-  }, [setOrderStatus]);
+    dismissOrderResult(); // filled/failed/cancelled → idle
+  }, [dismissOrderResult]);
 
   // ─── Keeper Wait Screen ────────────────────────────────
   if (isKeeperPhase(orderStatus)) {
@@ -182,11 +183,13 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     );
   }
 
-  // ─── Order result screen ───────────────────────────────
-  if (orderStatus === "failed" || orderStatus === "cancelled") {
+  // ─── Order result screen (filled/failed/cancelled) ────
+  // filled = position closed successfully, dismiss returns to trade form
+  // failed/cancelled = close did not complete, dismiss returns to position
+  if (orderStatus === "filled" || orderStatus === "failed" || orderStatus === "cancelled") {
     return (
       <OrderResultScreen
-        resultType={orderStatus === "failed" ? "failed" : "cancelled"}
+        resultType={orderStatus === "filled" ? "filled" : orderStatus === "failed" ? "failed" : "cancelled"}
         direction={position.direction}
         collateralUsd={position.collateralUsd}
         leverage={position.leverage}
@@ -587,7 +590,7 @@ function CloseKeeperWaitScreen({
 // ─── Order Result Screen ────────────────────────────────
 
 interface OrderResultScreenProps {
-  resultType: "failed" | "cancelled";
+  resultType: "filled" | "failed" | "cancelled";
   direction: import("@/types").OrderDirection;
   collateralUsd: import("@/types").USD;
   leverage: number;
@@ -604,6 +607,7 @@ function OrderResultScreen({
   onDismiss,
 }: OrderResultScreenProps) {
   const marketConfig = MARKETS[market];
+  const isFilled = resultType === "filled";
   const isFailed = resultType === "failed";
 
   return (
@@ -615,10 +619,14 @@ function OrderResultScreen({
           animate={{ scale: 1 }}
           transition={{ type: "spring", damping: 12, stiffness: 200 }}
           className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full ${
-            isFailed ? "bg-red-primary/20" : "bg-yellow-primary/20"
+            isFilled ? "bg-green-primary/20" : isFailed ? "bg-red-primary/20" : "bg-yellow-primary/20"
           }`}
         >
-          {isFailed ? (
+          {isFilled ? (
+            <svg className="h-6 w-6 text-green-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          ) : isFailed ? (
             <svg className="h-6 w-6 text-red-primary" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
             </svg>
@@ -630,10 +638,12 @@ function OrderResultScreen({
         </motion.div>
 
         <h3 className="mt-3 text-sm font-semibold text-text-primary">
-          {isFailed ? "Close Failed" : "Close Cancelled"}
+          {isFilled ? "Position Closed" : isFailed ? "Close Failed" : "Close Cancelled"}
         </h3>
         <p className="mt-1 text-xs text-text-muted">
-          {isFailed
+          {isFilled
+            ? "Your position has been closed successfully."
+            : isFailed
             ? "Price moved past your acceptable price. Position is still open."
             : "Your close order was cancelled. Position is still open."}
         </p>
@@ -650,9 +660,11 @@ function OrderResultScreen({
       {/* Dismiss button */}
       <button
         onClick={onDismiss}
-        className="w-full rounded-xl bg-blue-primary py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
+        className={`w-full rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] ${
+          isFilled ? "bg-green-primary" : "bg-blue-primary"
+        }`}
       >
-        Back to Position
+        {isFilled ? "Done" : "Back to Position"}
       </button>
     </div>
   );
