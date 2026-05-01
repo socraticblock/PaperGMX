@@ -188,13 +188,19 @@ function OrderSummaryInner({
   }
 
   const liqDistancePercent =
-    calculations.fillPrice > 0
+    calculations.liquidationPrice !== null && calculations.liquidationPrice > 0 && calculations.fillPrice > 0
       ? Math.abs(
           ((calculations.liquidationPrice - calculations.fillPrice) /
             calculations.fillPrice) *
             100,
         )
       : 0;
+
+  // For overcollateralized positions, liquidation price is null — display "N/A"
+  const liqPriceDisplay =
+    calculations.liquidationPrice !== null
+      ? `$${formatPrice(calculations.liquidationPrice, marketConfig.decimals)}`
+      : "N/A (overcollateralized)";
 
   return (
     <div className="rounded-xl border border-border-primary bg-bg-card p-4">
@@ -227,14 +233,20 @@ function OrderSummaryInner({
         {/* Liquidation Price */}
         <SummaryRow
           label="Liq. Price"
-          value={`$${formatPrice(calculations.liquidationPrice, marketConfig.decimals)}`}
-          tooltip={`-${liqDistancePercent.toFixed(1)}% from entry`}
+          value={liqPriceDisplay}
+          tooltip={
+            calculations.liquidationPrice !== null
+              ? `-${liqDistancePercent.toFixed(1)}% from entry`
+              : "Position is overcollateralized — no liquidation price"
+          }
           valueColor={
-            liqDistancePercent < 10
-              ? "text-red-primary"
-              : liqDistancePercent < 25
-                ? "text-yellow-primary"
-                : "text-text-primary"
+            calculations.liquidationPrice === null
+              ? "text-text-muted"
+              : liqDistancePercent < 10
+                ? "text-red-primary"
+                : liqDistancePercent < 25
+                  ? "text-yellow-primary"
+                  : "text-text-primary"
           }
         />
 
@@ -259,11 +271,11 @@ function OrderSummaryInner({
           tooltip="Difference between min/max oracle prices"
         />
 
-        {/* Total Cost (spec 3.4) */}
+        {/* Total Cost (spec 3.4) — just collateral, fee is deducted from it */}
         <SummaryRow
           label="Total Cost"
-          value={formatUSD(collateralUsd + calculations.positionFee)}
-          tooltip={`Collateral (${formatUSD(collateralUsd)}) + Position Fee (${formatUSD(calculations.positionFee)})`}
+          value={formatUSD(collateralUsd)}
+          tooltip={`Collateral required. Position fee (${formatUSD(calculations.positionFee)}) is deducted from collateral within the protocol.`}
           valueColor="text-text-primary"
         />
       </div>

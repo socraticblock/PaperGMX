@@ -49,6 +49,11 @@ export function usePriceService(): void {
           if (!data) continue; // Skip undefined entries from partial updates
           const midPrice = data.midPrice;
 
+          // Guard against zero/negative prices that would cause price() to
+          // throw. This can happen if the GMX API or Binance fallback returns
+          // stale or malformed data for a particular market.
+          if (midPrice <= 0 || data.minPrice <= 0 || data.maxPrice <= 0) continue;
+
           // Record first-seen price as baseline for change calculation
           if (!(slug in sessionStartPrices.current) && midPrice > 0) {
             sessionStartPrices.current[slug as MarketSlug] = midPrice;

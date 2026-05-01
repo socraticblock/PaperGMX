@@ -166,7 +166,7 @@ export function calculateLiquidationPrice(
   liquidationFeeBps: BPS,
   positionFee: USD,
   accruedFees: USD,
-): Price {
+): Price | null {
   if (entryPrice <= 0) throw new Error(`Invalid entry price: ${entryPrice}`);
   if (collateralUsd < 0)
     throw new Error(`Invalid collateral: ${collateralUsd}`);
@@ -183,16 +183,16 @@ export function calculateLiquidationPrice(
   if (direction === "long") {
     // Long liq: price drops so that collateral is wiped out
     const liqPrice = entryPrice * (1 - effectiveCollateral / sizeUsd);
-    // If liqPrice <= 0, position is already underwater — return 0 as "no
-    // valid liquidation price" signal. Downstream consumers check for <= 0.
-    // Longs with liqPrice <= 0 are overcollateralized (can't be liquidated).
-    if (liqPrice <= 0) return 0 as Price;
+    // If liqPrice <= 0, position is overcollateralized (can't be liquidated).
+    // Return null instead of 0 as Price — the Price brand requires > 0,
+    // and downstream code can use null to display "N/A" or hide the field.
+    if (liqPrice <= 0) return null;
     return price(liqPrice);
   } else {
     // Short liq: price rises so that collateral is wiped out
     const liqPrice = entryPrice * (1 + effectiveCollateral / sizeUsd);
     // If effectiveCollateral is very negative, liqPrice could be negative or 0
-    if (liqPrice <= 0) return 0 as Price;
+    if (liqPrice <= 0) return null;
     return price(liqPrice);
   }
 }

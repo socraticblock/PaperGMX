@@ -25,8 +25,10 @@ export function formatUSD(amount: number): string {
 
 /**
  * Format a number as compact USD (e.g., $1.2M, $500K)
+ * Handles negative amounts correctly: -$5.0K instead of $-5.0K
  */
 export function formatUSDCompact(amount: number): string {
+  if (amount < 0) return "-" + formatUSDCompact(Math.abs(amount));
   if (amount >= 1_000_000) {
     return `$${(amount / 1_000_000).toFixed(1)}M`;
   }

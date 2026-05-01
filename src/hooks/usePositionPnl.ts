@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Position, PriceData, MarketSlug, USD, Price, ClosedTrade } from "@/types";
-import { applyBps, bpsToDecimal, usd, percent, type Percent } from "@/lib/branded";
+import { applyBps, bpsToDecimal, usd, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
 import {
   calculateGrossPnl,
   calculateNetPnl,
@@ -117,15 +117,14 @@ export function usePositionPnl(
       marketConfig.maintenanceMarginBps,
       marketConfig.liquidationFeeBps,
       position.positionFeePaid,
-      usd(position.borrowFeeAccrued + position.fundingFeeAccrued),
+      addUSD(position.borrowFeeAccrued, position.fundingFeeAccrued),
     );
 
     // Distance to liquidation (using recalculated price)
-    const distanceToLiq = calculateDistanceToLiq(
-      position.direction,
-      currentPrice,
-      recalculatedLiqPrice
-    );
+    // If liq price is null (overcollateralized), distance is 100% (max safe)
+    const distanceToLiq = recalculatedLiqPrice !== null
+      ? calculateDistanceToLiq(position.direction, currentPrice, recalculatedLiqPrice)
+      : percent(100);
 
     // Spec 8.5: liquidation is determined by remaining collateral falling
     // below the market minimum collateral requirement. The price threshold is
@@ -134,7 +133,7 @@ export function usePositionPnl(
       position.sizeUsd,
       marketConfig.liquidationFeeBps,
     );
-    const remainingCollateral = position.collateralUsd + netPnl - liquidationFee;
+    const remainingCollateral = subUSD(addUSD(position.collateralUsd, netPnl), liquidationFee);
     const minCollateral =
       position.sizeUsd * bpsToDecimal(marketConfig.maintenanceMarginBps);
     const isLiquidatable = remainingCollateral <= minCollateral;

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { Position, Percent, PriceData, MarketSlug } from "@/types";
+import type { Position, Percent, Price, PriceData, MarketSlug } from "@/types";
 import { MARKETS } from "@/lib/constants";
 import { formatPercent, formatPrice } from "@/lib/format";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -15,6 +15,8 @@ export interface MarginWarningProps {
   distanceToLiq: Percent;
   /** Current prices */
   prices: Record<MarketSlug, PriceData>;
+  /** Recalculated liquidation price (accounts for accrued fees) */
+  recalculatedLiqPrice?: Price | null;
 }
 
 // ─── Thresholds ──────────────────────────────────────────
@@ -24,7 +26,7 @@ const CRITICAL_THRESHOLD = 8; // Critical (red) when distance < 8%
 
 // ─── Component ───────────────────────────────────────────
 
-export function MarginWarning({ position, distanceToLiq, prices }: MarginWarningProps) {
+export function MarginWarning({ position, distanceToLiq, prices, recalculatedLiqPrice }: MarginWarningProps) {
   const marketConfig = MARKETS[position.market];
   const distance = distanceToLiq as number;
 
@@ -41,11 +43,11 @@ export function MarginWarning({ position, distanceToLiq, prices }: MarginWarning
       : priceData.max
     : 0;
 
-  const liquidationPrice = position.liquidationPrice;
+  const liquidationPrice = recalculatedLiqPrice ?? position.liquidationPrice;
 
   // Estimated price move from current to liquidation
   let priceMoveStr = "";
-  if (currentPrice > 0 && liquidationPrice > 0) {
+  if (currentPrice > 0 && liquidationPrice !== null && liquidationPrice > 0) {
     const move = Math.abs(currentPrice - liquidationPrice);
     const movePercent = (move / currentPrice) * 100;
     priceMoveStr = `$${formatPrice(move, marketConfig.decimals)} (${formatPercent(movePercent)})`;

@@ -76,6 +76,8 @@ function migrateStore(
   if (version === 0) {
     // Future: migrate from v0 to v1
   }
+  // Basic shape validation — don't blindly cast corrupted data
+  if (typeof persistedState !== "object" || persistedState === null) return {};
   return persistedState as Partial<PaperStoreState>;
 }
 
@@ -253,7 +255,7 @@ export const usePaperStore = create<PaperStoreState>()(
         addClosedTrade: (trade: ClosedTrade) =>
           set(
             (state) => ({
-              tradeHistory: [trade, ...state.tradeHistory],
+              tradeHistory: [trade, ...state.tradeHistory].slice(0, 100),
             }),
             false,
             "addClosedTrade",
@@ -368,10 +370,36 @@ export const usePaperStore = create<PaperStoreState>()(
           if (error) {
             console.error("[PaperGMX] Failed to rehydrate state:", error);
           }
-          if (state && !Number.isFinite(state.balance)) {
-            console.warn("[PaperGMX] Corrupted balance detected, resetting");
-            state.balance = usd(0);
-            state.isInitialized = false;
+          if (state) {
+            if (!Number.isFinite(state.balance)) {
+              console.warn("[PaperGMX] Corrupted balance detected, resetting");
+              state.balance = usd(0);
+              state.isInitialized = false;
+            }
+            // Fix stuck "confirming" positions from prior sessions.
+            // The confirmation timeout (2-3s in useKeeperExecution) doesn't
+            // survive page reloads, leaving positions permanently stuck in
+            // "confirming" with no fee accrual or liquidation protection.
+            if (state.activePosition?.status === "confirming") {
+              state.activePosition = {
+                ...state.activePosition,
+                status: "active",
+                confirmedAt: timestamp(state.activePosition.openedAt),
+              };
+            }
+            // Enforce 1CT expiry on rehydration. If the persisted session
+            // has expired between visits, disable it so the user can't trade
+            // with an expired 1CT session.
+            if (state.oneClickTrading.enabled && state.oneClickTrading.expiresAt) {
+              if (state.oneClickTrading.expiresAt < Date.now()) {
+                state.oneClickTrading = {
+                  enabled: false,
+                  activatedAt: null,
+                  actionsRemaining: ONE_CLICK_MAX_ACTIONS,
+                  expiresAt: null,
+                };
+              }
+            }
           }
         },
         partialize: (state) => ({

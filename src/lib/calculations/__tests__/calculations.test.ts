@@ -149,7 +149,7 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
       usd(50),
     );
-    expect(liqPriceWithFees).toBeGreaterThan(liqPriceNoFees);
+    expect(liqPriceWithFees!).toBeGreaterThan(liqPriceNoFees!);
   });
 
   it("liquidation price moves closer with position fee", () => {
@@ -174,7 +174,7 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
     );
     // Position fee reduces effective collateral, moving liq price closer
-    expect(liqPriceWithPositionFee).toBeGreaterThan(liqPriceNoPositionFee);
+    expect(liqPriceWithPositionFee!).toBeGreaterThan(liqPriceNoPositionFee!);
   });
 
   it("liquidation fee moves liq price closer than without", () => {
@@ -199,10 +199,10 @@ describe("calculateLiquidationPrice", () => {
       usd(0),
     );
     // Liquidation fee reduces effective collateral, moving liq price closer
-    expect(liqPriceWithLiqFee).toBeGreaterThan(liqPriceNoLiqFee);
+    expect(liqPriceWithLiqFee!).toBeGreaterThan(liqPriceNoLiqFee!);
   });
 
-  it("short liquidation returns 0 when underwater (negative effective collateral)", () => {
+  it("short liquidation returns null when underwater (negative effective collateral)", () => {
     const liqPrice = calculateLiquidationPrice(
       "short",
       price(2000),
@@ -215,9 +215,9 @@ describe("calculateLiquidationPrice", () => {
     );
     // effectiveCollateral = 100 - 0 - (10000*0.002) - 15000 - 10000*0.005
     //                     = 100 - 20 - 15000 - 50 = -14970
-    // liqPrice = 2000 * (1 + (-14970)/10000) = 2000 * (-0.497) = -994 → returns 0
-    // Zero signals "no valid liquidation price" — position is deeply insolvent
-    expect(liqPrice).toBe(0);
+    // liqPrice = 2000 * (1 + (-14970)/10000) = 2000 * (-0.497) = -994 → returns null
+    // null signals "no valid liquidation price" — position is deeply insolvent
+    expect(liqPrice).toBeNull();
   });
 });
 

@@ -38,9 +38,11 @@ export function useFeeAccrual(
 
     const now = Date.now();
 
-    // Initialize accrual time on first run for this position
+    // Initialize accrual time on first run for this position.
+    // Use the position's openedAt timestamp to avoid the first-cycle fee
+    // gap (previously used `now`, which skipped the first 3 seconds of fees).
     if (lastAccrualTimeRef.current === 0) {
-      lastAccrualTimeRef.current = now;
+      lastAccrualTimeRef.current = position.openedAt;
       return;
     }
 

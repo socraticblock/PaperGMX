@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect, useMemo } from "react";
+import { useRef, useCallback, useMemo } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { OrderStatus, OrderDirection, Price, MarketSlug, ClosedTrade } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
@@ -34,20 +34,20 @@ export function useCloseKeeper(
   // ─── Refs for latest values (avoid stale closures) ───────
   // NOTE: We use usePaperStore.getState().setOrderStatus() directly
   // in the async flow instead of a ref to avoid the stale-ref pattern.
+  // Refs are assigned during render (not in useEffect) so async callbacks
+  // always see the latest values — same pattern as useKeeperExecution.
   const marketRef = useRef(market);
+  // eslint-disable-next-line react-hooks/refs
+  marketRef.current = market;
   const directionRef = useRef(direction);
+  // eslint-disable-next-line react-hooks/refs
+  directionRef.current = direction;
   const closeReasonRef = useRef(closeReason);
+  // eslint-disable-next-line react-hooks/refs
+  closeReasonRef.current = closeReason;
   const simulateKeeperDelayRef = useRef(simulateKeeperDelay);
-  // closePosition is called once at the end, but we use direct store access
-  // to avoid stale ref issues.
-
-  // Update refs in useEffect to comply with React purity rules
-  useEffect(() => {
-    marketRef.current = market;
-    directionRef.current = direction;
-    closeReasonRef.current = closeReason;
-    simulateKeeperDelayRef.current = simulateKeeperDelay;
-  }, [market, direction, closeReason, simulateKeeperDelay]);
+  // eslint-disable-next-line react-hooks/refs
+  simulateKeeperDelayRef.current = simulateKeeperDelay;
 
   // ─── Cancellation + generation tracking ──────────────────
   const cancelledRef = useRef(false);
@@ -185,14 +185,6 @@ export function useCloseKeeper(
     const targetStatus: OrderStatus = (transitions as readonly OrderStatus[]).includes("cancelled" as OrderStatus)
       ? "cancelled"
       : "failed";
-
-    if (targetStatus === "cancelled") {
-      const { tradingMode, oneClickTrading, decrementOneClickActions } =
-        usePaperStore.getState();
-      if (tradingMode === "1ct" && oneClickTrading.enabled) {
-        decrementOneClickActions();
-      }
-    }
 
     usePaperStore.getState().setOrderStatus(targetStatus);
   }, []);

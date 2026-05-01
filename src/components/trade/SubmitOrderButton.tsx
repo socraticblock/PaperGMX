@@ -104,9 +104,10 @@ function SubmitOrderButtonInner({
     // In classic mode: show approval popup if needed
     if (is1ctMode) {
       // 1CT: idle → submitted (skip approval and signing popups).
-      // Creating the order consumes one action from the 90-action session.
+      // The 1CT action quota is decremented only when the order fills,
+      // not on click — so that failed/cancelled orders don't waste
+      // the action budget. A useEffect below handles the decrement.
       onStatusChange("submitted");
-      decrementOneClickActions();
     } else if (needsApproval) {
       onStatusChange("approving"); // Triggers ApprovalPopup
     } else {
@@ -117,8 +118,18 @@ function SubmitOrderButtonInner({
     is1ctMode,
     needsApproval,
     onStatusChange,
-    decrementOneClickActions,
   ]);
+
+  // Decrement 1CT action quota only after a successful fill.
+  // Both opens and closes use the same pattern: consume on fill, not on
+  // click — so that failed/cancelled orders don't waste the action budget.
+  // This also eliminates the previous double-decrement on cancel (the old
+  // code decremented on click AND in useKeeperExecution.cancel()).
+  useEffect(() => {
+    if (orderStatus === "filled" && is1ctMode) {
+      decrementOneClickActions();
+    }
+  }, [orderStatus, is1ctMode, decrementOneClickActions]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {

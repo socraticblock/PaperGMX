@@ -180,8 +180,9 @@ describe("Order Entry Integration", () => {
     });
 
     it("liquidation is very close to entry (high leverage + high margin)", () => {
+      const liqPrice = result.liquidationPrice!;
       const distanceFromEntry =
-        ((result.fillPrice - result.liquidationPrice) / result.fillPrice) * 100;
+        ((result.fillPrice - liqPrice) / result.fillPrice) * 100;
       // With 25x and 1% maintenance margin, liquidation is very close
       expect(distanceFromEntry).toBeLessThan(5);
     });

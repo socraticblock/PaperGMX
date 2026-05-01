@@ -109,6 +109,7 @@ function PositionCardInner({ position, prices, marketInfo }: PositionCardProps) 
         position={position}
         distanceToLiq={pnl.distanceToLiq}
         prices={prices}
+        recalculatedLiqPrice={pnl.recalculatedLiqPrice}
       />
 
       {/* ─── Header: Direction + Market ──────────────────── */}
@@ -185,7 +186,9 @@ function PositionCardInner({ position, prices, marketInfo }: PositionCardProps) 
           value={
             pnl.recalculatedLiqPrice
               ? `$${formatPrice(pnl.recalculatedLiqPrice, marketConfig.decimals)}`
-              : `$${formatPrice(position.liquidationPrice, marketConfig.decimals)}`
+              : position.liquidationPrice
+                ? `$${formatPrice(position.liquidationPrice, marketConfig.decimals)}`
+                : "N/A"
           }
           valueColor={liqColorClass}
           tooltip="Price at which your position is liquidated (recalculated with fees)"

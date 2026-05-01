@@ -87,7 +87,7 @@ export interface Position {
   sizeUsd: USD;
   entryPrice: Price;
   acceptablePrice: Price;
-  liquidationPrice: Price;
+  liquidationPrice: Price | null;
   positionFeeBps: BPS;
   positionFeePaid: USD;
   borrowFeeAccrued: USD;

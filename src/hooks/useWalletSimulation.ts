@@ -53,6 +53,12 @@ export function useWalletSimulation(): WalletSimulationResult {
 
   const [processing, setProcessing] = useState<PopupProcessingState>("idle");
 
+  // Ref-based processing guard to prevent double-clicks. React state is
+  // captured in the closure at render time, so a rapid second click can
+  // pass the `processing !== "idle"` check before the first click's
+  // setProcessing("processing") causes a re-render. A ref is synchronous.
+  const processingRef = useRef(false);
+
   // Track mount state so setTimeout callbacks don't set state after unmount
   const mountedRef = useRef(true);
   // Track timer IDs for cleanup on unmount
@@ -111,7 +117,8 @@ export function useWalletSimulation(): WalletSimulationResult {
   // ─── Approval flow ────────────────────────────────────
 
   const handleApprove = useCallback(() => {
-    if (processing !== "idle") return; // Prevent double-click
+    if (processingRef.current) return; // Prevent double-click (synchronous)
+    processingRef.current = true;
 
     setProcessing("processing");
     // NOTE: We do NOT set orderStatus to "approved" yet.
@@ -130,6 +137,7 @@ export function useWalletSimulation(): WalletSimulationResult {
       // Brief success display, then auto-transition to signing
       scheduleTimeout(() => {
         if (!mountedRef.current) return;
+        processingRef.current = false;
         setProcessing("idle");
         setOrderStatus("signing"); // approved → signing
       }, APPROVAL_SUCCESS_MS);
@@ -138,6 +146,7 @@ export function useWalletSimulation(): WalletSimulationResult {
 
   const handleRejectApproval = useCallback(() => {
     // User rejected — no on-chain action happened, go back to idle
+    processingRef.current = false;
     setProcessing("idle");
     setOrderStatus("cancelled"); // approving → cancelled
   }, [setOrderStatus]);
@@ -145,7 +154,8 @@ export function useWalletSimulation(): WalletSimulationResult {
   // ─── Signing flow ─────────────────────────────────────
 
   const handleConfirm = useCallback(() => {
-    if (processing !== "idle") return;
+    if (processingRef.current) return; // Prevent double-click (synchronous)
+    processingRef.current = true;
 
     setProcessing("processing");
     // NOTE: We do NOT set orderStatus to "submitted" yet.
@@ -160,6 +170,7 @@ export function useWalletSimulation(): WalletSimulationResult {
 
       scheduleTimeout(() => {
         if (!mountedRef.current) return;
+        processingRef.current = false;
         setProcessing("idle");
         // NOW transition to submitted — this triggers the keeper useEffect
         setOrderStatus("submitted"); // signing → submitted
@@ -169,6 +180,7 @@ export function useWalletSimulation(): WalletSimulationResult {
 
   const handleRejectSigning = useCallback(() => {
     // User rejected signing — no on-chain action, go back to idle
+    processingRef.current = false;
     setProcessing("idle");
     setOrderStatus("cancelled"); // signing → cancelled
   }, [setOrderStatus]);
