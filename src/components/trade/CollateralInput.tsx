@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState, useEffect, useRef } from "react";
 import type { USD } from "@/types";
 import { usd } from "@/lib/branded";
 import { formatUSD } from "@/lib/format";
@@ -23,9 +23,25 @@ function CollateralInputInner({
   onChange,
   disabled = false,
 }: CollateralInputProps) {
+  // Track the raw input string so intermediate states like "100." are preserved.
+  // Without this, parseFloat("100.") = 100, and the input is forced back to "100"
+  // — the decimal point disappears, making it impossible to type $100.50 naturally.
+  const [rawInput, setRawInput] = useState(String(value || ""));
+  const isTypingRef = useRef(false);
+
+  // Sync raw input when value changes externally (e.g., preset buttons, max button)
+  useEffect(() => {
+    if (!isTypingRef.current) {
+      setRawInput(value > 0 ? String(value) : "");
+    }
+  }, [value]);
+
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const raw = e.target.value;
+      isTypingRef.current = true;
+      setRawInput(raw);
+
       if (raw === "" || raw === ".") {
         onChange(usd(0));
         return;
@@ -38,14 +54,22 @@ function CollateralInputInner({
     [onChange, balance]
   );
 
+  const handleBlur = useCallback(() => {
+    // When the user finishes typing, sync the display to the numeric value
+    isTypingRef.current = false;
+    setRawInput(value > 0 ? String(value) : "");
+  }, [value]);
+
   const handlePresetClick = useCallback(
     (amount: number) => {
+      isTypingRef.current = false;
       onChange(usd(Math.min(amount, balance)));
     },
     [onChange, balance]
   );
 
   const handleMaxClick = useCallback(() => {
+    isTypingRef.current = false;
     onChange(usd(balance));
   }, [onChange, balance]);
 
@@ -85,13 +109,14 @@ function CollateralInputInner({
         <span className="pl-4 text-sm text-text-muted">$</span>
         <input
           id="collateral-input"
-          type="number"
+          type="text"
           inputMode="decimal"
           min={0}
           max={balance}
           step="0.01"
-          value={value || ""}
+          value={rawInput}
           onChange={handleInputChange}
+          onBlur={handleBlur}
           disabled={disabled}
           placeholder="0.00"
           aria-label="Collateral amount in USDC"
