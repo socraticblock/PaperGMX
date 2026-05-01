@@ -154,6 +154,7 @@ function OrderSummaryInner({
     priceData,
     marketInfo,
     marketConfig.maintenanceMarginBps,
+    marketConfig.liquidationFeeBps,
   ]);
 
   // ─── Loading state ──────────────────────────────────────

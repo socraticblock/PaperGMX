@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { usePaperStore } from "@/store/usePaperStore";
-import { usd, price, bps, timestamp } from "@/lib/branded";
+import { usd } from "@/lib/branded";
 
 // ─── Test the wallet simulation flow via the store ────────
 // The hook uses Zustand store, so we test the integration

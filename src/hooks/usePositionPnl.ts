@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Position, PriceData, MarketSlug, USD, Price, ClosedTrade } from "@/types";
-import { usd, percent, type Percent } from "@/lib/branded";
+import { applyBps, bpsToDecimal, usd, percent, type Percent } from "@/lib/branded";
 import {
   calculateGrossPnl,
   calculateNetPnl,
@@ -127,12 +127,17 @@ export function usePositionPnl(
       recalculatedLiqPrice
     );
 
-    // Is liquidatable? Check if current price crossed liquidation price
-    const isLiquidatable = checkLiquidatable(
-      position.direction,
-      currentPrice,
-      recalculatedLiqPrice
+    // Spec 8.5: liquidation is determined by remaining collateral falling
+    // below the market minimum collateral requirement. The price threshold is
+    // display guidance; the collateral invariant decides the actual trigger.
+    const liquidationFee = applyBps(
+      position.sizeUsd,
+      marketConfig.liquidationFeeBps,
     );
+    const remainingCollateral = position.collateralUsd + netPnl - liquidationFee;
+    const minCollateral =
+      position.sizeUsd * bpsToDecimal(marketConfig.maintenanceMarginBps);
+    const isLiquidatable = remainingCollateral <= minCollateral;
 
     // Hourly borrow fee from market info
     const info = marketInfo?.[position.market];
@@ -187,19 +192,3 @@ function calculateDistanceToLiq(
   }
 }
 
-/**
- * Check if a position is liquidatable based on current price vs liquidation price.
- * For longs: liquidated if current price <= liquidation price
- * For shorts: liquidated if current price >= liquidation price
- */
-function checkLiquidatable(
-  direction: Position["direction"],
-  currentPrice: Price,
-  liquidationPrice: Price
-): boolean {
-  if (direction === "long") {
-    return currentPrice <= liquidationPrice;
-  } else {
-    return currentPrice >= liquidationPrice;
-  }
-}

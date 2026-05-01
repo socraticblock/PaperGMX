@@ -63,17 +63,29 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const pnl = usePositionPnl(position, prices, marketInfo);
 
   // ─── Store ─────────────────────────────────────────────
-  const { orderStatus, simulateKeeperDelay, setOrderStatus, dismissOrderResult } = usePaperStore(
+  const {
+    orderStatus,
+    simulateKeeperDelay,
+    tradingMode,
+    oneClickTrading,
+    setOrderStatus,
+    dismissOrderResult,
+    decrementOneClickActions,
+  } = usePaperStore(
     useShallow((s) => ({
       orderStatus: s.orderStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
+      tradingMode: s.tradingMode,
+      oneClickTrading: s.oneClickTrading,
       setOrderStatus: s.setOrderStatus,
       dismissOrderResult: s.dismissOrderResult,
+      decrementOneClickActions: s.decrementOneClickActions,
     }))
   );
 
   // ─── Close reason (selected by user) ───────────────────
   const [selectedReason, setSelectedReason] = useState<ClosedTrade["closeReason"]>("take_profit");
+  const is1ctMode = tradingMode === "1ct" && oneClickTrading.enabled;
 
   // ─── Close keeper ──────────────────────────────────────
   const closeKeeper = useCloseKeeper(
@@ -131,10 +143,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
   useEffect(() => {
     if (orderStatus === "submitted" && !startedRef.current) {
-      startedRef.current = true;
-
       const currentPriceData = usePaperStore.getState().prices[position.market];
       if (currentPriceData && currentPriceData.last > 0) {
+        startedRef.current = true;
         const fillPrice = determineFillPrice(
           currentPriceData.min,
           currentPriceData.max,
@@ -149,6 +160,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         );
 
         closeKeeper.start(acceptablePrice);
+      } else {
+        console.warn("[PaperGMX] No price data available, failing close order");
+        usePaperStore.getState().setOrderStatus("failed");
       }
     }
 
@@ -162,10 +176,18 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const handleClose = useCallback(
     (reason: ClosedTrade["closeReason"]) => {
       setSelectedReason(reason);
-      // Close doesn't require token approval — go straight to signing
+      if (is1ctMode) {
+        // 1CT skips wallet signing entirely. Creating the close order consumes
+        // one action per the 90-action / 7-day session rule.
+        setOrderStatus("submitted");
+        decrementOneClickActions();
+        return;
+      }
+
+      // Classic close doesn't require token approval — only signing.
       setOrderStatus("signing");
     },
-    [setOrderStatus]
+    [decrementOneClickActions, is1ctMode, setOrderStatus]
   );
 
   const handleResultDismiss = useCallback(() => {

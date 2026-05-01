@@ -115,7 +115,7 @@ export function useLiquidationChecker(
     }, PRICE_POLL_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [position?.id, position?.status, triggerLiquidation]);
+  }, [position, triggerLiquidation]);
 
   return {
     isLiquidatable: pnl.isLiquidatable,

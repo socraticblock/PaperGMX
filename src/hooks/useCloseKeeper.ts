@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useMemo } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { OrderStatus, OrderDirection, Price, MarketSlug, ClosedTrade } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
@@ -171,18 +171,31 @@ export function useCloseKeeper(
 
   // ─── Cancel keeper execution ─────────────────────────────
   const cancel = useCallback(() => {
-    if (!runningRef.current) return;
+    const current = usePaperStore.getState().orderStatus;
+
+    // A close order can be in "submitted" before the async keeper loop starts
+    // (for example, if price data vanished). The visible cancel button must
+    // still provide an escape hatch from that state.
+    if (!runningRef.current && current !== "submitted") return;
+
     cancelledRef.current = true;
     runningRef.current = false;
 
-    const current = usePaperStore.getState().orderStatus;
     const transitions = ORDER_TRANSITIONS[current];
     const targetStatus: OrderStatus = (transitions as readonly OrderStatus[]).includes("cancelled" as OrderStatus)
       ? "cancelled"
       : "failed";
 
+    if (targetStatus === "cancelled") {
+      const { tradingMode, oneClickTrading, decrementOneClickActions } =
+        usePaperStore.getState();
+      if (tradingMode === "1ct" && oneClickTrading.enabled) {
+        decrementOneClickActions();
+      }
+    }
+
     usePaperStore.getState().setOrderStatus(targetStatus);
   }, []);
 
-  return { start, cancel };
+  return useMemo(() => ({ start, cancel }), [start, cancel]);
 }

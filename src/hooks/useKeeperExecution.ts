@@ -283,6 +283,14 @@ export function useKeeperExecution(
       ? "cancelled"
       : "failed";
 
+    if (targetStatus === "cancelled") {
+      const { tradingMode, oneClickTrading, decrementOneClickActions } =
+        usePaperStore.getState();
+      if (tradingMode === "1ct" && oneClickTrading.enabled) {
+        decrementOneClickActions();
+      }
+    }
+
     usePaperStore.getState().setOrderStatus(targetStatus);
   }, []);
 

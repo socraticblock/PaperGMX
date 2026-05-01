@@ -50,7 +50,7 @@ function KeeperWaitScreenInner({
 }: KeeperWaitScreenProps) {
   const marketConfig = MARKETS[market];
   const isLong = direction === "long";
-  const keeper = useKeeperExecution(
+  const { start, cancel } = useKeeperExecution(
     direction,
     collateralUsd,
     leverage,
@@ -81,14 +81,14 @@ function KeeperWaitScreenInner({
           false,
         );
         // Only start keeper when we have a valid acceptable price
-        keeper.start(orderTimeAcceptablePriceRef.current);
+        start(orderTimeAcceptablePriceRef.current);
       } else {
         // No price data available — fail the order rather than skip slippage check
         console.warn("[PaperGMX] No price data available, failing order");
         usePaperStore.getState().setOrderStatus("failed");
       }
     }
-  }, [keeper.start, market, direction]);
+  }, [start, market, direction]);
 
   // Determine current step index
   const currentStepIndex = KEEPER_STEPS.findIndex((s) => s.key === orderStatus);
@@ -102,7 +102,7 @@ function KeeperWaitScreenInner({
     orderStatus === "keeper_step_2";
 
   const handleCancel = () => {
-    keeper.cancel();
+    cancel();
   };
 
   return (

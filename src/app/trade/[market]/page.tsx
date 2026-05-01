@@ -20,6 +20,7 @@ export default function TradePage() {
   const isInitialized = usePaperStore(useShallow((s) => s.isInitialized));
   const prices = usePaperStore(useShallow((s) => s.prices));
   const marketInfo = usePaperStore(useShallow((s) => s.marketInfo));
+  const connectionStatus = usePaperStore(useShallow((s) => s.connectionStatus));
 
   // Start price service
   usePriceService();
@@ -90,6 +91,7 @@ export default function TradePage() {
                 market={slug}
                 priceData={priceData}
                 marketInfo={info}
+                connectionStatus={connectionStatus}
               />
             </div>
           </div>

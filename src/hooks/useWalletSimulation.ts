@@ -60,6 +60,7 @@ export function useWalletSimulation(): WalletSimulationResult {
 
   useEffect(() => {
     mountedRef.current = true;
+    const timers = timerRefs.current;
     return () => {
       mountedRef.current = false;
       // Reset stuck wallet states on unmount.
@@ -85,10 +86,10 @@ export function useWalletSimulation(): WalletSimulationResult {
         );
       }
       // Clean up all pending timers
-      for (const id of timerRefs.current) {
+      for (const id of timers) {
         clearTimeout(id);
       }
-      timerRefs.current.clear();
+      timers.clear();
     };
   }, []);
 

@@ -11,6 +11,7 @@ import type {
 } from "@/lib/api/types";
 import { price, usd, bps, percent } from "@/lib/branded";
 import { calculatePriceChangePercent } from "@/lib/api/gmxPrice";
+import { MARKET_SLUGS } from "@/lib/constants";
 
 /**
  * Hook that manages the price service lifecycle.
@@ -71,10 +72,11 @@ export function usePriceService(): void {
           };
         }
 
-        // Partial updates (Binance fallback) should merge with existing prices
-        // so that markets not covered by Binance retain their GMX data.
-        // Full updates (GMX primary) replace all prices.
-        if (isPartial) {
+        const hasAllMarkets = MARKET_SLUGS.every((slug) => brandedPrices[slug]);
+
+        // Partial updates should merge with existing prices so unavailable
+        // markets keep their last known good GMX value instead of disappearing.
+        if (isPartial || !hasAllMarkets) {
           const existing = usePaperStore.getState().prices;
           setPrices({ ...existing, ...brandedPrices });
         } else {
@@ -103,7 +105,13 @@ export function usePriceService(): void {
           };
         }
 
-        setMarketInfo(brandedInfo);
+        const hasAllMarkets = MARKET_SLUGS.every((slug) => brandedInfo[slug]);
+        if (hasAllMarkets) {
+          setMarketInfo(brandedInfo);
+        } else {
+          const existing = usePaperStore.getState().marketInfo;
+          setMarketInfo({ ...existing, ...brandedInfo });
+        }
       },
       onStatusChange: (status: ApiConnectionStatus) => {
         setConnectionStatus(status);

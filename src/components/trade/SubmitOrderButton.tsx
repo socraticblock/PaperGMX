@@ -38,7 +38,7 @@ export interface SubmitOrderButtonProps {
 
 // ─── Component ────────────────────────────────────────────
 // Phase 5 + Phase 10: This button triggers the wallet flow.
-// In 1CT mode, it skips approval popups and goes straight to signing.
+// In 1CT mode, it skips wallet popups and submits directly.
 // Keeper execution is handled by useKeeperExecution hook
 // (used by KeeperWaitScreen), not here.
 
@@ -103,12 +103,10 @@ function SubmitOrderButtonInner({
     // In 1CT mode: skip approval entirely, go straight to signing
     // In classic mode: show approval popup if needed
     if (is1ctMode) {
-      // 1CT: idle → signing (skip approval)
-      onStatusChange("signing");
-      // NOTE: 1CT action counter is NOT decremented here.
-      // It is decremented in the useEffect below when signing succeeds
-      // (orderStatus transitions to "submitted"), so that rejected
-      // signing attempts don't burn the quota.
+      // 1CT: idle → submitted (skip approval and signing popups).
+      // Creating the order consumes one action from the 90-action session.
+      onStatusChange("submitted");
+      decrementOneClickActions();
     } else if (needsApproval) {
       onStatusChange("approving"); // Triggers ApprovalPopup
     } else {
@@ -121,16 +119,6 @@ function SubmitOrderButtonInner({
     onStatusChange,
     decrementOneClickActions,
   ]);
-
-  // ─── Decrement 1CT quota when signing succeeds ───────────
-  // The quota should only be consumed after a successful action,
-  // not when the user merely clicks the button.
-  useEffect(() => {
-    if (is1ctMode && orderStatus === "submitted") {
-      decrementOneClickActions();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderStatus]); // Intentionally only re-run when orderStatus changes
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {

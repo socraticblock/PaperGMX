@@ -44,6 +44,7 @@ let marketInfoIntervalId: ReturnType<typeof setInterval> | null = null;
 let binanceCleanup: (() => void) | null = null;
 
 let lastSuccessfulGmxFetch = 0;
+let gmxOutageStartedAt: number | null = null;
 let isBinanceActive = false;
 let isServiceRunning = false; // Singleton guard
 let isPolling = false; // Prevent overlapping polls
@@ -90,11 +91,6 @@ export function startPriceService(callbacks: {
   if (consumerCount === 1 && !isServiceRunning) {
     isServiceRunning = true;
     console.info("[PriceService] Starting...");
-
-    // Initialize timestamp to now (not 0) to prevent "degraded" flash on cold start
-    if (lastSuccessfulGmxFetch === 0) {
-      lastSuccessfulGmxFetch = Date.now();
-    }
 
     // Initial fetch immediately
     pollPrices();
@@ -162,6 +158,10 @@ export function getConnectionStatus(): ApiConnectionStatus {
   // not sufficient — we need to have successfully parsed price data.
   const hasRecentGmxData = lastSuccessfulGmxFetch > 0 && timeSinceLastSuccess < FALLBACK_ACTIVATION_DELAY_MS;
 
+  if (isBinanceActive && isBinanceConnected()) {
+    return "fallback";
+  }
+
   if (apiStatus.isAvailable && hasRecentGmxData) {
     return "connected";
   }
@@ -174,8 +174,8 @@ export function getConnectionStatus(): ApiConnectionStatus {
     return "degraded";
   }
 
-  if (isBinanceActive && isBinanceConnected()) {
-    return "fallback";
+  if (apiStatus.isAvailable && gmxOutageStartedAt !== null) {
+    return "degraded";
   }
 
   return "disconnected";
@@ -191,6 +191,7 @@ async function pollPrices(): Promise<void> {
   try {
     const prices = await fetchMarketPrices();
     lastSuccessfulGmxFetch = Date.now();
+    gmxOutageStartedAt = null;
 
     // If Binance was active and GMX is back, deactivate Binance
     if (isBinanceActive) {
@@ -210,9 +211,14 @@ async function pollPrices(): Promise<void> {
     console.warn("[PriceService] GMX price fetch failed:", error);
 
     // Check if we should activate Binance fallback
-    const timeSinceLastSuccess = Date.now() - lastSuccessfulGmxFetch;
+    const now = Date.now();
+    if (gmxOutageStartedAt === null) {
+      gmxOutageStartedAt =
+        lastSuccessfulGmxFetch > 0 ? lastSuccessfulGmxFetch : now;
+    }
+    const outageDuration = now - gmxOutageStartedAt;
     if (
-      timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS &&
+      outageDuration >= FALLBACK_ACTIVATION_DELAY_MS &&
       !isBinanceActive
     ) {
       activateBinanceFallback();

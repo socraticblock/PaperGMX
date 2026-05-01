@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import type { MarketSlug, PriceData, MarketInfo } from "@/types";
+import type { ApiConnectionStatus, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { formatPrice, formatUSDCompact, formatPercent } from "@/lib/format";
 import { MARKETS } from "@/lib/constants";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ export interface MarketPriceBarProps {
   market: MarketSlug;
   priceData: PriceData | undefined;
   marketInfo: MarketInfo | undefined;
+  connectionStatus?: ApiConnectionStatus;
 }
 
 // ─── Component ────────────────────────────────────────────
@@ -20,6 +21,7 @@ function MarketPriceBarInner({
   market,
   priceData,
   marketInfo,
+  connectionStatus,
 }: MarketPriceBarProps) {
   const marketConfig = MARKETS[market];
   const currentPrice = priceData?.last ?? 0;
@@ -45,6 +47,7 @@ function MarketPriceBarInner({
   }, [marketInfo]);
 
   return (
+    <div className="space-y-2">
     <div className="flex items-center gap-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-card px-4 py-2.5 scrollbar-none">
       {/* Price */}
       <div className="flex items-center gap-2 min-w-0">
@@ -103,6 +106,13 @@ function MarketPriceBarInner({
           {borrowRateAnnualized}
         </p>
       </div>
+    </div>
+      {connectionStatus === "fallback" && (
+        <div className="rounded-lg border border-yellow-primary/30 bg-yellow-primary/10 px-3 py-2 text-[11px] text-yellow-primary">
+          Using fallback Binance prices. They may differ from GMX oracle prices
+          and use a simulated min/max spread.
+        </div>
+      )}
     </div>
   );
 }
