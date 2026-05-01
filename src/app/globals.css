@@ -8,6 +8,19 @@
   --color-bg-input: #0f0f1a;
   --color-border-primary: #2a2a3e;
   --color-border-hover: #3a3a4e;
+  /* GMX trade layout surfaces (app.gmx.io-style density) */
+  --color-trade-page: #0b0e11;
+  --color-trade-panel: #12141a;
+  --color-trade-raised: #181b22;
+  --color-trade-strip: #0e1117;
+  --color-trade-border: #23262f;
+  --color-trade-border-subtle: #1a1e28;
+  --color-trade-border-active: #3d4451;
+  --radius-trade: 8px;
+  --radius-trade-sm: 6px;
+  --text-trade-label: 10px;
+  --text-trade-stat: 11px;
+  --text-trade-body: 12px;
   --color-text-primary: #ffffff;
   --color-text-secondary: #9ca3af;
   --color-text-muted: #6b7280;

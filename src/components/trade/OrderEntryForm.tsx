@@ -4,8 +4,9 @@ import { memo, useCallback, useState } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import type { OrderDirection, MarketSlug, Position, USD } from "@/types";
+import type { SegmentOption } from "./ui/SegmentedControl";
 import { usd } from "@/lib/branded";
-import DirectionToggle from "./DirectionToggle";
+import { SegmentedControl } from "./ui";
 import CollateralInput from "./CollateralInput";
 import LeverageSlider from "./LeverageSlider";
 import OrderSummary from "./OrderSummary";
@@ -31,6 +32,12 @@ export interface OrderEntryFormProps {
 }
 
 // ─── Helper: is order in keeper phase? ────────────────────
+
+const TRADE_MODE_OPTIONS = [
+  { value: "long", label: "Long", tone: "long" as const },
+  { value: "short", label: "Short", tone: "short" as const },
+  { value: "swap", label: "Swap", disabled: true },
+] as const satisfies readonly SegmentOption<OrderDirection | "swap">[];
 
 function isKeeperPhase(status: string): boolean {
   return (
@@ -239,22 +246,23 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
 
   return (
     <>
-      <div className="space-y-5">
-        {/* Direction Toggle */}
+      <div className="space-y-4 [&_.leverage-slider]:max-w-none">
         <TutorialTooltip
           tutorialKey="trade-form"
           title="Set up your trade"
           description="Choose Long (bet on price going up) or Short (bet on price going down). Then set your collateral amount and leverage. Higher leverage means bigger position size but also higher liquidation risk."
           position="left"
         >
-          <div>
-            <DirectionToggle
-              direction={direction}
-              onChange={setDirection}
+          <div className="space-y-3">
+            <SegmentedControl<OrderDirection | "swap">
+              options={TRADE_MODE_OPTIONS}
+              value={direction}
+              onChange={(v) => {
+                if (v === "long" || v === "short") setDirection(v);
+              }}
               disabled={formDisabled}
             />
 
-            {/* Collateral Input */}
             <CollateralInput
               value={collateralUsd}
               balance={balance}
@@ -262,7 +270,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               disabled={formDisabled}
             />
 
-            {/* Leverage Slider */}
             <LeverageSlider
               leverage={leverage}
               market={market}
@@ -272,18 +279,23 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           </div>
         </TutorialTooltip>
 
-        {/* Separator */}
-        <div className="h-px bg-border-primary" aria-hidden="true" />
+        <div className="h-px bg-trade-border-subtle" aria-hidden="true" />
 
-        {/* Order Summary */}
-        <OrderSummary
-          direction={direction}
-          collateralUsd={collateralUsd}
-          leverage={leverage}
-          market={market}
-          priceData={priceData}
-          marketInfo={info}
-        />
+        <details className="rounded-md border border-trade-border-subtle bg-trade-raised/30 open:bg-trade-raised/50">
+          <summary className="cursor-pointer px-3 py-2 text-[length:var(--text-trade-body)] font-medium text-text-secondary [&::-webkit-details-marker]:hidden">
+            Execution details
+          </summary>
+          <div className="border-t border-trade-border-subtle px-1 pb-1 pt-0">
+            <OrderSummary
+              direction={direction}
+              collateralUsd={collateralUsd}
+              leverage={leverage}
+              market={market}
+              priceData={priceData}
+              marketInfo={info}
+            />
+          </div>
+        </details>
 
         {/* Submit Button */}
         <TutorialTooltip

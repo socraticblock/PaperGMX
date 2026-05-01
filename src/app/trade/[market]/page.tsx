@@ -11,6 +11,8 @@ import { MARKET_SLUGS } from "@/lib/constants";
 import MarketPriceBar from "@/components/trade/MarketPriceBar";
 import OrderEntryForm from "@/components/trade/OrderEntryForm";
 import PriceChart from "@/components/trade/PriceChart";
+import TradeBottomTabs from "@/components/trade/TradeBottomTabs";
+import { Panel, PanelHeader } from "@/components/trade/ui";
 import type { MarketSlug } from "@/types";
 
 export default function TradePage() {
@@ -22,17 +24,14 @@ export default function TradePage() {
   const marketInfo = usePaperStore(useShallow((s) => s.marketInfo));
   const connectionStatus = usePaperStore(useShallow((s) => s.connectionStatus));
 
-  // Start price service
   usePriceService();
 
-  // Redirect to landing if not initialized
   useEffect(() => {
     if (!isInitialized) {
       router.push("/");
     }
   }, [isInitialized, router]);
 
-  // Redirect to markets if invalid market slug
   const isValidMarket = MARKET_SLUGS.includes(market as MarketSlug);
 
   useEffect(() => {
@@ -41,13 +40,14 @@ export default function TradePage() {
     }
   }, [isInitialized, isValidMarket, router]);
 
-  // Active position for dynamic heading
   const activePosition = usePaperStore(useShallow((s) => s.activePosition));
 
   if (!isInitialized || !isValidMarket) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-text-muted">Redirecting...</p>
+      <div className="flex min-h-screen items-center justify-center bg-trade-page">
+        <p className="text-[length:var(--text-trade-body)] text-text-muted">
+          Redirecting...
+        </p>
       </div>
     );
   }
@@ -57,17 +57,17 @@ export default function TradePage() {
   const info = marketInfo[slug];
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-trade-page">
       <Header />
       <SettingsPanel />
 
-      <main className="flex-1 px-4 py-4 md:px-6">
-        <div className="mx-auto max-w-6xl">
-          {/* Top bar: Back + Market Price Bar */}
-          <div className="mb-4 flex items-center gap-3">
+      <main className="flex-1">
+        <div className="border-b border-trade-border-subtle bg-trade-page">
+          <div className="mx-auto flex max-w-[1920px] items-stretch gap-2 px-3 py-2 md:gap-3 md:px-5 lg:px-6">
             <button
+              type="button"
               onClick={() => router.push("/markets")}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary bg-bg-card text-text-secondary transition-colors hover:border-border-hover hover:text-text-primary flex-shrink-0"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-trade-border-subtle bg-trade-strip text-text-secondary transition-colors hover:border-trade-border-active hover:text-text-primary"
               aria-label="Back to markets"
             >
               <svg
@@ -75,7 +75,8 @@ export default function TradePage() {
                 height="16"
                 viewBox="0 0 16 16"
                 fill="none"
-                className="text-text-secondary"
+                className="text-current"
+                aria-hidden="true"
               >
                 <path
                   d="M10 12L6 8L10 4"
@@ -86,7 +87,7 @@ export default function TradePage() {
                 />
               </svg>
             </button>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <MarketPriceBar
                 market={slug}
                 priceData={priceData}
@@ -95,36 +96,37 @@ export default function TradePage() {
               />
             </div>
           </div>
+        </div>
 
-          {/* Two-column layout on desktop, stacked on mobile */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
-            {/* Left: Real-time Price Chart */}
-            <div className="hidden lg:block">
-              <div className="sticky top-20">
-                <PriceChart market={slug} priceData={priceData} />
-              </div>
+        <div className="mx-auto max-w-[1920px] px-3 py-3 md:px-5 lg:px-6 lg:py-4">
+          <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start xl:gap-4">
+            <div className="order-2 flex min-w-0 flex-col xl:order-1">
+              <PriceChart market={slug} priceData={priceData} />
+              <TradeBottomTabs />
             </div>
 
-            {/* Right: Order Entry Form */}
-            <div className="lg:sticky lg:top-20 lg:self-start">
-              <div className="rounded-xl border border-border-primary bg-bg-card p-5">
-                <h2 className="mb-4 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                  {activePosition ? "Position" : "Place Order"}
-                </h2>
-                <OrderEntryForm market={slug} />
-              </div>
-            </div>
+            <aside className="order-1 w-full min-w-0 xl:sticky xl:order-2 xl:top-14 xl:self-start">
+              <Panel padding="none" className="overflow-hidden">
+                <PanelHeader>
+                  <span className="text-[length:var(--text-trade-body)] font-semibold text-text-primary">
+                    {activePosition ? "Position" : "Trade"}
+                  </span>
+                </PanelHeader>
+                <div className="p-3 md:p-4">
+                  <OrderEntryForm market={slug} />
+                </div>
+              </Panel>
+            </aside>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-border-primary px-4 py-4 text-center">
+      <footer className="mt-auto border-t border-trade-border-subtle bg-trade-page px-4 py-3 text-center">
         <a
           href="https://app.gmx.io"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-text-muted transition-colors hover:text-blue-primary"
+          className="text-[length:var(--text-trade-stat)] text-text-muted transition-colors hover:text-blue-primary"
         >
           Ready for real trading? Switch to GMX →
         </a>

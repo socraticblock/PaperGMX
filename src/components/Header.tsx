@@ -16,17 +16,17 @@ const STATUS_CONFIG: Record<
   connected: {
     dotColor: "bg-green-primary",
     pulse: true,
-    label: "GMX Oracle Live",
+    label: "Oracle live",
   },
   degraded: {
     dotColor: "bg-yellow-primary",
     pulse: true,
-    label: "GMX API Slow",
+    label: "API slow",
   },
   fallback: {
     dotColor: "bg-yellow-primary",
     pulse: true,
-    label: "Binance Fallback",
+    label: "Fallback",
   },
   disconnected: {
     dotColor: "bg-red-primary",
@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<
   },
 };
 
-// ─── Connection Pulse Component ─────────────────────────────
+// ─── Connection Strip (compact, right-aligned in header) ─────
 
 function ConnectionPulse() {
   const connectionStatus = usePaperStore(useShallow((s) => s.connectionStatus));
@@ -43,12 +43,12 @@ function ConnectionPulse() {
 
   return (
     <div
-      className="flex items-center gap-1.5"
+      className="flex items-center gap-1.5 rounded-md border border-trade-border-subtle bg-trade-raised px-2 py-1"
       title={config.label}
-      aria-label={`Connection status: ${config.label}`}
+      aria-label={`Connection: ${config.label}`}
       role="status"
     >
-      <span className="relative flex h-2.5 w-2.5">
+      <span className="relative flex h-2 w-2">
         {config.pulse && (
           <span
             className={`absolute inline-flex h-full w-full animate-ping rounded-full ${config.dotColor} opacity-40`}
@@ -56,11 +56,11 @@ function ConnectionPulse() {
           />
         )}
         <span
-          className={`relative inline-flex h-2.5 w-2.5 rounded-full ${config.dotColor}`}
+          className={`relative inline-flex h-2 w-2 rounded-full ${config.dotColor}`}
           aria-hidden="true"
         />
       </span>
-      <span className="text-xs text-text-secondary hidden sm:inline">
+      <span className="hidden text-[length:var(--text-trade-stat)] text-text-secondary sm:inline">
         {config.label}
       </span>
     </div>
@@ -83,55 +83,56 @@ function HeaderInner() {
   const hasPosition = activePosition !== null;
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between border-b border-border-primary bg-bg-primary/80 px-4 py-3 backdrop-blur-md md:px-6">
-      {/* Logo */}
-      <div className="flex items-center gap-2">
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-primary text-sm font-bold text-white"
-          aria-hidden="true"
-        >
-          P
-        </div>
-        <span className="text-lg font-bold text-text-primary">
-          Paper<span className="text-blue-primary">GMX</span>
-        </span>
-        {hasPosition && (
-          <span className="ml-2 rounded-full bg-green-bg px-2 py-0.5 text-xs font-medium text-green-primary">
-            Position Active
-          </span>
-        )}
-      </div>
-
-      {/* Center: Connection Status Pulse */}
-      <div className="absolute left-1/2 -translate-x-1/2">
-        <ConnectionPulse />
-      </div>
-
-      {/* Right: Balance + Settings */}
-      <div className="flex items-center gap-3">
-        {isInitialized && (
+    <header className="sticky top-0 z-40 border-b border-trade-border-subtle bg-trade-strip/95 px-3 py-2 backdrop-blur-md md:px-5">
+      <div className="mx-auto flex max-w-[1920px] items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
           <div
-            className="flex items-center gap-1.5 rounded-lg border border-border-primary bg-bg-card px-3 py-1.5"
-            aria-live="polite"
-            aria-label={`Current balance: ${formatBalance(balance)}`}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-primary text-xs font-bold text-white md:h-8 md:w-8 md:text-sm"
+            aria-hidden="true"
           >
-            <div
-              className="h-2 w-2 rounded-full bg-green-primary"
-              aria-hidden="true"
-            />
-            <span className="text-sm font-medium text-text-primary">
-              {formatBalance(balance)}
-            </span>
+            P
           </div>
-        )}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="text-base font-bold text-text-primary md:text-lg">
+                Paper<span className="text-blue-primary">GMX</span>
+              </span>
+              {hasPosition && (
+                <span className="rounded border border-trade-border-active bg-trade-raised px-1.5 py-px text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-green-primary">
+                  Open position
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
 
-        <button
-          onClick={() => setSettingsOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary bg-bg-card text-text-secondary transition-colors hover:border-border-hover hover:text-text-primary"
-          aria-label="Open settings"
-        >
-          <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
-        </button>
+        <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          <ConnectionPulse />
+
+          {isInitialized && (
+            <div
+              className="flex max-w-[118px] items-center gap-1.5 truncate rounded-md border border-trade-border-subtle bg-trade-panel px-2 py-1 sm:max-w-none md:px-3"
+              aria-live="polite"
+              aria-label={`Balance ${formatBalance(balance)}`}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-green-primary"
+                aria-hidden="true"
+              />
+              <span className="text-sm font-medium tabular-nums text-text-primary">
+                {formatBalance(balance)}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-trade-border-subtle bg-trade-panel text-text-secondary transition-colors hover:border-trade-border-active hover:text-text-primary"
+            aria-label="Open settings"
+          >
+            <Cog6ToothIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </header>
   );
