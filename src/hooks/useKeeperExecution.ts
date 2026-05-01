@@ -2,23 +2,22 @@
 
 import { useRef, useCallback } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
-import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, Position } from "@/types";
+import type { OrderDirection, OrderStatus, USD, Price, MarketSlug, BPS, Position } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
 import { usd, timestamp } from "@/lib/branded";
 import {
   calculatePositionSize,
   calculatePositionFee,
-  calculateAcceptablePrice,
   calculateLiquidationPrice,
   determineFillPrice,
 } from "@/lib/calculations";
-import { MARKETS, DEFAULT_POSITION_FEE_BPS, SLIPPAGE_OPEN_BPS, KEEPER_TIMING_WEIGHTS, generatePositionId } from "@/lib/constants";
+import { MARKETS, DEFAULT_POSITION_FEE_BPS, KEEPER_TIMING_WEIGHTS, generatePositionId } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────
 
 export interface KeeperExecutionResult {
   /** Start the keeper execution. Call when signing is confirmed. */
-  start: () => void;
+  start: (orderTimeAcceptablePrice: Price) => void;
   /** Cancel the keeper execution (only valid during steps 1-2). */
   cancel: () => void;
 }
@@ -79,12 +78,15 @@ export function useKeeperExecution(
   const cancelledRef = useRef(false);
   // Track if a keeper run is in progress to prevent double-start
   const runningRef = useRef(false);
+  // Store the order-time acceptable price for real slippage validation
+  const orderTimeAcceptablePriceRef = useRef<Price | null>(null);
 
   // ─── Start keeper execution ──────────────────────────────
-  const start = useCallback(() => {
+  const start = useCallback((orderTimeAcceptablePrice: Price) => {
     if (runningRef.current) return; // Prevent double-start
     runningRef.current = true;
     cancelledRef.current = false;
+    orderTimeAcceptablePriceRef.current = orderTimeAcceptablePrice;
 
     const runKeeper = async () => {
       // Step 1: Keeper steps (simulated delay)
@@ -133,20 +135,33 @@ export function useKeeperExecution(
         false
       );
 
-      // Step 3: Slippage check — if fill price exceeds acceptable price,
-      // the order fails (simulates real GMX V2 behavior)
-      const acceptablePrice = calculateAcceptablePrice(
-        fillPrice,
-        SLIPPAGE_OPEN_BPS,
-        directionRef.current,
-        false
-      );
+      // Step 3: Slippage check — compare order-time acceptable price
+      // against execution-time fill price (real GMX V2 behavior)
+      const orderAcceptablePrice = orderTimeAcceptablePriceRef.current;
 
-      // ~5% chance of simulated price impact failure (spec 5.10)
+      if (orderAcceptablePrice !== null) {
+        // Real slippage check: did the price move beyond acceptable?
+        // For longs: fill price must not exceed acceptable price
+        // For shorts: fill price must not be below acceptable price
+        const isSlippageExceeded = directionRef.current === "long"
+          ? fillPrice > orderAcceptablePrice
+          : fillPrice < orderAcceptablePrice;
+
+        if (isSlippageExceeded) {
+          console.info(
+            `[PaperGMX] Slippage exceeded: fillPrice=${fillPrice}, acceptablePrice=${orderAcceptablePrice}`
+          );
+          setOrderStatusRef.current("failed");
+          runningRef.current = false;
+          return;
+        }
+      }
+
+      // ~5% chance of simulated execution failure (spec 5.10)
+      // This simulates edge cases like oracle delay, keeper issues, etc.
       const simulatedFailure = Math.random() < 0.05;
 
       if (simulatedFailure) {
-        // Order failed due to price moving past slippage
         setOrderStatusRef.current("failed");
         runningRef.current = false;
         return;
@@ -177,7 +192,7 @@ export function useKeeperExecution(
         leverage: leverageRef.current,
         sizeUsd,
         entryPrice: fillPrice,
-        acceptablePrice,
+        acceptablePrice: orderTimeAcceptablePriceRef.current ?? fillPrice,
         liquidationPrice,
         positionFeeBps: feeBps,
         positionFeePaid,

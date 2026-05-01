@@ -2,9 +2,11 @@
 
 import { memo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
-import type { OrderStatus, OrderDirection, USD, MarketSlug, Position } from "@/types";
+import type { OrderStatus, OrderDirection, USD, Price, MarketSlug, Position } from "@/types";
+import { usePaperStore } from "@/store/usePaperStore";
 import { useKeeperExecution } from "@/hooks/useKeeperExecution";
-import { MARKETS } from "@/lib/constants";
+import { MARKETS, SLIPPAGE_OPEN_BPS } from "@/lib/constants";
+import { calculateAcceptablePrice } from "@/lib/calculations";
 
 // ─── Step definitions (GMX V2 keeper flow) ───────────────
 
@@ -51,13 +53,30 @@ function KeeperWaitScreenInner({
   );
 
   // Start keeper on first render (when this screen appears, orderStatus is "submitted")
+  // Compute order-time acceptable price from current oracle price
   const startedRef = useRef(false);
+  const orderTimeAcceptablePriceRef = useRef<Price | null>(null);
+
   useEffect(() => {
     if (!startedRef.current) {
       startedRef.current = true;
-      keeper.start();
+
+      // Capture the acceptable price at order submission time
+      // This is used for real slippage validation at execution time
+      const currentPriceData = usePaperStore.getState().prices[market];
+      if (currentPriceData && currentPriceData.last > 0) {
+        const fillPrice = direction === "long" ? currentPriceData.max : currentPriceData.min;
+        orderTimeAcceptablePriceRef.current = calculateAcceptablePrice(
+          fillPrice,
+          SLIPPAGE_OPEN_BPS,
+          direction,
+          false
+        );
+      }
+
+      keeper.start(orderTimeAcceptablePriceRef.current!);
     }
-  }, [keeper.start]);
+  }, [keeper.start, market, direction]);
 
   // Determine current step index
   const currentStepIndex = KEEPER_STEPS.findIndex(
