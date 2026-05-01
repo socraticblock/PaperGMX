@@ -3,6 +3,7 @@
 import { useRef, useCallback } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { OrderDirection, OrderStatus, USD, MarketSlug, BPS, Position } from "@/types";
+import { ORDER_TRANSITIONS } from "@/types";
 import { usd, timestamp } from "@/lib/branded";
 import {
   calculatePositionSize,
@@ -215,7 +216,17 @@ export function useKeeperExecution(
     if (!runningRef.current) return;
     cancelledRef.current = true;
     runningRef.current = false;
-    setOrderStatusRef.current("cancelled");
+
+    // Use "failed" as fallback if "cancelled" isn't a valid transition
+    // from the current state (e.g., keeper_step_3 only allows → failed,
+    // keeper_step_4 only allows → filled)
+    const current = usePaperStore.getState().orderStatus;
+    const transitions = ORDER_TRANSITIONS[current];
+    const targetStatus: OrderStatus = (transitions as readonly OrderStatus[]).includes("cancelled" as OrderStatus)
+      ? "cancelled"
+      : "failed";
+
+    setOrderStatusRef.current(targetStatus);
   }, []);
 
   return { start, cancel };
