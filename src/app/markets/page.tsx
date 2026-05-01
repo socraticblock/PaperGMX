@@ -8,6 +8,7 @@ import Header from "@/components/Header";
 import SettingsPanel from "@/components/SettingsPanel";
 import MarketGrid from "@/components/trade/MarketGrid";
 import { usePriceService } from "@/hooks/usePriceService";
+import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
 import type { MarketSlug } from "@/types";
 
 export default function MarketsPage() {
@@ -43,7 +44,16 @@ export default function MarketsPage() {
 
       <main className="flex-1 px-4 py-6 md:px-6">
         <div className="mx-auto max-w-2xl">
-          <MarketGrid onSelectMarket={handleSelectMarket} />
+          <TutorialTooltip
+            tutorialKey="market-selection"
+            title="Pick a market to trade"
+            description="Choose from 4 perpetual futures markets — ETH, BTC, SOL, and ARB. Prices are live from the GMX V2 oracle on Arbitrum. Each market has different leverage limits and fee rates."
+            position="bottom"
+          >
+            <div>
+              <MarketGrid onSelectMarket={handleSelectMarket} />
+            </div>
+          </TutorialTooltip>
         </div>
       </main>
 

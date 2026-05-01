@@ -13,6 +13,7 @@ import {
   ChartBarIcon,
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
+import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
 
 const features = [
   {
@@ -106,10 +107,19 @@ export default function Home() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="mt-10"
           >
-            <p className="mb-4 text-sm font-medium text-text-secondary">
-              Choose your starting balance to begin
-            </p>
-            <BalanceSelector />
+            <TutorialTooltip
+              tutorialKey="balance-selection"
+              title="Choose your starting balance"
+              description="Pick $10K for casual trading, $100K for realistic sizing, or $1M for whale mode. This is simulated USDC — you can top up anytime in Settings."
+              position="bottom"
+            >
+              <div>
+                <p className="mb-4 text-sm font-medium text-text-secondary">
+                  Choose your starting balance to begin
+                </p>
+                <BalanceSelector />
+              </div>
+            </TutorialTooltip>
           </motion.div>
 
           {/* Feature Grid */}

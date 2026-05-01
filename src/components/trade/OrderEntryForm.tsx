@@ -21,6 +21,7 @@ import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
 import { PositionCard } from "@/components/position/PositionCard";
 import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 import { LiquidationScreen } from "@/components/position/LiquidationScreen";
+import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -214,27 +215,36 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     <>
       <div className="space-y-5">
         {/* Direction Toggle */}
-        <DirectionToggle
-          direction={direction}
-          onChange={setDirection}
-          disabled={formDisabled}
-        />
+        <TutorialTooltip
+          tutorialKey="trade-form"
+          title="Set up your trade"
+          description="Choose Long (bet on price going up) or Short (bet on price going down). Then set your collateral amount and leverage. Higher leverage means bigger position size but also higher liquidation risk."
+          position="left"
+        >
+          <div>
+            <DirectionToggle
+              direction={direction}
+              onChange={setDirection}
+              disabled={formDisabled}
+            />
 
-        {/* Collateral Input */}
-        <CollateralInput
-          value={collateralUsd}
-          balance={balance}
-          onChange={handleCollateralChange}
-          disabled={formDisabled}
-        />
+            {/* Collateral Input */}
+            <CollateralInput
+              value={collateralUsd}
+              balance={balance}
+              onChange={handleCollateralChange}
+              disabled={formDisabled}
+            />
 
-        {/* Leverage Slider */}
-        <LeverageSlider
-          leverage={leverage}
-          market={market}
-          onChange={handleLeverageChange}
-          disabled={formDisabled}
-        />
+            {/* Leverage Slider */}
+            <LeverageSlider
+              leverage={leverage}
+              market={market}
+              onChange={handleLeverageChange}
+              disabled={formDisabled}
+            />
+          </div>
+        </TutorialTooltip>
 
         {/* Separator */}
         <div className="h-px bg-border-primary" aria-hidden="true" />
@@ -250,18 +260,27 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
         />
 
         {/* Submit Button */}
-        <SubmitOrderButton
-          direction={direction}
-          collateralUsd={collateralUsd}
-          leverage={leverage}
-          market={market}
-          balance={balance}
-          orderStatus={orderStatus}
-          priceData={priceData}
-          marketInfo={info}
-          needsApproval={needsApproval}
-          onStatusChange={handleStatusChange}
-        />
+        <TutorialTooltip
+          tutorialKey="submit-order"
+          title="Submit your order"
+          description="This simulates the full GMX V2 trading flow: wallet approval (first time only) → order signing → keeper execution. No real crypto is used — it's all simulated! If you enable One-Click Trading, you can skip the approval popups."
+          position="top"
+        >
+          <div>
+            <SubmitOrderButton
+              direction={direction}
+              collateralUsd={collateralUsd}
+              leverage={leverage}
+              market={market}
+              balance={balance}
+              orderStatus={orderStatus}
+              priceData={priceData}
+              marketInfo={info}
+              needsApproval={needsApproval}
+              onStatusChange={handleStatusChange}
+            />
+          </div>
+        </TutorialTooltip>
       </div>
 
       {/* ─── Wallet Popup Layer ──────────────────────────── */}

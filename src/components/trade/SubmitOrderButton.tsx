@@ -1,11 +1,14 @@
 "use client";
 
 import { memo, useCallback } from "react";
+import { usePaperStore } from "@/store/usePaperStore";
+import { useShallow } from "zustand/react/shallow";
 import type { OrderDirection, OrderStatus, USD, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { formatUSD } from "@/lib/format";
 import { calculatePositionSize } from "@/lib/calculations";
-import { MARKETS } from "@/lib/constants";
+import { MARKETS, ONE_CLICK_MAX_ACTIONS, ONE_CLICK_WARNING_THRESHOLD } from "@/lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
+import { BoltIcon } from "@heroicons/react/24/outline";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -23,7 +26,8 @@ export interface SubmitOrderButtonProps {
 }
 
 // ─── Component ────────────────────────────────────────────
-// Phase 5: This button ONLY triggers the wallet flow.
+// Phase 5 + Phase 10: This button triggers the wallet flow.
+// In 1CT mode, it skips approval popups and goes straight to signing.
 // Keeper execution is handled by useKeeperExecution hook
 // (used by KeeperWaitScreen), not here.
 
@@ -39,9 +43,26 @@ function SubmitOrderButtonInner({
   needsApproval,
   onStatusChange,
 }: SubmitOrderButtonProps) {
+  const { oneClickTrading, tradingMode, decrementOneClickActions } = usePaperStore(
+    useShallow((s) => ({
+      oneClickTrading: s.oneClickTrading,
+      tradingMode: s.tradingMode,
+      decrementOneClickActions: s.decrementOneClickActions,
+    }))
+  );
+
   const marketConfig = MARKETS[market];
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
   const isLong = direction === "long";
+
+  // ─── 1CT State ──────────────────────────────────────
+  const is1ctMode = tradingMode === "1ct" && oneClickTrading.enabled;
+  const isExpired =
+    oneClickTrading.expiresAt !== null &&
+    oneClickTrading.expiresAt < Date.now();
+  const isDepleted = oneClickTrading.actionsRemaining <= 0;
+  const needsRenewal = is1ctMode && (isExpired || isDepleted);
+  const isLow1ct = is1ctMode && oneClickTrading.actionsRemaining <= ONE_CLICK_WARNING_THRESHOLD;
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
@@ -52,18 +73,26 @@ function SubmitOrderButtonInner({
     !insufficientBalance &&
     !belowMinimum &&
     collateralUsd > 0 &&
-    (orderStatus === "idle" || orderStatus === "failed");
+    (orderStatus === "idle" || orderStatus === "failed") &&
+    !needsRenewal; // Can't submit if 1CT needs renewal
 
   // ─── Button click: start the wallet flow ────────────────
   const handleClick = useCallback(() => {
     if (!canSubmit) return;
 
-    if (needsApproval) {
+    // In 1CT mode: skip approval entirely, go straight to signing
+    // In classic mode: show approval popup if needed
+    if (is1ctMode) {
+      // 1CT: idle → signing (skip approval)
+      onStatusChange("signing");
+      // Decrement the 1CT action counter
+      decrementOneClickActions();
+    } else if (needsApproval) {
       onStatusChange("approving"); // Triggers ApprovalPopup
     } else {
       onStatusChange("signing"); // Skip approval, go to signing
     }
-  }, [canSubmit, needsApproval, onStatusChange]);
+  }, [canSubmit, is1ctMode, needsApproval, onStatusChange, decrementOneClickActions]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -77,8 +106,8 @@ function SubmitOrderButtonInner({
         };
       case "signing":
         return {
-          text: "Confirm in Wallet...",
-          bgClass: "bg-blue-primary",
+          text: is1ctMode ? "Submitting via 1CT..." : "Confirm in Wallet...",
+          bgClass: is1ctMode ? "bg-purple-primary" : "bg-blue-primary",
           showSpinner: true,
         };
       // Keeper states are handled by KeeperWaitScreen, not this button.
@@ -140,10 +169,26 @@ function SubmitOrderButtonInner({
             showSpinner: false,
           };
         }
-        if (needsApproval) {
+        // 1CT renewal needed
+        if (needsRenewal) {
+          return {
+            text: isExpired ? "1CT Expired — Renew" : "1CT Depleted — Renew",
+            bgClass: "bg-yellow-primary",
+            showSpinner: false,
+          };
+        }
+        if (needsApproval && !is1ctMode) {
           return {
             text: "Approve USDC",
             bgClass: "bg-yellow-primary",
+            showSpinner: false,
+          };
+        }
+        // Normal submit text — include ⚡ badge for 1CT
+        if (is1ctMode) {
+          return {
+            text: `${isLong ? "Long" : "Short"} ${marketConfig.symbol} ⚡ — ${formatUSD(sizeUsd)}`,
+            bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
             showSpinner: false,
           };
         }
@@ -184,11 +229,19 @@ function SubmitOrderButtonInner({
       </motion.button>
 
       {/* Fee disclosure */}
-      <p className="mt-2 text-center text-[10px] text-text-muted leading-relaxed">
-        Paper trading only — no real funds at risk.
-        <br />
-        Position fee: {marketInfo?.positionFeeBps ?? 6} BPS. Keeper execution simulated.
-      </p>
+      <div className="mt-2 text-center text-[10px] text-text-muted leading-relaxed">
+        <p>
+          Paper trading only — no real funds at risk.
+          <br />
+          Position fee: {marketInfo?.positionFeeBps ?? 6} BPS. Keeper execution simulated.
+        </p>
+        {is1ctMode && (
+          <p className={`mt-1 ${isLow1ct ? "text-yellow-primary" : "text-purple-primary"}`}>
+            <BoltIcon className="inline h-3 w-3" aria-hidden="true" />{" "}
+            1CT: {oneClickTrading.actionsRemaining}/{ONE_CLICK_MAX_ACTIONS} actions remaining
+          </p>
+        )}
+      </div>
     </div>
   );
 }
