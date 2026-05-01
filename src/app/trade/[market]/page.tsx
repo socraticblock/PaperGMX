@@ -40,7 +40,8 @@ export default function TradePage() {
     }
   }, [isInitialized, isValidMarket, router]);
 
-  // TODO: Phase 6 — When position is active, show PositionView instead of OrderEntryForm
+  // Active position for dynamic heading
+  const activePosition = usePaperStore(useShallow((s) => s.activePosition));
 
   if (!isInitialized || !isValidMarket) {
     return (
@@ -94,7 +95,7 @@ export default function TradePage() {
             <div className="lg:sticky lg:top-20 lg:self-start">
               <div className="rounded-xl border border-border-primary bg-bg-card p-5">
                 <h2 className="mb-4 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-                  Place Order
+                  {activePosition ? "Position" : "Place Order"}
                 </h2>
                 <OrderEntryForm market={slug} />
               </div>

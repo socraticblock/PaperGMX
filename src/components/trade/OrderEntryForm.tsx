@@ -5,7 +5,6 @@ import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import type { OrderDirection, MarketSlug, Position, USD } from "@/types";
 import { usd } from "@/lib/branded";
-import { MARKETS } from "@/lib/constants";
 import DirectionToggle from "./DirectionToggle";
 import CollateralInput from "./CollateralInput";
 import LeverageSlider from "./LeverageSlider";
@@ -18,6 +17,8 @@ import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
 import { SigningPopup } from "@/components/wallet/SigningPopup";
 import { KeeperWaitScreen } from "@/components/keeper/KeeperWaitScreen";
 import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
+import { PositionCard } from "@/components/position/PositionCard";
+import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -112,17 +113,21 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     setOrderStatus("idle"); // failed/cancelled → idle, back to form
   }, [setOrderStatus]);
 
-  // ─── Already have a position ────────────────────────────
+  // ─── Already have a position — show Position Card + Close Form ──
   if (hasActivePosition) {
     return (
-      <div className="rounded-xl border border-yellow-primary/30 bg-yellow-bg p-6 text-center">
-        <p className="text-sm font-medium text-yellow-primary">
-          You already have an active position on {MARKETS[activePosition.market].pair}
-        </p>
-        <p className="mt-1 text-xs text-text-muted">
-          Close your current position before opening a new one.
-        </p>
-      </div>
+      <>
+        <PositionCard
+          position={activePosition}
+          prices={prices}
+          marketInfo={marketInfo}
+        />
+        <ClosePositionForm
+          position={activePosition}
+          prices={prices}
+          marketInfo={marketInfo}
+        />
+      </>
     );
   }
 
