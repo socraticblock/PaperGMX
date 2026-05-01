@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Position, PriceData, MarketSlug, USD, Price, ClosedTrade } from "@/types";
-import { applyBps, bpsToDecimal, usd, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
+import { applyBps, bpsToDecimal, usd, price, percent, addUSD, subUSD, type Percent } from "@/lib/branded";
 import {
   calculateGrossPnl,
   calculateNetPnl,
@@ -24,8 +24,10 @@ export interface PositionPnlResult {
   pnlPercent: Percent;
   /** Distance from current price to liquidation price, as % */
   distanceToLiq: Percent;
-  /** Current market price (worst price for trader on close), null if unavailable */
+  /** Current market mid-price (fair price for PnL display), null if unavailable */
   currentPrice: Price | null;
+  /** Worst close price for the position (used for liquidation exit), null if unavailable */
+  worstClosePrice: Price | null;
   /** Estimated hourly borrow fee */
   hourlyBorrowFee: USD;
   /** Whether the position is liquidatable */
@@ -44,6 +46,7 @@ const NULL_RESULT: PositionPnlResult = {
   pnlPercent: percent(0),
   distanceToLiq: percent(0),
   currentPrice: null,
+  worstClosePrice: null,
   hourlyBorrowFee: usd(0),
   isLiquidatable: false,
   liquidationReason: null,
@@ -73,13 +76,24 @@ export function usePositionPnl(
     const priceData = prices[position.market];
     if (!priceData || priceData.last <= 0) return NULL_RESULT;
 
-    // Current price: for P&L we use the "worse" price for the trader
-    // When closing a long, you sell at the lower price (min)
-    // When closing a short, you buy back at the higher price (max)
-    const currentPrice: Price =
+    // GMX V2: Live PnL display uses the mid/fair price, NOT the close-worst
+    // price. The min/max spread is only relevant at actual execution time
+    // (handled by the open/close keepers). Using mid-price for display gives
+    // the trader an accurate view of their unrealized PnL without the
+    // execution penalty baked in — that penalty is only charged on close.
+    // Note: liquidation checks still use the worst price via isLiquidatable
+    // below, which is the conservative check for actual close scenarios.
+    const midPrice: Price = price((priceData.min + priceData.max) / 2);
+    const currentPrice: Price = midPrice;
+
+    // Worst close price: the price the position would actually close at.
+    // Closing a long = selling at the lower price (min)
+    // Closing a short = buying back at the higher price (max)
+    // Used for liquidation exit price and conservative collateral checks.
+    const worstClosePrice: Price =
       position.direction === "long" ? priceData.min : priceData.max;
 
-    // Gross P&L using exit price = current oracle worst price
+    // Gross P&L using exit price = current oracle mid price
     const grossPnl = calculateGrossPnl(
       position.direction,
       position.entryPrice,
@@ -160,6 +174,7 @@ export function usePositionPnl(
       pnlPercent,
       distanceToLiq,
       currentPrice,
+      worstClosePrice,
       hourlyBorrowFee,
       isLiquidatable,
       liquidationReason: isLiquidatable ? "liquidated" : null,

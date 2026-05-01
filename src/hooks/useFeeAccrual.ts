@@ -85,11 +85,14 @@ export function useFeeAccrual(
         ? info.fundingRateLong
         : info.fundingRateShort;
 
+    // calculateFundingFee uses the rate's sign to determine payer direction:
+    //   positive rate = position pays (cost), negative rate = position receives (credit).
+    // Since we already selected the per-direction rate above, no direction
+    // parameter is needed — the sign IS the direction signal.
     const fundingFeeDelta = calculateFundingFee(
       position.sizeUsd,
       fundingRatePerSecond,
       durationMs,
-      position.direction,
     );
 
     // Update the position's accrued fees

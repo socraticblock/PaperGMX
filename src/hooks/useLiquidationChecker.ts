@@ -69,13 +69,16 @@ export function useLiquidationChecker(
     const currentOrderStatus = usePaperStore.getState().orderStatus;
     if (currentOrderStatus !== "idle") return;
 
-    // Use the current oracle worst price as exit price.
-    // currentPrice is null when no price data is available — skip liquidation
+    // Use the worst close price as exit price for liquidation.
+    // worstClosePrice is the oracle worst price for the position's direction
+    // (min for longs, max for shorts) — this is the price the position would
+    // actually close at. currentPrice (mid-price) is for PnL display only.
+    // worstClosePrice is null when no price data is available — skip liquidation
     // entirely. We must NOT mark the position as "liquidated" before confirming
     // we have a valid price, otherwise the position gets stuck in a "liquidated"
     // state with no balance return and no trade history entry.
-    if (!currentPnl.currentPrice) return;
-    const exitPrice: Price = currentPnl.currentPrice;
+    if (!currentPnl.worstClosePrice) return;
+    const exitPrice: Price = currentPnl.worstClosePrice;
 
     // Mark as triggered immediately to prevent race conditions
     liquidationTriggered.current = true;

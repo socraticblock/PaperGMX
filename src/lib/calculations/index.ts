@@ -124,18 +124,26 @@ export function calculateHourlyBorrowFee(
 
 /**
  * Calculate funding fee for a time period.
- * GMX V2: Longs pay shorts (or vice versa) based on OI imbalance.
- * Annualized rate ranges from 1% to 90% max (adaptive).
+ * GMX V2: Longs and shorts have SEPARATE funding rates.
+ *
+ * The rate's sign alone determines whether the position pays or receives:
+ *   - Positive rate → position PAYS funding (cost, reduces PnL)
+ *   - Negative rate → position RECEIVES funding (credit, increases PnL)
+ *
+ * The caller (useFeeAccrual) is responsible for selecting the correct
+ * per-direction rate (fundingRateLong for longs, fundingRateShort for shorts)
+ * BEFORE calling this function. No direction multiplier is applied here —
+ * the rate's sign IS the direction signal.
+ *
  * @param sizeUsd - Position size in USD
- * @param fundingRatePerSecond - Annualized rate divided by seconds per year
+ * @param fundingRatePerSecond - Per-second funding rate for this position's side.
+ *   Positive = position pays, Negative = position receives.
  * @param durationMs - Time period in milliseconds
- * @param direction - Position direction (longs pay when rate positive)
  */
 export function calculateFundingFee(
   sizeUsd: USD,
   fundingRatePerSecond: number,
   durationMs: number,
-  direction: OrderDirection,
 ): USD {
   if (sizeUsd < 0) throw new Error(`Invalid size: ${sizeUsd}`);
   if (!Number.isFinite(fundingRatePerSecond))
@@ -143,9 +151,7 @@ export function calculateFundingFee(
   if (durationMs < 0) throw new Error(`Invalid duration: ${durationMs}`);
 
   const secondsElapsed = durationMs / 1000;
-  const directionMultiplier = direction === "long" ? 1 : -1;
-  const fee =
-    sizeUsd * fundingRatePerSecond * secondsElapsed * directionMultiplier;
+  const fee = sizeUsd * fundingRatePerSecond * secondsElapsed;
   return usd(fee);
 }
 
