@@ -27,7 +27,7 @@ const SPREAD_SIMULATION_BPS = 5; // 0.05% simulated spread
 
 // ─── WebSocket Connection ─────────────────────────────────
 
-type PriceCallback = (prices: Record<MarketSlug, ParsedMarketPrice>) => void;
+type PriceCallback = (prices: Partial<Record<MarketSlug, ParsedMarketPrice>>) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -46,7 +46,9 @@ export function connectBinanceWs(callback: PriceCallback): () => void {
     .map((s) => `${s}@miniTicker`)
     .join("/");
 
-  const url = `wss://stream.binance.com:9443/ws/${streams}`;
+  // Combined stream endpoint uses /stream?streams= (not /ws/)
+  // See: https://binance-docs.github.io/apidocs/spot/en/#websocket-market-streams
+  const url = `wss://stream.binance.com:9443/stream?streams=${streams}`;
 
   function connect() {
     // Close any existing WebSocket before creating a new one
@@ -113,7 +115,19 @@ export function isBinanceConnected(): boolean {
 
 // ─── Message Handling ─────────────────────────────────────
 
-function handleBinanceMessage(data: Record<string, unknown>): void {
+function handleBinanceMessage(raw: Record<string, unknown>): void {
+  // Combined stream wraps each event: { stream: "ethusdt@miniTicker", data: { e, s, c, ... } }
+  // Single-stream endpoint sends the payload directly.
+  // Support both formats for robustness.
+  let data: Record<string, unknown>;
+  if (raw.data && typeof raw.data === "object" && raw.stream) {
+    // Combined stream format
+    data = raw.data as Record<string, unknown>;
+  } else {
+    // Single-stream format (direct miniTicker payload)
+    data = raw;
+  }
+
   // Binance miniTicker format:
   // { "e": "24hrMiniTicker", "s": "ETHUSDT", "c": "2263.21", ... }
   if (data.e !== "24hrMiniTicker" || typeof data.s !== "string") return;
@@ -135,10 +149,14 @@ function handleBinanceMessage(data: Record<string, unknown>): void {
 /**
  * Convert Binance prices to our ParsedMarketPrice format.
  * Simulates min/max spread from single mid-price.
+ *
+ * Only includes markets that have actual price data — the caller is
+ * responsible for merging these with existing prices so that partial
+ * Binance data doesn't wipe out prices for other markets.
  */
 function convertBinancePrices(
   binancePrices: Record<string, number>,
-): Record<MarketSlug, ParsedMarketPrice> {
+): Partial<Record<MarketSlug, ParsedMarketPrice>> {
   const result: Partial<Record<MarketSlug, ParsedMarketPrice>> = {};
   const now = Date.now();
 
@@ -162,5 +180,6 @@ function convertBinancePrices(
     };
   }
 
-  return result as Record<MarketSlug, ParsedMarketPrice>;
+  // Return partial record — caller must merge, not replace
+  return result;
 }

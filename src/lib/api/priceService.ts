@@ -51,6 +51,8 @@ let consumerCount = 0; // Reference counting for lifecycle management
 
 type PriceUpdateCallback = (
   prices: Record<MarketSlug, ParsedMarketPrice>,
+  /** If true, this is a partial update that should be merged, not replaced */
+  isPartial?: boolean,
 ) => void;
 type MarketInfoCallback = (info: Record<MarketSlug, ParsedMarketInfo>) => void;
 type StatusCallback = (status: ApiConnectionStatus) => void;
@@ -155,15 +157,18 @@ export function getConnectionStatus(): ApiConnectionStatus {
   const apiStatus = getApiStatus();
   const timeSinceLastSuccess = Date.now() - lastSuccessfulGmxFetch;
 
-  if (
-    apiStatus.isAvailable &&
-    timeSinceLastSuccess < FALLBACK_ACTIVATION_DELAY_MS
-  ) {
+  // Only report "connected" or "degraded" if we've actually received data
+  // from GMX recently. The API endpoint being "available" (responding) is
+  // not sufficient — we need to have successfully parsed price data.
+  const hasRecentGmxData = lastSuccessfulGmxFetch > 0 && timeSinceLastSuccess < FALLBACK_ACTIVATION_DELAY_MS;
+
+  if (apiStatus.isAvailable && hasRecentGmxData) {
     return "connected";
   }
 
   if (
     apiStatus.isAvailable &&
+    lastSuccessfulGmxFetch > 0 &&
     timeSinceLastSuccess >= FALLBACK_ACTIVATION_DELAY_MS
   ) {
     return "degraded";
@@ -236,7 +241,7 @@ function activateBinanceFallback(): void {
   isBinanceActive = true;
 
   binanceCleanup = connectBinanceWs((prices) => {
-    onPriceUpdate?.(prices);
+    onPriceUpdate?.(prices as Record<MarketSlug, ParsedMarketPrice>, true);
     onStatusChange?.(getConnectionStatus());
   });
 }

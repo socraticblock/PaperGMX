@@ -66,6 +66,14 @@ export function useLiquidationChecker(
 
     if (!pos || liquidationTriggered.current) return;
 
+    // Use the current oracle worst price as exit price.
+    // currentPrice is null when no price data is available — skip liquidation
+    // entirely. We must NOT mark the position as "liquidated" before confirming
+    // we have a valid price, otherwise the position gets stuck in a "liquidated"
+    // state with no balance return and no trade history entry.
+    if (!currentPnl.currentPrice) return;
+    const exitPrice: Price = currentPnl.currentPrice;
+
     // Mark as triggered immediately to prevent race conditions
     liquidationTriggered.current = true;
 
@@ -74,11 +82,6 @@ export function useLiquidationChecker(
       ...pos,
       status: "liquidated" as const,
     });
-
-    // Use the current oracle worst price as exit price
-    // currentPrice is null when no price data is available — skip liquidation
-    if (!currentPnl.currentPrice) return;
-    const exitPrice: Price = currentPnl.currentPrice;
 
     // Close the position with liquidated reason
     // closePosition handles all P&L calculations and balance updates

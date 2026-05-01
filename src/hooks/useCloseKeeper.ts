@@ -144,8 +144,20 @@ export function useCloseKeeper(
 
         // Step 4: Close the position in the store
         // closePosition no longer resets orderStatus — we manage the state machine here
+        const positionBeforeClose = usePaperStore.getState().activePosition;
         usePaperStore.getState().closePosition(fillPrice, closeReasonRef.current);
-        usePaperStore.getState().setOrderStatus("filled");
+        const positionAfterClose = usePaperStore.getState().activePosition;
+
+        // Only transition to "filled" if closePosition actually closed a position.
+        // If activePosition was already null (e.g., double-fire or external reset),
+        // closePosition is a no-op and we should transition to "failed" instead
+        // of leaving the order in an inconsistent "filled" state with no trade.
+        if (positionBeforeClose && !positionAfterClose) {
+          usePaperStore.getState().setOrderStatus("filled");
+        } else {
+          console.warn("[CloseKeeper] closePosition was a no-op — no active position to close");
+          usePaperStore.getState().setOrderStatus("failed");
+        }
         runningRef.current = false;
       } catch (error) {
         console.error("[CloseKeeper] Unexpected error:", error);

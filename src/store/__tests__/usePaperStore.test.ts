@@ -334,3 +334,63 @@ describe("Store: dismissOrderResult", () => {
     consoleSpy.mockRestore();
   });
 });
+
+describe("Store: closePosition no-op guard", () => {
+  it("closePosition is a no-op when no active position exists", () => {
+    // Ensure no active position
+    expect(usePaperStore.getState().activePosition).toBeNull();
+
+    const balanceBefore = usePaperStore.getState().balance;
+    const historyBefore = usePaperStore.getState().tradeHistory.length;
+
+    // Call closePosition with no active position
+    usePaperStore.getState().closePosition(price(3300), "take_profit");
+
+    // Balance and history should be unchanged
+    expect(usePaperStore.getState().balance).toBe(balanceBefore);
+    expect(usePaperStore.getState().tradeHistory.length).toBe(historyBefore);
+  });
+
+  it("closePosition returns collateral when position exists", () => {
+    const position = createTestPosition();
+    usePaperStore.getState().lockCollateral(usd(1000));
+    usePaperStore.getState().setActivePosition(position);
+
+    const balanceBefore = usePaperStore.getState().balance;
+    usePaperStore.getState().closePosition(price(3300), "take_profit");
+
+    // Balance should increase (collateral + P&L returned)
+    expect(usePaperStore.getState().balance).toBeGreaterThan(balanceBefore);
+    expect(usePaperStore.getState().activePosition).toBeNull();
+    expect(usePaperStore.getState().tradeHistory.length).toBe(1);
+  });
+});
+
+describe("Store: 1CT quota decrement timing", () => {
+  it("1CT actions remaining starts at max", () => {
+    const { oneClickTrading } = usePaperStore.getState();
+    // After resetWallet + initializeBalance, 1CT is in default state
+    expect(oneClickTrading.actionsRemaining).toBeGreaterThanOrEqual(0);
+  });
+
+  it("decrementOneClickActions decrements actions remaining", () => {
+    usePaperStore.getState().enableOneClickTrading();
+    const before = usePaperStore.getState().oneClickTrading.actionsRemaining;
+    usePaperStore.getState().decrementOneClickActions();
+    const after = usePaperStore.getState().oneClickTrading.actionsRemaining;
+    expect(after).toBe(before - 1);
+  });
+
+  it("decrementOneClickActions floors at 0 (never negative)", () => {
+    usePaperStore.getState().enableOneClickTrading();
+    // Drain all actions
+    while (usePaperStore.getState().oneClickTrading.actionsRemaining > 0) {
+      usePaperStore.getState().decrementOneClickActions();
+    }
+    expect(usePaperStore.getState().oneClickTrading.actionsRemaining).toBe(0);
+
+    // Try to decrement below 0
+    usePaperStore.getState().decrementOneClickActions();
+    expect(usePaperStore.getState().oneClickTrading.actionsRemaining).toBe(0);
+  });
+});

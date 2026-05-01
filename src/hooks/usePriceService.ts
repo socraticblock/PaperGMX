@@ -37,7 +37,7 @@ export function usePriceService(): void {
 
   useEffect(() => {
     cleanupRef.current = startPriceService({
-      onPriceUpdate: (rawPrices: Record<MarketSlug, ParsedMarketPrice>) => {
+      onPriceUpdate: (rawPrices: Record<MarketSlug, ParsedMarketPrice>, isPartial?: boolean) => {
         // Convert ParsedMarketPrice to our branded PriceData format
         const brandedPrices = {} as Record<
           MarketSlug,
@@ -45,6 +45,7 @@ export function usePriceService(): void {
         >;
 
         for (const [slug, data] of Object.entries(rawPrices)) {
+          if (!data) continue; // Skip undefined entries from partial updates
           const midPrice = data.midPrice;
 
           // Record first-seen price as baseline for change calculation
@@ -70,7 +71,15 @@ export function usePriceService(): void {
           };
         }
 
-        setPrices(brandedPrices);
+        // Partial updates (Binance fallback) should merge with existing prices
+        // so that markets not covered by Binance retain their GMX data.
+        // Full updates (GMX primary) replace all prices.
+        if (isPartial) {
+          const existing = usePaperStore.getState().prices;
+          setPrices({ ...existing, ...brandedPrices });
+        } else {
+          setPrices(brandedPrices);
+        }
       },
       onMarketInfoUpdate: (rawInfo: Record<MarketSlug, ParsedMarketInfo>) => {
         // Convert to our branded MarketInfo format

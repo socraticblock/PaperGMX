@@ -62,18 +62,27 @@ export function useWalletSimulation(): WalletSimulationResult {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      // Reset stuck wallet states on unmount
+      // Reset stuck wallet states on unmount.
       // If the user navigates away during approval/signing, the store
       // would be stuck in "approving"/"approved"/"signing" with no
       // running timeout to advance it. Reset to idle so the form works
       // when the user returns.
+      //
+      // We must use direct setState (bypassing the state machine) because
+      // some mid-flow states like "approved" have no valid transition to
+      // "idle" — the state machine would block the reset and leave the
+      // store stuck forever.
       const status = usePaperStore.getState().orderStatus;
       if (
         status === "approving" ||
         status === "approved" ||
         status === "signing"
       ) {
-        usePaperStore.getState().setOrderStatus("idle");
+        usePaperStore.setState(
+          { orderStatus: "idle" as import("@/types").OrderStatus },
+          false,
+          "useWalletSimulation/unmount-cleanup",
+        );
       }
       // Clean up all pending timers
       for (const id of timerRefs.current) {
