@@ -7,10 +7,10 @@ import { useShallow } from "zustand/react/shallow";
 import Header from "@/components/Header";
 import SettingsPanel from "@/components/SettingsPanel";
 import { usePriceService } from "@/hooks/usePriceService";
-import { MARKETS, MARKET_SLUGS } from "@/lib/constants";
-import { formatPrice } from "@/lib/format";
+import { MARKET_SLUGS } from "@/lib/constants";
 import MarketPriceBar from "@/components/trade/MarketPriceBar";
 import OrderEntryForm from "@/components/trade/OrderEntryForm";
+import PriceChart from "@/components/trade/PriceChart";
 import type { MarketSlug } from "@/types";
 
 export default function TradePage() {
@@ -50,11 +50,9 @@ export default function TradePage() {
     );
   }
 
-  const marketConfig = MARKETS[market as MarketSlug];
   const slug = market as MarketSlug;
   const priceData = prices[slug];
   const info = marketInfo[slug];
-  const currentPrice = priceData?.last ?? 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -85,35 +83,10 @@ export default function TradePage() {
 
           {/* Two-column layout on desktop, stacked on mobile */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px]">
-            {/* Left: Chart area placeholder (Phase 6+) */}
+            {/* Left: Real-time Price Chart */}
             <div className="hidden lg:block">
-              <div className="sticky top-20 rounded-xl border border-border-primary bg-bg-card p-8 text-center min-h-[500px] flex flex-col items-center justify-center">
-                <div className="mb-4">
-                  <span className="text-5xl" aria-hidden="true">{marketConfig.icon}</span>
-                </div>
-                <h2 className="text-xl font-bold text-text-primary">{marketConfig.pair}</h2>
-                {currentPrice > 0 && (
-                  <p className="mt-2 text-3xl font-bold text-text-primary tabular-nums">
-                    ${formatPrice(currentPrice, marketConfig.decimals)}
-                  </p>
-                )}
-                <p className="mt-3 text-sm text-text-muted">
-                  Live chart coming in Phase 6
-                </p>
-
-                {/* Price update indicator */}
-                {priceData && (
-                  <div className="mt-6 flex items-center gap-4 text-xs text-text-muted">
-                    <div>
-                      <span className="text-text-secondary">Oracle Min:</span>{" "}
-                      <span className="text-text-primary tabular-nums">${formatPrice(priceData.min, marketConfig.decimals)}</span>
-                    </div>
-                    <div>
-                      <span className="text-text-secondary">Oracle Max:</span>{" "}
-                      <span className="text-text-primary tabular-nums">${formatPrice(priceData.max, marketConfig.decimals)}</span>
-                    </div>
-                  </div>
-                )}
+              <div className="sticky top-20">
+                <PriceChart market={slug} priceData={priceData} />
               </div>
             </div>
 
