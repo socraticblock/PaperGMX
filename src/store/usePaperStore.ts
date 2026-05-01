@@ -149,9 +149,9 @@ export const usePaperStore = create<PaperStoreState>()(
 
         setOrderStatus: (status: OrderStatus) => {
           const current = get().orderStatus;
-          // Allow idle → anything (form is idle, user can start any flow)
           // Block invalid transitions — state machine is enforced
-          if (current !== "idle" && !isValidTransition(current, status)) {
+          // Valid transitions are defined in ORDER_TRANSITIONS (src/types/index.ts)
+          if (!isValidTransition(current, status)) {
             console.warn(
               `[PaperGMX] Blocked invalid transition: ${current} → ${status}`
             );

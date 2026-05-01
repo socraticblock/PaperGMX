@@ -73,9 +73,10 @@ describe("Store: Collateral Locking", () => {
     expect(usePaperStore.getState().balance).toBe(8000);
   });
 
-  it("clamps to zero if collateral exceeds balance", () => {
+  it("rejects lock if collateral exceeds balance (no change)", () => {
     usePaperStore.getState().lockCollateral(usd(15000));
-    expect(usePaperStore.getState().balance).toBe(0);
+    // Locking more than balance is rejected — balance stays unchanged
+    expect(usePaperStore.getState().balance).toBe(10000);
   });
 
   it("handles zero collateral", () => {
