@@ -88,10 +88,18 @@ export function useLiquidationChecker(
     // sets activePosition to null, overwriting any status change.
     closePosition(exitPrice, "liquidated");
 
-    // Transition orderStatus so the UI displays the liquidation result.
-    // Without this, the position vanishes with zero visual feedback —
-    // no order-result overlay, no LiquidationScreen.
-    usePaperStore.getState().setOrderStatus("filled");
+    // Transition orderStatus to "filled" so the UI can display the
+    // liquidation result. We must bypass the state machine here because
+    // orderStatus is "idle" (verified by the guard above), and
+    // idle → filled is not a valid transition. Liquidation is an emergency
+    // close — it doesn't go through the normal keeper flow, so the
+    // state machine doesn't have a path for it. Using setState directly
+    // is the same pattern used in useWalletSimulation's unmount cleanup.
+    usePaperStore.setState(
+      { orderStatus: "filled" as import("@/types").OrderStatus },
+      false,
+      "useLiquidationChecker/liquidation-filled",
+    );
   }, [closePosition]);
 
   useEffect(() => {

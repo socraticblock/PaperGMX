@@ -7,7 +7,7 @@ import { usePositionPnl } from "@/hooks/usePositionPnl";
 import { MarginWarning } from "@/components/position/MarginWarning";
 import { MARKETS } from "@/lib/constants";
 import { formatUSD, formatPrice, formatPercent, formatDuration } from "@/lib/format";
-import { usd } from "@/lib/branded";
+import { addUSD } from "@/lib/branded";
 import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
@@ -76,9 +76,9 @@ function PositionCardInner({ position, prices, marketInfo }: PositionCardProps) 
   const pnl = usePositionPnl(position, prices, marketInfo);
   const timeSinceOpen = useTimeSinceOpen(position);
 
-  // Total fees
+  // Total fees — use addUSD for NaN/Infinity safety instead of raw +
   const totalFees = useMemo(
-    () => usd(position.positionFeePaid + position.borrowFeeAccrued + position.fundingFeeAccrued),
+    () => addUSD(addUSD(position.positionFeePaid, position.borrowFeeAccrued), position.fundingFeeAccrued),
     [position.positionFeePaid, position.borrowFeeAccrued, position.fundingFeeAccrued]
   );
 

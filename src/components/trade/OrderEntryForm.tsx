@@ -127,7 +127,11 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
         return next;
       });
     }
-  }, [lastTrade, tradeHistory]);
+    // Also dismiss the order result (liquidation sets orderStatus to "filled"
+    // via direct setState). Without this, the OrderResultScreen would appear
+    // after the LiquidationScreen is dismissed.
+    dismissOrderResult();
+  }, [lastTrade, tradeHistory, dismissOrderResult]);
 
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");
