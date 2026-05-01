@@ -43,6 +43,7 @@ let lastSuccessfulGmxFetch = 0;
 let isBinanceActive = false;
 let isServiceRunning = false; // Singleton guard
 let isPolling = false; // Prevent overlapping polls
+let consumerCount = 0; // Reference counting for lifecycle management
 
 type PriceUpdateCallback = (prices: Record<MarketSlug, ParsedMarketPrice>) => void;
 type MarketInfoCallback = (info: Record<MarketSlug, ParsedMarketInfo>) => void;
@@ -57,10 +58,12 @@ let onStatusChange: StatusCallback | null = null;
 /**
  * Start the price service.
  * Begins polling GMX API and sets up Binance fallback.
- * 
- * SINGLETON: Only one instance can run at a time.
- * Calling startPriceService while already running is a no-op
- * but updates the callbacks to the latest caller.
+ *
+ * REFERENCE COUNTING: Multiple consumers can call startPriceService.
+ * The service only starts when the first consumer connects, and only
+ * stops when the last consumer disconnects. This prevents the service
+ * from being killed during page transitions where the new page mounts
+ * before the old one unmounts.
  */
 export function startPriceService(callbacks: {
   onPriceUpdate: PriceUpdateCallback;
@@ -72,30 +75,38 @@ export function startPriceService(callbacks: {
   onMarketInfoUpdate = callbacks.onMarketInfoUpdate;
   onStatusChange = callbacks.onStatusChange;
 
-  // Singleton guard — prevent duplicate intervals
-  if (isServiceRunning) {
-    console.info("[PriceService] Already running, updating callbacks");
-    return stopPriceService;
+  consumerCount++;
+  console.info(`[PriceService] Consumer connected (${consumerCount} active)`);
+
+  // Start the service only when the first consumer connects
+  if (consumerCount === 1 && !isServiceRunning) {
+    isServiceRunning = true;
+    console.info("[PriceService] Starting...");
+
+    // Initialize timestamp to now (not 0) to prevent "degraded" flash on cold start
+    if (lastSuccessfulGmxFetch === 0) {
+      lastSuccessfulGmxFetch = Date.now();
+    }
+
+    // Initial fetch immediately
+    pollPrices();
+    pollMarketInfo();
+
+    // Set up polling intervals
+    priceIntervalId = setInterval(pollPrices, PRICE_POLL_INTERVAL_MS);
+    marketInfoIntervalId = setInterval(pollMarketInfo, MARKET_INFO_POLL_INTERVAL_MS);
   }
 
-  isServiceRunning = true;
-  console.info("[PriceService] Starting...");
+  // Return cleanup function that decrements consumer count
+  return () => {
+    consumerCount--;
+    console.info(`[PriceService] Consumer disconnected (${consumerCount} remaining)`);
 
-  // Initialize timestamp to now (not 0) to prevent "degraded" flash on cold start
-  if (lastSuccessfulGmxFetch === 0) {
-    lastSuccessfulGmxFetch = Date.now();
-  }
-
-  // Initial fetch immediately
-  pollPrices();
-  pollMarketInfo();
-
-  // Set up polling intervals
-  priceIntervalId = setInterval(pollPrices, PRICE_POLL_INTERVAL_MS);
-  marketInfoIntervalId = setInterval(pollMarketInfo, MARKET_INFO_POLL_INTERVAL_MS);
-
-  // Return cleanup function
-  return stopPriceService;
+    if (consumerCount <= 0) {
+      consumerCount = 0;
+      stopPriceService();
+    }
+  };
 }
 
 /**

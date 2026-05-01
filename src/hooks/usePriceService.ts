@@ -21,7 +21,6 @@ import { calculatePriceChangePercent } from "@/lib/api/gmxPrice";
  */
 export function usePriceService(): void {
   const cleanupRef = useRef<(() => void) | null>(null);
-  const isRunningRef = useRef(false);
 
   // Store first-seen prices for 24h change calculation
   // In a production app, this would use actual 24h-old prices from an API.
@@ -33,9 +32,6 @@ export function usePriceService(): void {
   const setConnectionStatus = usePaperStore((s) => s.setConnectionStatus);
 
   useEffect(() => {
-    if (isRunningRef.current) return;
-    isRunningRef.current = true;
-
     cleanupRef.current = startPriceService({
       onPriceUpdate: (rawPrices: Record<MarketSlug, ParsedMarketPrice>) => {
         // Convert ParsedMarketPrice to our branded PriceData format
@@ -98,7 +94,6 @@ export function usePriceService(): void {
     return () => {
       cleanupRef.current?.();
       cleanupRef.current = null;
-      isRunningRef.current = false;
     };
   }, [setPrices, setMarketInfo, setConnectionStatus]);
 }
