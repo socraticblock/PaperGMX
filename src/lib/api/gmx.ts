@@ -101,10 +101,15 @@ async function fetchWithRetry(url: string): Promise<Response> {
   let lastError: Error | null = null;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000); // 10s timeout
+
     try {
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(10_000), // 10s timeout
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -113,6 +118,7 @@ async function fetchWithRetry(url: string): Promise<Response> {
       recordSuccess();
       return response;
     } catch (error) {
+      clearTimeout(timeoutId);
       lastError = error instanceof Error ? error : new Error(String(error));
 
       if (attempt < MAX_RETRIES - 1) {
