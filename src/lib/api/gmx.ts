@@ -46,7 +46,7 @@ const TOKEN_INFO: Record<string, { symbol: string; decimals: number }> = {
   // Also BTC index token variant
   "0x47904963fc8b2340414262125af798b9655e58cd": { symbol: "BTC", decimals: 8 },
   // SOL
-  "0x2bc4c7194e13c0d46d3f4e6dd567d31fa2cabc34": { symbol: "SOL", decimals: 9 },
+  "0x2bcc6d6cdbbdc0a4071e48bb3b969b06b3330c07": { symbol: "SOL", decimals: 9 },
   // ARB
   "0x912ce59144191c1204e64559fe8253a0e49e6548": { symbol: "ARB", decimals: 18 },
   // USDC
@@ -57,7 +57,7 @@ const TOKEN_INFO: Record<string, { symbol: string; decimals: number }> = {
 const MARKET_INDEX_TOKENS: Record<MarketSlug, string> = {
   eth: "0x82af49447d8a07e3bd95bd0d56f35241523fbab1",
   btc: "0x47904963fc8b2340414262125af798b9655e58cd",
-  sol: "0x2bc4c7194e13c0d46d3f4e6dd567d31fa2cabc34",
+  sol: "0x2bcc6d6cdbbdc0a4071e48bb3b969b06b3330c07",
   arb: "0x912ce59144191c1204e64559fe8253a0e49e6548",
 };
 
