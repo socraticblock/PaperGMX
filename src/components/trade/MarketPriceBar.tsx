@@ -1,9 +1,10 @@
 "use client";
 
 import { memo, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import type { ApiConnectionStatus, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { formatPrice, formatUSDCompact, formatPercent } from "@/lib/format";
-import { MARKETS } from "@/lib/constants";
+import { MARKETS, MARKET_SLUGS } from "@/lib/constants";
 import { motion } from "framer-motion";
 import { MetricItem } from "@/components/trade/ui";
 
@@ -38,6 +39,7 @@ function MarketPriceBarInner({
   marketInfo,
   connectionStatus = "disconnected",
 }: MarketPriceBarProps) {
+  const router = useRouter();
   const marketConfig = MARKETS[market];
   const currentPrice = priceData?.last ?? 0;
   const change24h = priceData?.change24h ?? 0;
@@ -98,9 +100,23 @@ function MarketPriceBarInner({
             ) : (
               <div className="h-6 w-24 animate-pulse rounded bg-trade-raised" />
             )}
-            <p className="text-[length:var(--text-trade-label)] text-text-muted">
-              {marketConfig.pair} Perp
-            </p>
+            <label className="sr-only" htmlFor="trade-market-select">
+              Market
+            </label>
+            <select
+              id="trade-market-select"
+              value={market}
+              onChange={(e) =>
+                router.push(`/trade/${e.target.value as MarketSlug}`)
+              }
+              className="mt-0.5 max-w-[11rem] cursor-pointer rounded border border-trade-border-subtle bg-trade-raised py-0.5 pl-1.5 pr-7 text-[length:var(--text-trade-body)] font-medium text-text-primary focus:border-trade-border-active focus:outline-none focus:ring-1 focus:ring-trade-border-active"
+            >
+              {MARKET_SLUGS.map((slug) => (
+                <option key={slug} value={slug}>
+                  {MARKETS[slug].pair} Perp
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 

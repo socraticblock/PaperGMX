@@ -99,9 +99,23 @@ export default function TradePage() {
         </div>
 
         <div className="mx-auto max-w-[1920px] px-3 py-3 md:px-5 lg:px-6 lg:py-4">
-          <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start xl:gap-4">
+          <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_min(420px,100%)] xl:items-start xl:gap-4">
             <div className="order-2 flex min-w-0 flex-col xl:order-1">
-              <PriceChart market={slug} priceData={priceData} />
+              <PriceChart
+                market={slug}
+                priceData={priceData}
+                positionOverlay={
+                  activePosition
+                    ? {
+                        entryPrice: Number(activePosition.entryPrice),
+                        liquidationPrice:
+                          activePosition.liquidationPrice != null
+                            ? Number(activePosition.liquidationPrice)
+                            : null,
+                      }
+                    : null
+                }
+              />
               <TradeBottomTabs />
             </div>
 

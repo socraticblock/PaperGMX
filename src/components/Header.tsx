@@ -1,6 +1,8 @@
 "use client";
 
 import { memo } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import { formatBalance } from "@/lib/format";
@@ -70,6 +72,7 @@ function ConnectionPulse() {
 // ─── Header ─────────────────────────────────────────────────
 
 function HeaderInner() {
+  const pathname = usePathname();
   const { balance, isInitialized, activePosition, setSettingsOpen } =
     usePaperStore(
       useShallow((s) => ({
@@ -82,28 +85,61 @@ function HeaderInner() {
 
   const hasPosition = activePosition !== null;
 
+  const navBtn =
+    "rounded-md px-2.5 py-1 text-[length:var(--text-trade-body)] font-medium transition-colors";
+  const navIdle = `${navBtn} text-text-muted hover:bg-trade-raised hover:text-text-secondary`;
+  const navActive = `${navBtn} bg-trade-raised text-text-primary`;
+
   return (
     <header className="sticky top-0 z-40 border-b border-trade-border-subtle bg-trade-strip/95 px-3 py-2 backdrop-blur-md md:px-5">
       <div className="mx-auto flex max-w-[1920px] items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
-          <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-primary text-xs font-bold text-white md:h-8 md:w-8 md:text-sm"
-            aria-hidden="true"
-          >
-            P
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-2">
-              <span className="text-base font-bold text-text-primary md:text-lg">
-                Paper<span className="text-blue-primary">GMX</span>
-              </span>
-              {hasPosition && (
-                <span className="rounded border border-trade-border-active bg-trade-raised px-1.5 py-px text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-green-primary">
-                  Open position
-                </span>
-              )}
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 md:gap-3">
+            <div
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-primary text-xs font-bold text-white md:h-8 md:w-8 md:text-sm"
+              aria-hidden="true"
+            >
+              P
             </div>
-          </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-base font-bold text-text-primary md:text-lg">
+                  Paper<span className="text-blue-primary">GMX</span>
+                </span>
+                {hasPosition && (
+                  <span className="rounded border border-trade-border-active bg-trade-raised px-1.5 py-px text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-green-primary">
+                    Open position
+                  </span>
+                )}
+              </div>
+            </div>
+          </Link>
+
+          <nav
+            className="hidden items-center gap-0.5 md:flex"
+            aria-label="Primary"
+          >
+            <Link
+              href="/"
+              className={pathname === "/" ? navActive : navIdle}
+            >
+              Home
+            </Link>
+            <Link
+              href="/markets"
+              className={pathname === "/markets" ? navActive : navIdle}
+            >
+              Markets
+            </Link>
+            <Link
+              href="/trade/eth"
+              className={
+                pathname?.startsWith("/trade") ? navActive : navIdle
+              }
+            >
+              Trade
+            </Link>
+          </nav>
         </div>
 
         <div className="flex shrink-0 items-center gap-2 md:gap-3">

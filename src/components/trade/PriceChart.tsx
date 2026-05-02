@@ -1,79 +1,314 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  CandlestickSeries,
+  ColorType,
+  HistogramSeries,
+  LineStyle,
+  createChart,
+} from "lightweight-charts";
+import type {
+  CandlestickData,
+  HistogramData,
+  IChartApi,
+  ISeriesApi,
+  UTCTimestamp,
+} from "lightweight-charts";
 import type { MarketSlug, PriceData } from "@/types";
-import { Panel } from "@/components/trade/ui";
+import {
+  CHART_BINANCE_SYMBOL,
+  CHART_INTERVALS,
+  type ChartInterval,
+  currentBucketStart,
+  parseBinanceKlineRows,
+} from "@/lib/trade/chartKlines";
+import { Panel, TopTabs } from "@/components/trade/ui";
 
 // ─── Types ────────────────────────────────────────────────
 
 export interface PriceChartProps {
   market: MarketSlug;
   priceData: PriceData | undefined;
+  /** Optional position overlay — oracle/sim execution vs chart feed may differ. */
+  positionOverlay?: {
+    entryPrice: number;
+    liquidationPrice: number | null;
+  } | null;
 }
 
-const TV_SYMBOL_BY_MARKET: Record<MarketSlug, string> = {
-  btc: "BINANCE:BTCUSDT",
-  eth: "BINANCE:ETHUSDT",
-  sol: "BINANCE:SOLUSDT",
-  arb: "BINANCE:ARBUSDT",
-};
+const CHART_TABS = [
+  { id: "chart", label: "Chart" },
+  { id: "depth", label: "Depth", disabled: true },
+  { id: "funding", label: "Funding", disabled: true },
+] as const;
+
+const CHART_BG = "#0c0e14";
+const GRID = "#1e2230";
 
 // ─── Component ────────────────────────────────────────────
 
-function PriceChartInner({ market }: PriceChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+function PriceChartInner({
+  market,
+  priceData,
+  positionOverlay,
+}: PriceChartProps) {
+  const [interval, setInterval] = useState<ChartInterval>("5m");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volumeRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const candlesBufRef = useRef<CandlestickData[]>([]);
+  const priceLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>(
+    [],
+  );
+
+  const loadKlines = useCallback(async () => {
+    const symbol = CHART_BINANCE_SYMBOL[market];
+    const res = await fetch(
+      `/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=500`,
+    );
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const raw: unknown = await res.json();
+    const { candles, volumes } = parseBinanceKlineRows(raw);
+    const candleData = candles as CandlestickData[];
+    candlesBufRef.current = candleData;
+    candleRef.current?.setData(candleData);
+    volumeRef.current?.setData(volumes as HistogramData[]);
+    chartRef.current?.timeScale().fitContent();
+  }, [market, interval]);
+
+  // ─── Chart bootstrap ─────────────────────────────────────
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = wrapRef.current;
+    if (!el) return;
 
-    container.innerHTML = "";
-    const widget = document.createElement("div");
-    widget.className = "tradingview-widget-container";
-    widget.style.height = "500px";
-    widget.style.width = "100%";
-
-    const widgetInner = document.createElement("div");
-    widgetInner.className = "tradingview-widget-container__widget";
-    widgetInner.style.height = "calc(100% - 0px)";
-    widgetInner.style.width = "100%";
-
-    const script = document.createElement("script");
-    script.src =
-      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.type = "text/javascript";
-    script.async = true;
-
-    const symbol = TV_SYMBOL_BY_MARKET[market];
-    script.text = JSON.stringify({
-      autosize: true,
-      symbol,
-      interval: "5",
-      timezone: "Etc/UTC",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      withdateranges: true,
-      hide_side_toolbar: false,
-      allow_symbol_change: false,
-      save_image: true,
-      calendar: false,
-      hide_volume: false,
-      support_host: "https://www.tradingview.com",
+    const chart = createChart(el, {
+      layout: {
+        background: { type: ColorType.Solid, color: CHART_BG },
+        textColor: "#8a8f98",
+        fontFamily: "Inter, system-ui, sans-serif",
+        fontSize: 12,
+      },
+      grid: {
+        vertLines: { color: GRID },
+        horzLines: { color: GRID },
+      },
+      crosshair: {
+        vertLine: { color: "#3a3a4e", labelBackgroundColor: "#2a2a3e" },
+        horzLine: { color: "#3a3a4e", labelBackgroundColor: "#2a2a3e" },
+      },
+      rightPriceScale: {
+        borderColor: GRID,
+      },
+      timeScale: {
+        borderColor: GRID,
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      handleScroll: { vertTouchDrag: false },
     });
 
-    widget.appendChild(widgetInner);
-    widget.appendChild(script);
-    container.appendChild(widget);
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: "#089981",
+      downColor: "#f23645",
+      borderUpColor: "#089981",
+      borderDownColor: "#f23645",
+      wickUpColor: "#089981",
+      wickDownColor: "#f23645",
+    });
+
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+      color: "#26a69a",
+    });
+
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.75, bottom: 0 },
+    });
+    candleSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.08, bottom: 0.22 },
+    });
+
+    chartRef.current = chart;
+    candleRef.current = candleSeries;
+    volumeRef.current = volumeSeries;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        chart.applyOptions({ width, height });
+      }
+    });
+    ro.observe(el);
 
     return () => {
-      container.innerHTML = "";
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+      candleRef.current = null;
+      volumeRef.current = null;
+      candlesBufRef.current = [];
+      priceLinesRef.current = [];
     };
-  }, [market]);
+  }, []);
+
+  // ─── Load / reload OHLCV ─────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        await loadKlines();
+        if (!cancelled) setLoadError(null);
+      } catch {
+        if (!cancelled) setLoadError("Could not load candles.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadKlines]);
+
+  // ─── Merge live mark price into forming candle ───────────
+  useEffect(() => {
+    const series = candleRef.current;
+    const lastPx = priceData?.last;
+    if (!series || lastPx === undefined || lastPx <= 0) return;
+
+    const p = Number(lastPx);
+    const bucket = currentBucketStart(interval) as UTCTimestamp;
+    const buf = candlesBufRef.current;
+    if (buf.length === 0) return;
+
+    const last = buf[buf.length - 1];
+    if (!last) return;
+    if (last.time === bucket) {
+      const next: CandlestickData = {
+        time: last.time,
+        open: last.open,
+        high: Math.max(last.high, p),
+        low: Math.min(last.low, p),
+        close: p,
+      };
+      buf[buf.length - 1] = next;
+      series.update(next);
+    } else if ((last.time as number) < bucket) {
+      const open = last.close;
+      const next: CandlestickData = {
+        time: bucket,
+        open,
+        high: Math.max(open, p),
+        low: Math.min(open, p),
+        close: p,
+      };
+      buf.push(next);
+      candlesBufRef.current = buf;
+      series.update(next);
+      volumeRef.current?.update({
+        time: bucket,
+        value: 0,
+        color: p >= open ? "rgba(38, 166, 154, 0.35)" : "rgba(239, 83, 80, 0.35)",
+      });
+    }
+  }, [priceData?.last, interval]);
+
+  // ─── Entry / liquidation lines ───────────────────────────
+  useEffect(() => {
+    const series = candleRef.current;
+    if (!series) return;
+
+    for (const line of priceLinesRef.current) {
+      series.removePriceLine(line);
+    }
+    priceLinesRef.current = [];
+
+    if (!positionOverlay) return;
+
+    const pl: typeof priceLinesRef.current = [];
+    pl.push(
+      series.createPriceLine({
+        price: positionOverlay.entryPrice,
+        color: "#418cf5",
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: "Entry",
+      }),
+    );
+
+    const liq = positionOverlay.liquidationPrice;
+    if (liq != null && liq > 0 && Number.isFinite(liq)) {
+      pl.push(
+        series.createPriceLine({
+          price: liq,
+          color: "#ef4444",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: "Liq.",
+        }),
+      );
+    }
+    priceLinesRef.current = pl;
+  }, [positionOverlay]);
 
   return (
     <Panel padding="none" className="overflow-hidden">
-      <div ref={containerRef} className="w-full" style={{ minHeight: "500px", height: "500px" }} />
+      <TopTabs tabs={CHART_TABS} activeId="chart" />
+
+      <div className="flex flex-wrap items-center gap-1 border-b border-trade-border-subtle bg-trade-strip px-2 py-1.5 md:px-3">
+        {CHART_INTERVALS.map((iv) => {
+          const active = interval === iv;
+          return (
+            <button
+              key={iv}
+              type="button"
+              onClick={() => setInterval(iv)}
+              className={`rounded px-2 py-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide transition-colors ${
+                active
+                  ? "bg-trade-raised text-text-primary ring-1 ring-trade-border-active"
+                  : "text-text-muted hover:bg-trade-raised/70 hover:text-text-secondary"
+              }`}
+            >
+              {iv}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="relative border-b border-trade-border-subtle px-3 py-2 md:px-4">
+        <p className="text-[length:var(--text-trade-label)] text-text-muted">
+          <span className="text-text-secondary">{CHART_BINANCE_SYMBOL[market]}</span>
+          {" · "}
+          Binance spot candles (visual). Execution uses your oracle / simulator prices.
+        </p>
+      </div>
+
+      {loadError ? (
+        <div
+          className="flex items-center justify-center bg-trade-panel px-4 py-16 text-center text-[length:var(--text-trade-body)] text-red-primary"
+          style={{ minHeight: "min(56vh, 620px)" }}
+        >
+          {loadError}
+        </div>
+      ) : (
+        <div
+          ref={wrapRef}
+          className="w-full"
+          style={{ minHeight: "min(56vh, 620px)", height: "min(56vh, 620px)" }}
+        />
+      )}
     </Panel>
   );
 }
