@@ -9,7 +9,8 @@
   --color-border-primary: #2a2a3e;
   --color-border-hover: #3a3a4e;
   /* GMX trade layout surfaces (app.gmx.io-style density) */
-  --color-trade-page: #0b0e11;
+  /* Closer to app.gmx.io trade canvas */
+  --color-trade-page: #0d0e12;
   --color-trade-panel: #12141a;
   --color-trade-raised: #181b22;
   --color-trade-strip: #0e1117;

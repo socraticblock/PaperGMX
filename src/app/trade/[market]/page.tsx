@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
@@ -41,6 +41,7 @@ export default function TradePage() {
   }, [isInitialized, isValidMarket, router]);
 
   const activePosition = usePaperStore(useShallow((s) => s.activePosition));
+  const [chartPositionsOnChart, setChartPositionsOnChart] = useState(true);
 
   if (!isInitialized || !isValidMarket) {
     return (
@@ -105,7 +106,7 @@ export default function TradePage() {
                 market={slug}
                 priceData={priceData}
                 positionOverlay={
-                  activePosition
+                  chartPositionsOnChart && activePosition
                     ? {
                         entryPrice: Number(activePosition.entryPrice),
                         liquidationPrice:
@@ -116,7 +117,10 @@ export default function TradePage() {
                     : null
                 }
               />
-              <TradeBottomTabs />
+              <TradeBottomTabs
+                showChartPositions={chartPositionsOnChart}
+                onShowChartPositionsChange={setChartPositionsOnChart}
+              />
             </div>
 
             <aside className="order-1 w-full min-w-0 xl:sticky xl:order-2 xl:top-14 xl:self-start">

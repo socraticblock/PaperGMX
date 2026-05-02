@@ -29,7 +29,8 @@ import {
   currentBucketStart,
   parseBinanceKlineRows,
 } from "@/lib/trade/chartKlines";
-import { Panel, TopTabs } from "@/components/trade/ui";
+import { IconButton, Panel, TopTabs } from "@/components/trade/ui";
+import { ChartBarSquareIcon } from "@heroicons/react/24/outline";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -44,9 +45,9 @@ export interface PriceChartProps {
 }
 
 const CHART_TABS = [
-  { id: "chart", label: "Chart" },
+  { id: "price", label: "Price" },
   { id: "depth", label: "Depth", disabled: true },
-  { id: "funding", label: "Funding", disabled: true },
+  { id: "netRate", label: "Net rate", disabled: true },
 ] as const;
 
 const CHART_BG = "#0c0e14";
@@ -265,26 +266,41 @@ function PriceChartInner({
 
   return (
     <Panel padding="none" className="overflow-hidden">
-      <TopTabs tabs={CHART_TABS} activeId="chart" />
+      <TopTabs tabs={CHART_TABS} activeId="price" />
 
-      <div className="flex flex-wrap items-center gap-1 border-b border-trade-border-subtle bg-trade-strip px-2 py-1.5 md:px-3">
-        {CHART_INTERVALS.map((iv) => {
-          const active = interval === iv;
-          return (
-            <button
-              key={iv}
-              type="button"
-              onClick={() => setInterval(iv)}
-              className={`rounded px-2 py-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide transition-colors ${
-                active
-                  ? "bg-trade-raised text-text-primary ring-1 ring-trade-border-active"
-                  : "text-text-muted hover:bg-trade-raised/70 hover:text-text-secondary"
-              }`}
-            >
-              {iv}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-trade-border-subtle bg-trade-strip px-2 py-1.5 md:px-3">
+        <div
+          className="flex flex-wrap items-center gap-1"
+          role="toolbar"
+          aria-label="Chart interval"
+        >
+          {CHART_INTERVALS.map((iv) => {
+            const active = interval === iv;
+            return (
+              <button
+                key={iv}
+                type="button"
+                onClick={() => setInterval(iv)}
+                className={`rounded px-2 py-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide transition-colors ${
+                  active
+                    ? "bg-trade-raised text-text-primary ring-1 ring-trade-border-active"
+                    : "text-text-muted hover:bg-trade-raised/70 hover:text-text-secondary"
+                }`}
+              >
+                {iv}
+              </button>
+            );
+          })}
+        </div>
+        <IconButton
+          type="button"
+          aria-label="Indicators (coming soon)"
+          title="Indicators"
+          disabled
+          className="opacity-50"
+        >
+          <ChartBarSquareIcon className="h-4 w-4" aria-hidden />
+        </IconButton>
       </div>
 
       <div className="relative border-b border-trade-border-subtle px-3 py-2 md:px-4">

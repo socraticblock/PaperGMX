@@ -13,6 +13,9 @@ export interface CollateralInputProps {
   balance: USD;
   onChange: (value: USD) => void;
   disabled?: boolean;
+  /** Field label (GMX uses "Margin"). */
+  label?: string;
+  inputId?: string;
 }
 
 // ─── Component ────────────────────────────────────────────
@@ -22,6 +25,8 @@ function CollateralInputInner({
   balance,
   onChange,
   disabled = false,
+  label = "Collateral",
+  inputId = "collateral-input",
 }: CollateralInputProps) {
   // Track the raw input string so intermediate states like "100." are preserved.
   // Without this, parseFloat("100.") = 100, and the input is forced back to "100"
@@ -82,10 +87,10 @@ function CollateralInputInner({
       {/* Label row */}
       <div className="mb-2 flex items-center justify-between">
         <label
-          htmlFor="collateral-input"
+          htmlFor={inputId}
           className="text-sm font-medium text-text-secondary"
         >
-          Collateral
+          {label}
         </label>
         <button
           onClick={handleMaxClick}
@@ -108,7 +113,7 @@ function CollateralInputInner({
       >
         <span className="pl-4 text-sm text-text-muted">$</span>
         <input
-          id="collateral-input"
+          id={inputId}
           type="text"
           inputMode="decimal"
           min={0}

@@ -171,26 +171,25 @@ function OrderSummaryInner({
       !priceData || priceData.last <= 0
         ? "Waiting for price data..."
         : collateralUsd <= 0
-          ? "Enter collateral to see order details"
+          ? "Enter margin to see trade estimates"
           : null;
 
     return (
-      <div className="rounded-xl border border-border-primary bg-bg-card p-4">
-        <h3 className="mb-3 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-          Order Summary
-        </h3>
-        <div className="space-y-2">
-          {reason ? (
-            <p className="text-xs text-text-muted text-center py-3">{reason}</p>
-          ) : (
-            [1, 2, 3, 4, 5, 6].map((i) => (
+      <div className="rounded-lg border border-trade-border-subtle bg-trade-panel px-3 py-3">
+        {reason ? (
+          <p className="text-center text-[length:var(--text-trade-body)] text-text-muted">
+            {reason}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="flex items-center justify-between">
-                <div className="h-3 w-20 animate-pulse rounded bg-bg-input" />
-                <div className="h-3 w-16 animate-pulse rounded bg-bg-input" />
+                <div className="h-3 w-20 animate-pulse rounded bg-trade-raised" />
+                <div className="h-3 w-16 animate-pulse rounded bg-trade-raised" />
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -210,94 +209,93 @@ function OrderSummaryInner({
       ? `$${formatPrice(calculations.liquidationPrice, marketConfig.decimals)}`
       : "N/A (overcollateralized)";
 
+  const feePercentOfSize = (calculations.feeBps / 100).toFixed(3);
+  const impactFeesDisplay = `${formatPercent(calculations.spread)} / ${feePercentOfSize}%`;
+
   return (
-    <div className="rounded-xl border border-border-primary bg-bg-card p-4">
-      <h3 className="mb-3 text-sm font-semibold text-text-secondary uppercase tracking-wider">
-        Order Summary
-      </h3>
-
-      <div className="space-y-0 divide-y divide-border-primary/50">
-        {/* Position Size */}
-        <SummaryRow
-          label="Position Size"
-          value={formatUSD(calculations.sizeUsd)}
-          tooltip={`${collateralUsd.toFixed(2)} × ${leverage}x leverage`}
-        />
-
-        {/* Entry Price (Fill) */}
-        <SummaryRow
-          label="Est. Entry Price"
-          value={`$${formatPrice(calculations.fillPrice, marketConfig.decimals)}`}
-          tooltip="Worst oracle price for your direction"
-        />
-
-        {/* Acceptable Price */}
-        <SummaryRow
-          label="Acceptable Price"
-          value={`$${formatPrice(calculations.acceptablePrice, marketConfig.decimals)}`}
-          tooltip="Max slippage: 0.5% from entry"
-        />
-
-        {/* Liquidation Price */}
-        <SummaryRow
-          label="Liq. Price"
-          value={liqPriceDisplay}
-          tooltip={
-            calculations.liquidationPrice !== null
-              ? `-${liqDistancePercent.toFixed(1)}% from entry`
-              : "Position is overcollateralized — no liquidation price"
-          }
-          valueColor={
-            calculations.liquidationPrice === null
-              ? "text-text-muted"
-              : liqDistancePercent < 10
-                ? "text-red-primary"
-                : liqDistancePercent < 25
-                  ? "text-yellow-primary"
-                  : "text-text-primary"
-          }
-        />
-
-        {/* Position Fee */}
-        <SummaryRow
-          label="Position Fee"
-          value={formatUSD(calculations.positionFee)}
-          tooltip={`${calculations.feeBps} BPS (${(calculations.feeBps / 100).toFixed(2)}%) of position size`}
-        />
-
-        {/* Hourly Borrow */}
-        <SummaryRow
-          label="Est. Borrow (1h)"
-          value={formatUSD(calculations.hourlyBorrowFee)}
-          tooltip="Based on current borrow rate. May change."
-        />
-
-        <SummaryRow
-          label="Est. Gas"
-          value={`~${formatUSD(calculations.executionFee)}`}
-          tooltip="Shown for GMX fidelity only; paper balance is not charged."
-        />
-
-        {/* Oracle Spread */}
-        <SummaryRow
-          label="Oracle Spread"
-          value={formatPercent(calculations.spread)}
-          tooltip="Difference between min/max oracle prices"
-        />
-
-        {/* Total Cost (spec 3.4) — just collateral, fee is deducted from it */}
-        <SummaryRow
-          label="Total Cost"
-          value={formatUSD(collateralUsd)}
-          tooltip={`Collateral required. Position fee (${formatUSD(calculations.positionFee)}) is deducted from collateral within the protocol.`}
-          valueColor="text-text-primary"
-        />
+    <div className="space-y-3">
+      {/* GMX-style always-visible strip */}
+      <div className="space-y-2 rounded-lg border border-trade-border-subtle bg-trade-raised/35 px-3 py-2">
+        <div className="flex items-center justify-between gap-3 py-1">
+          <span className="text-[length:var(--text-trade-body)] text-text-muted">
+            Liquidation price
+          </span>
+          <span
+            className={`text-right text-[length:var(--text-trade-body)] font-medium tabular-nums ${
+              calculations.liquidationPrice === null
+                ? "text-text-muted"
+                : liqDistancePercent < 10
+                  ? "text-red-primary"
+                  : liqDistancePercent < 25
+                    ? "text-yellow-primary"
+                    : "text-text-primary"
+            }`}
+          >
+            {liqPriceDisplay}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3 py-1">
+          <span className="text-[length:var(--text-trade-body)] text-text-muted">
+            Price impact / fees
+          </span>
+          <span className="text-[length:var(--text-trade-body)] font-medium tabular-nums text-text-primary">
+            {impactFeesDisplay}
+          </span>
+        </div>
       </div>
 
-      {/* Disclaimer banner (spec 3.12) */}
-      <div className="mt-3 rounded-lg border border-border-primary/50 bg-bg-input px-3 py-2">
-        <p className="text-[10px] text-text-muted leading-relaxed text-center">
-          This is a simulation. Same prices & fees as GMX V2, no real risk.
+      <details className="group rounded-lg border border-trade-border-subtle bg-trade-panel open:bg-trade-raised/25">
+        <summary className="cursor-pointer px-3 py-2 text-[length:var(--text-trade-body)] font-medium text-text-secondary [&::-webkit-details-marker]:hidden">
+          Execution details
+        </summary>
+        <div className="space-y-0 divide-y divide-trade-border-subtle border-t border-trade-border-subtle px-3 py-1">
+          <SummaryRow
+            label="Position size"
+            value={formatUSD(calculations.sizeUsd)}
+            tooltip={`${collateralUsd.toFixed(2)} × ${leverage}x leverage`}
+          />
+          <SummaryRow
+            label="Est. entry price"
+            value={`$${formatPrice(calculations.fillPrice, marketConfig.decimals)}`}
+            tooltip="Worst oracle price for your direction"
+          />
+          <SummaryRow
+            label="Acceptable price"
+            value={`$${formatPrice(calculations.acceptablePrice, marketConfig.decimals)}`}
+            tooltip="Max slippage: 0.5% from entry"
+          />
+          <SummaryRow
+            label="Position fee"
+            value={formatUSD(calculations.positionFee)}
+            tooltip={`${calculations.feeBps} BPS (${feePercentOfSize}%) of position size`}
+          />
+          <SummaryRow
+            label="Est. borrow (1h)"
+            value={formatUSD(calculations.hourlyBorrowFee)}
+            tooltip="Based on current borrow rate. May change."
+          />
+          <SummaryRow
+            label="Est. gas"
+            value={`~${formatUSD(calculations.executionFee)}`}
+            tooltip="Shown for GMX fidelity only; paper balance is not charged."
+          />
+          <SummaryRow
+            label="Oracle spread"
+            value={formatPercent(calculations.spread)}
+            tooltip="Difference between min/max oracle prices"
+          />
+          <SummaryRow
+            label="Total cost"
+            value={formatUSD(collateralUsd)}
+            tooltip={`Margin required. Position fee (${formatUSD(calculations.positionFee)}) is deducted from collateral in the sim.`}
+            valueColor="text-text-primary"
+          />
+        </div>
+      </details>
+
+      <div className="rounded-md border border-trade-border-subtle bg-trade-strip px-3 py-2">
+        <p className="text-center text-[length:var(--text-trade-label)] leading-relaxed text-text-muted">
+          Simulation only — same mechanics as GMX V2, no real funds at risk.
         </p>
       </div>
     </div>

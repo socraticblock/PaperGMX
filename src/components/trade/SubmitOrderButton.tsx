@@ -175,7 +175,7 @@ function SubmitOrderButtonInner({
       default: {
         if (collateralUsd <= 0) {
           return {
-            text: "Enter Amount",
+            text: "Enter an amount",
             bgClass: "bg-border-primary cursor-not-allowed",
             showSpinner: false,
           };

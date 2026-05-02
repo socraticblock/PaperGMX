@@ -7,6 +7,7 @@ import { Panel } from "@/components/trade/ui";
 import { formatUSD, formatPrice } from "@/lib/format";
 import { MARKETS } from "@/lib/constants";
 import type { ClosedTrade } from "@/types";
+import { getMarkPrice } from "@/lib/positionEngine";
 
 const TABS = [
   { id: "positions", label: "Positions" },
@@ -16,6 +17,11 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+export interface TradeBottomTabsProps {
+  showChartPositions?: boolean;
+  onShowChartPositionsChange?: (value: boolean) => void;
+}
 
 function ClosedTradeRow({ trade }: { trade: ClosedTrade }) {
   const m = MARKETS[trade.market];
@@ -41,96 +47,148 @@ function ClosedTradeRow({ trade }: { trade: ClosedTrade }) {
   );
 }
 
-function TradeBottomTabsInner() {
+function TradeBottomTabsInner({
+  showChartPositions = true,
+  onShowChartPositionsChange,
+}: TradeBottomTabsProps) {
   const [active, setActive] = useState<TabId>("positions");
-  const { activePosition, tradeHistory } = usePaperStore(
+  const { activePosition, tradeHistory, prices } = usePaperStore(
     useShallow((s) => ({
       activePosition: s.activePosition,
       tradeHistory: s.tradeHistory,
+      prices: s.prices,
     })),
   );
 
   const recentTrades = tradeHistory.slice(0, 8);
+  const posCount = activePosition ? 1 : 0;
+  const markPriceData = activePosition
+    ? prices[activePosition.market]
+    : undefined;
+  const mark = markPriceData ? Number(getMarkPrice(markPriceData)) : 0;
 
   return (
     <Panel padding="none" className="mt-3 overflow-hidden">
-      <div
-        role="tablist"
-        className="scrollbar-none flex overflow-x-auto border-b border-trade-border-subtle bg-trade-strip px-2"
-      >
-        {TABS.map((tab) => {
-          const isActive = tab.id === active;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => setActive(tab.id)}
-              className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-[length:var(--text-trade-body)] font-medium transition-colors ${
-                isActive
-                  ? "border-blue-primary text-text-primary"
-                  : "border-transparent text-text-muted hover:text-text-secondary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-trade-border-subtle bg-trade-strip px-2 pr-3">
+        <div
+          role="tablist"
+          className="scrollbar-none flex min-w-0 flex-1 overflow-x-auto"
+        >
+          {TABS.map((tab) => {
+            const isActive = tab.id === active;
+            const label =
+              tab.id === "positions" ? `Positions (${posCount})` : tab.label;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActive(tab.id)}
+                className={`whitespace-nowrap border-b-2 px-3 py-2.5 text-[length:var(--text-trade-body)] font-medium transition-colors ${
+                  isActive
+                    ? "border-blue-primary text-text-primary"
+                    : "border-transparent text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {onShowChartPositionsChange && (
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-[length:var(--text-trade-label)] text-text-muted">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 rounded border-trade-border-subtle bg-trade-panel"
+              checked={showChartPositions}
+              onChange={(e) => onShowChartPositionsChange(e.target.checked)}
+            />
+            Chart positions
+          </label>
+        )}
       </div>
 
-      <div className="min-h-[132px] p-3 md:p-4">
+      <div className="min-h-[140px] p-0">
         {active === "positions" && (
           <>
             {!activePosition ? (
-              <p className="text-center text-[length:var(--text-trade-body)] text-text-muted py-8">
-                You have no open positions.
+              <p className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted">
+                No open positions
               </p>
             ) : (
-              <div className="space-y-2 text-[length:var(--text-trade-body)]">
-                <div className="flex justify-between gap-2">
-                  <span className="text-text-muted">Market</span>
-                  <span className="font-medium text-text-primary">
-                    {MARKETS[activePosition.market].pair}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-text-muted">Side</span>
-                  <span
-                    className={
-                      activePosition.direction === "long"
-                        ? "font-medium text-green-primary"
-                        : "font-medium text-red-primary"
-                    }
-                  >
-                    {activePosition.direction === "long" ? "Long" : "Short"}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2 tabular-nums">
-                  <span className="text-text-muted">Size</span>
-                  <span className="text-text-secondary">{formatUSD(activePosition.sizeUsd)}</span>
-                </div>
-                <div className="flex justify-between gap-2 tabular-nums">
-                  <span className="text-text-muted">Entry</span>
-                  <span className="text-text-secondary">
-                    {formatPrice(activePosition.entryPrice, MARKETS[activePosition.market].decimals)}
-                  </span>
-                </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] border-collapse text-left text-[length:var(--text-trade-body)]">
+                  <thead>
+                    <tr className="border-b border-trade-border-subtle text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
+                      <th className="px-3 py-2 font-medium">Position</th>
+                      <th className="px-3 py-2 font-medium">Size</th>
+                      <th className="hidden px-3 py-2 font-medium lg:table-cell">
+                        Net value
+                      </th>
+                      <th className="px-3 py-2 font-medium">Margin</th>
+                      <th className="hidden px-3 py-2 font-medium md:table-cell">
+                        Entry price
+                      </th>
+                      <th className="px-3 py-2 font-medium">Mark price</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-trade-border-subtle">
+                      <td className="px-3 py-3 font-medium text-text-primary">
+                        {MARKETS[activePosition.market].symbol}{" "}
+                        <span
+                          className={
+                            activePosition.direction === "long"
+                              ? "text-green-primary"
+                              : "text-red-primary"
+                          }
+                        >
+                          {activePosition.direction === "long" ? "Long" : "Short"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 tabular-nums text-text-secondary">
+                        {formatUSD(activePosition.sizeUsd)}
+                      </td>
+                      <td className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell">
+                        —
+                      </td>
+                      <td className="px-3 py-3 tabular-nums text-text-secondary">
+                        {formatUSD(activePosition.collateralUsd)}
+                      </td>
+                      <td className="hidden px-3 py-3 tabular-nums text-text-secondary md:table-cell">
+                        {formatPrice(
+                          activePosition.entryPrice,
+                          MARKETS[activePosition.market].decimals,
+                        )}
+                      </td>
+                      <td className="px-3 py-3 tabular-nums text-text-secondary">
+                        {mark > 0
+                          ? formatPrice(
+                              mark,
+                              MARKETS[activePosition.market].decimals,
+                            )
+                          : "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             )}
           </>
         )}
 
         {active === "orders" && (
-          <p className="text-center text-[length:var(--text-trade-body)] text-text-muted py-8">
-            Open limit orders are not simulated yet. Keeper flow handles market opens and closes only.
+          <p className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted">
+            Open limit orders are not simulated yet. Market opens and closes use
+            the keeper flow.
           </p>
         )}
 
         {active === "trades" && (
-          <>
+          <div className="p-3 md:p-4">
             {recentTrades.length === 0 ? (
-              <p className="text-center text-[length:var(--text-trade-body)] text-text-muted py-8">
+              <p className="py-8 text-center text-[length:var(--text-trade-body)] text-text-muted">
                 No closed trades yet.
               </p>
             ) : (
@@ -140,12 +198,12 @@ function TradeBottomTabsInner() {
                 ))}
               </div>
             )}
-          </>
+          </div>
         )}
 
         {active === "claims" && (
-          <p className="text-center text-[length:var(--text-trade-body)] text-text-muted py-8">
-            Rewards and fee rebates are placeholders for this simulator.
+          <p className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted">
+            Rewards and claims are not simulated in PaperGMX yet.
           </p>
         )}
       </div>

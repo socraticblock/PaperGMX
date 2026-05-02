@@ -8,8 +8,10 @@ import type { SegmentOption } from "./ui/SegmentedControl";
 import { usd } from "@/lib/branded";
 import { SegmentedControl } from "./ui";
 import CollateralInput from "./CollateralInput";
-import LeverageSlider from "./LeverageSlider";
 import OrderSummary from "./OrderSummary";
+import { MARKETS } from "@/lib/constants";
+import { calculatePositionSize } from "@/lib/calculations";
+import { formatUSD, formatPrice } from "@/lib/format";
 import SubmitOrderButton from "./SubmitOrderButton";
 import { useWalletSimulation } from "@/hooks/useWalletSimulation";
 import { useLiquidationChecker } from "@/hooks/useLiquidationChecker";
@@ -146,6 +148,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const [direction, setDirection] = useState<OrderDirection>("long");
   const [collateralUsd, setCollateralUsd] = useState<USD>(usd(0));
   const [leverage, setLeverage] = useState(5);
+  const [tpSlEnabled, setTpSlEnabled] = useState(false);
 
   // ─── Handlers ───────────────────────────────────────────
   const handleCollateralChange = useCallback((value: USD) => {
@@ -153,8 +156,27 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   }, []);
 
   const handleLeverageChange = useCallback((value: number) => {
-    setLeverage(value);
-  }, []);
+    const maxLev = MARKETS[market].maxLeverage;
+    const next = Math.min(Math.max(1, value), maxLev);
+    setLeverage(next);
+  }, [market]);
+
+  const maxLeverage = MARKETS[market].maxLeverage;
+  const sizeUsdDisplay = calculatePositionSize(collateralUsd, leverage);
+  const markPx = priceData?.last ? Number(priceData.last) : 0;
+  const sizeTokenApprox =
+    markPx > 0 ? sizeUsdDisplay / markPx : 0;
+
+  const allocationPct =
+    balance > 0 ? Math.min(100, Math.round((collateralUsd / balance) * 100)) : 0;
+
+  const handleAllocationPct = useCallback(
+    (pct: number) => {
+      const clamped = Math.min(100, Math.max(0, pct));
+      setCollateralUsd(usd((balance * clamped) / 100));
+    },
+    [balance],
+  );
 
   const handleSubmit = useCallback(
     (position: Position) => {
@@ -246,11 +268,54 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
 
   return (
     <>
-      <div className="space-y-4 [&_.leverage-slider]:max-w-none">
+      <div className="space-y-4">
+        {/* GMX-style controls: leverage, pool, collateral token */}
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div>
+            <label
+              htmlFor="trade-leverage-select"
+              className="mb-1 block text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted"
+            >
+              Leverage
+            </label>
+            <select
+              id="trade-leverage-select"
+              value={leverage}
+              disabled={formDisabled}
+              onChange={(e) =>
+                handleLeverageChange(parseInt(e.target.value, 10))
+              }
+              className="w-full rounded-md border border-trade-border-subtle bg-trade-raised px-2 py-2 text-[length:var(--text-trade-body)] font-semibold text-text-primary focus:border-trade-border-active focus:outline-none"
+            >
+              {Array.from({ length: maxLeverage }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>
+                  {n}x
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <span className="mb-1 block text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted">
+              Pool
+            </span>
+            <div className="flex h-[38px] items-center rounded-md border border-trade-border-subtle bg-trade-panel px-2 text-[length:var(--text-trade-body)] font-semibold text-text-primary">
+              {MARKETS[market].symbol}-USDC
+            </div>
+          </div>
+          <div>
+            <span className="mb-1 block text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted">
+              Collateral
+            </span>
+            <div className="flex h-[38px] items-center rounded-md border border-trade-border-subtle bg-trade-panel px-2 text-[length:var(--text-trade-body)] font-semibold text-text-primary">
+              USDC
+            </div>
+          </div>
+        </div>
+
         <TutorialTooltip
           tutorialKey="trade-form"
           title="Set up your trade"
-          description="Choose Long (bet on price going up) or Short (bet on price going down). Then set your collateral amount and leverage. Higher leverage means bigger position size but also higher liquidation risk."
+          description="Choose Long or Short, then margin and leverage — same idea as GMX. PaperGMX simulates execution with oracle prices and keeper steps."
           position="left"
         >
           <div className="space-y-3">
@@ -263,39 +328,126 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               disabled={formDisabled}
             />
 
+            <div className="flex gap-1 rounded-md border border-trade-border-subtle bg-trade-panel p-0.5">
+              <button
+                type="button"
+                disabled={formDisabled}
+                className="flex-1 rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-primary ring-1 ring-trade-border-active"
+              >
+                Market
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Limit orders are not simulated yet"
+                className="flex-1 cursor-not-allowed rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted opacity-40"
+              >
+                Limit
+              </button>
+              <button
+                type="button"
+                disabled
+                title="Coming soon"
+                className="flex-1 cursor-not-allowed rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted opacity-40"
+              >
+                More
+              </button>
+            </div>
+
             <CollateralInput
+              label="Margin"
+              inputId="margin-input-trade"
               value={collateralUsd}
               balance={balance}
               onChange={handleCollateralChange}
               disabled={formDisabled}
             />
 
-            <LeverageSlider
-              leverage={leverage}
-              market={market}
-              onChange={handleLeverageChange}
-              disabled={formDisabled}
-            />
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted">
+                  Size
+                </span>
+                <span className="text-[length:var(--text-trade-label)] text-text-muted">
+                  USD
+                </span>
+              </div>
+              <div className="rounded-md border border-trade-border-subtle bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] font-semibold tabular-nums text-text-primary">
+                {formatUSD(sizeUsdDisplay)}
+                {markPx > 0 && (
+                  <span className="ml-2 font-normal text-text-muted">
+                    ≈{" "}
+                    {formatPrice(sizeTokenApprox, MARKETS[market].decimals)}{" "}
+                    {MARKETS[market].symbol}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-1 flex justify-between text-[length:var(--text-trade-label)] text-text-muted">
+                <span>Margin allocation</span>
+                <span className="tabular-nums">{allocationPct}%</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={allocationPct}
+                disabled={formDisabled || balance <= 0}
+                onChange={(e) =>
+                  handleAllocationPct(parseInt(e.target.value, 10))
+                }
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-trade-border-subtle accent-blue-primary disabled:opacity-40"
+                aria-label="Margin allocation percent of balance"
+              />
+              <div className="mt-1 flex justify-between text-[length:var(--text-trade-label)] text-text-muted">
+                <span>0%</span>
+                <span>25%</span>
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-md border border-trade-border-subtle bg-trade-raised/40 px-3 py-2">
+              <span className="text-[length:var(--text-trade-body)] font-medium text-text-secondary">
+                Take-profit / Stop-loss
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={tpSlEnabled}
+                disabled={formDisabled}
+                onClick={() => setTpSlEnabled((v) => !v)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                  tpSlEnabled ? "bg-blue-primary" : "bg-trade-border"
+                } disabled:opacity-40`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                    tpSlEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+            {tpSlEnabled && (
+              <p className="rounded-md border border-dashed border-trade-border-active bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-muted">
+                TP/SL controls are not simulated yet — layout mirrors GMX for practice.
+              </p>
+            )}
           </div>
         </TutorialTooltip>
 
-        <div className="h-px bg-trade-border-subtle" aria-hidden="true" />
-
-        <details className="rounded-md border border-trade-border-subtle bg-trade-raised/30 open:bg-trade-raised/50">
-          <summary className="cursor-pointer px-3 py-2 text-[length:var(--text-trade-body)] font-medium text-text-secondary [&::-webkit-details-marker]:hidden">
-            Execution details
-          </summary>
-          <div className="border-t border-trade-border-subtle px-1 pb-1 pt-0">
-            <OrderSummary
-              direction={direction}
-              collateralUsd={collateralUsd}
-              leverage={leverage}
-              market={market}
-              priceData={priceData}
-              marketInfo={info}
-            />
-          </div>
-        </details>
+        <OrderSummary
+          direction={direction}
+          collateralUsd={collateralUsd}
+          leverage={leverage}
+          market={market}
+          priceData={priceData}
+          marketInfo={info}
+        />
 
         {/* Submit Button */}
         <TutorialTooltip
