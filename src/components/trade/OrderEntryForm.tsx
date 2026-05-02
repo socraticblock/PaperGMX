@@ -25,6 +25,7 @@ import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
 import { PositionCard } from "@/components/position/PositionCard";
 import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 import { LiquidationScreen } from "@/components/position/LiquidationScreen";
+import { ClosedTradeResultCard } from "@/components/position/ClosedTradeResultCard";
 import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
 
 // ─── Types ────────────────────────────────────────────────
@@ -144,6 +145,13 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     dismissOrderResult();
   }, [lastTrade, tradeHistory, dismissOrderResult]);
 
+  /** Manual close completes with activePosition cleared — close form unmounts before its result UI. */
+  const manualCloseNeedsDismiss =
+    !hasActivePosition &&
+    orderStatus === "filled" &&
+    lastTrade != null &&
+    lastTrade.closeReason !== "liquidated";
+
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");
   const [collateralUsd, setCollateralUsd] = useState<USD>(usd(0));
@@ -208,6 +216,12 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
         prices={prices}
         onDismiss={handleLiquidationDismiss}
       />
+    );
+  }
+
+  if (manualCloseNeedsDismiss) {
+    return (
+      <ClosedTradeResultCard trade={lastTrade} onDismiss={handleResultDismiss} />
     );
   }
 

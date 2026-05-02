@@ -14,11 +14,42 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const defaultTitle = "PaperGMX — GMX V2 Paper Trading Simulator";
+const defaultDescription =
+  "Try GMX V2 perpetual futures trading for free. Real prices, real fees, fake money. No wallet needed.";
+
+function getMetadataBase(): URL {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    try {
+      return new URL(process.env.NEXT_PUBLIC_SITE_URL);
+    } catch {
+      // fall through
+    }
+  }
+  if (process.env.VERCEL_URL) {
+    return new URL(`https://${process.env.VERCEL_URL}`);
+  }
+  return new URL("http://localhost:3000");
+}
+
 export const metadata: Metadata = {
-  title: "PaperGMX — GMX V2 Paper Trading Simulator",
-  description:
-    "Try GMX V2 perpetual futures trading for free. Real prices, real fees, fake money. No wallet needed.",
+  metadataBase: getMetadataBase(),
+  title: defaultTitle,
+  description: defaultDescription,
   keywords: ["GMX", "paper trading", "perpetual futures", "DeFi", "Arbitrum"],
+  openGraph: {
+    title: defaultTitle,
+    description: defaultDescription,
+    url: "/",
+    siteName: "PaperGMX",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: defaultTitle,
+    description: defaultDescription,
+  },
 };
 
 export default function RootLayout({

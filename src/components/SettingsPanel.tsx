@@ -15,6 +15,7 @@ import { BALANCE_PRESETS, ONE_CLICK_MAX_ACTIONS } from "@/lib/constants";
 import { sanitizeNumericInput } from "@/lib/validation";
 import { motion, AnimatePresence } from "framer-motion";
 import { OneClickSetupModal } from "@/components/trade/OneClickSetupModal";
+import ShareTradeSummaryButton from "@/components/trade/ShareTradeSummaryButton";
 
 function SettingsPanelInner() {
   const {
@@ -445,9 +446,9 @@ function SettingsPanelInner() {
                         {recentTrades.map((trade) => (
                           <div
                             key={trade.id}
-                            className="flex items-center justify-between rounded-lg border border-border-primary bg-bg-card p-3"
+                            className="flex items-center justify-between gap-2 rounded-lg border border-border-primary bg-bg-card p-3"
                           >
-                            <div>
+                            <div className="min-w-0 flex-1">
                               <p className="text-sm font-medium text-text-primary">
                                 {trade.leverage}x{" "}
                                 {trade.direction === "long" ? "Long" : "Short"}{" "}
@@ -457,16 +458,19 @@ function SettingsPanelInner() {
                                 {new Date(trade.closedAt).toLocaleDateString()}
                               </p>
                             </div>
-                            <span
-                              className={`text-sm font-semibold ${
-                                trade.netPnl >= 0
-                                  ? "text-green-primary"
-                                  : "text-red-primary"
-                              }`}
-                            >
-                              {trade.netPnl >= 0 ? "+" : ""}
-                              {formatUSD(trade.netPnl)}
-                            </span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span
+                                className={`text-sm font-semibold tabular-nums ${
+                                  trade.netPnl >= 0
+                                    ? "text-green-primary"
+                                    : "text-red-primary"
+                                }`}
+                              >
+                                {trade.netPnl >= 0 ? "+" : ""}
+                                {formatUSD(trade.netPnl)}
+                              </span>
+                              <ShareTradeSummaryButton trade={trade} compact />
+                            </div>
                           </div>
                         ))}
                       </div>

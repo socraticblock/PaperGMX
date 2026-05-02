@@ -8,6 +8,9 @@ import { formatUSD, formatPrice } from "@/lib/format";
 import { MARKETS } from "@/lib/constants";
 import type { ClosedTrade } from "@/types";
 import { getMarkPrice } from "@/lib/positionEngine";
+import { usePositionPnl } from "@/hooks/usePositionPnl";
+import { addUSD } from "@/lib/branded";
+import ShareTradeSummaryButton from "@/components/trade/ShareTradeSummaryButton";
 
 const TABS = [
   { id: "positions", label: "Positions" },
@@ -28,7 +31,7 @@ function ClosedTradeRow({ trade }: { trade: ClosedTrade }) {
   const side = trade.direction === "long" ? "Long" : "Short";
   return (
     <div className="flex items-center justify-between gap-3 border-b border-trade-border-subtle py-2.5 text-[length:var(--text-trade-body)] last:border-b-0">
-      <span className="font-medium text-text-primary">
+      <span className="min-w-0 font-medium text-text-primary">
         {m.symbol}{" "}
         <span
           className={
@@ -38,11 +41,14 @@ function ClosedTradeRow({ trade }: { trade: ClosedTrade }) {
           {side}
         </span>
       </span>
-      <span
-        className={`tabular-nums ${trade.netPnl >= 0 ? "text-green-primary" : "text-red-primary"}`}
-      >
-        {formatUSD(trade.netPnl)}
-      </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <span
+          className={`tabular-nums ${trade.netPnl >= 0 ? "text-green-primary" : "text-red-primary"}`}
+        >
+          {formatUSD(trade.netPnl)}
+        </span>
+        <ShareTradeSummaryButton trade={trade} compact />
+      </div>
     </div>
   );
 }
@@ -52,13 +58,20 @@ function TradeBottomTabsInner({
   onShowChartPositionsChange,
 }: TradeBottomTabsProps) {
   const [active, setActive] = useState<TabId>("positions");
-  const { activePosition, tradeHistory, prices } = usePaperStore(
+  const { activePosition, tradeHistory, prices, marketInfo } = usePaperStore(
     useShallow((s) => ({
       activePosition: s.activePosition,
       tradeHistory: s.tradeHistory,
       prices: s.prices,
+      marketInfo: s.marketInfo,
     })),
   );
+
+  const pnl = usePositionPnl(activePosition, prices, marketInfo);
+  const netValueUsd =
+    activePosition && pnl.currentPrice != null && pnl.currentPrice > 0
+      ? addUSD(activePosition.collateralUsd, pnl.netPnl)
+      : null;
 
   const recentTrades = tradeHistory.slice(0, 8);
   const posCount = activePosition ? 1 : 0;
@@ -150,8 +163,11 @@ function TradeBottomTabsInner({
                       <td className="px-3 py-3 tabular-nums text-text-secondary">
                         {formatUSD(activePosition.sizeUsd)}
                       </td>
-                      <td className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell">
-                        —
+                      <td
+                        className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell"
+                        title="Collateral + unrealized net P&L (after fees if closed now)"
+                      >
+                        {netValueUsd != null ? formatUSD(netValueUsd) : "—"}
                       </td>
                       <td className="px-3 py-3 tabular-nums text-text-secondary">
                         {formatUSD(activePosition.collateralUsd)}
@@ -179,10 +195,19 @@ function TradeBottomTabsInner({
         )}
 
         {active === "orders" && (
-          <p className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted">
-            Open limit orders are not simulated yet. Market opens and closes use
-            the keeper flow.
-          </p>
+          <div
+            className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted"
+            role="status"
+          >
+            <p>
+              Limit and trigger orders are not simulated in PaperGMX. All entries
+              and exits use the same market order + keeper flow as the live GMX
+              app.
+            </p>
+            <p className="mt-2 text-[length:var(--text-trade-label)]">
+              Open interest and pool balances still update from live GMX data.
+            </p>
+          </div>
         )}
 
         {active === "trades" && (
