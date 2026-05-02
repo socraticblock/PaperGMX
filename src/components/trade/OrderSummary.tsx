@@ -2,11 +2,13 @@
 
 import { memo, useMemo } from "react";
 import type {
+  EntryOrderType,
   OrderDirection,
   USD,
   MarketSlug,
   PriceData,
   MarketInfo,
+  Price,
 } from "@/types";
 import {
   calculatePositionSize,
@@ -37,6 +39,10 @@ export interface OrderSummaryProps {
   market: MarketSlug;
   priceData: PriceData | undefined;
   marketInfo: MarketInfo | undefined;
+  /** Market uses oracle execution prices; limit uses `limitEntryPrice` as hypothetical fill for previews. */
+  entryOrderType: EntryOrderType;
+  /** Required when `entryOrderType === 'limit'` — hypothetical entry for liquidation & fee sizing. */
+  limitEntryPrice: Price | null;
 }
 
 // ─── Summary Row ──────────────────────────────────────────
@@ -80,6 +86,8 @@ function OrderSummaryInner({
   market,
   priceData,
   marketInfo,
+  entryOrderType,
+  limitEntryPrice,
 }: OrderSummaryProps) {
   const marketConfig = MARKETS[market];
 
@@ -89,6 +97,7 @@ function OrderSummaryInner({
     if (!priceData || priceData.last <= 0) return null;
     // If no collateral entered, can't calculate position values
     if (collateralUsd <= 0) return null;
+    if (entryOrderType === "limit" && limitEntryPrice == null) return null;
 
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
     // GMX V2: position fee BPS depends on whether the trade balances or
@@ -100,14 +109,13 @@ function OrderSummaryInner({
       marketInfo,
     );
 
-    // Fill price (worst oracle price for trader)
-    const fillPrice = getExecutionPrice(
-      direction,
-      priceData,
-      false, // not a close
-    );
+    // Hypothetical entry: oracle worst-case (market) vs user limit (limit preview only)
+    const fillPrice =
+      entryOrderType === "limit" && limitEntryPrice != null
+        ? limitEntryPrice
+        : getExecutionPrice(direction, priceData, false);
 
-    // Acceptable price with slippage
+    // Acceptable price with slippage — anchored to the same hypothetical entry
     const acceptablePrice = calculateAcceptablePrice(
       fillPrice,
       SLIPPAGE_OPEN_BPS,
@@ -115,7 +123,7 @@ function OrderSummaryInner({
       false,
     );
 
-    // Liquidation price (at entry, no accrued fees)
+    // Liquidation price (at entry, no accrued fees) — uses same fill as preview
     const maintenanceMarginBps = marketConfig.maintenanceMarginBps;
     const liquidationFeeBps = marketConfig.liquidationFeeBps;
     const liquidationPrice = calculateLiquidationPrice(
@@ -136,7 +144,7 @@ function OrderSummaryInner({
     const hourlyBorrowFee = calculateHourlyBorrowFee(sizeUsd, borrowRate);
     const executionFee = estimateExecutionFeeUsd();
 
-    // Spread percentage
+    // Spread percentage (oracle liquidity — still relevant context for limit preview)
     const spread =
       priceData.max > 0 && priceData.min > 0
         ? ((priceData.max - priceData.min) /
@@ -154,6 +162,7 @@ function OrderSummaryInner({
       executionFee,
       spread,
       feeBps,
+      isLimitPreview: entryOrderType === "limit",
     };
   }, [
     collateralUsd,
@@ -163,6 +172,8 @@ function OrderSummaryInner({
     marketInfo,
     marketConfig.maintenanceMarginBps,
     marketConfig.liquidationFeeBps,
+    entryOrderType,
+    limitEntryPrice,
   ]);
 
   // ─── Loading state ──────────────────────────────────────
@@ -172,7 +183,9 @@ function OrderSummaryInner({
         ? "Waiting for price data..."
         : collateralUsd <= 0
           ? "Enter margin to see trade estimates"
-          : null;
+          : entryOrderType === "limit" && limitEntryPrice == null
+            ? "Enter a limit price for liquidation & fee previews"
+            : null;
 
     return (
       <div className="rounded-lg border border-trade-border-subtle bg-trade-panel px-3 py-3">
@@ -255,9 +268,17 @@ function OrderSummaryInner({
             tooltip={`${collateralUsd.toFixed(2)} × ${leverage}x leverage`}
           />
           <SummaryRow
-            label="Est. entry price"
+            label={
+              calculations.isLimitPreview
+                ? "Hypothetical entry (limit)"
+                : "Est. entry price"
+            }
             value={`$${formatPrice(calculations.fillPrice, marketConfig.decimals)}`}
-            tooltip="Worst oracle price for your direction"
+            tooltip={
+              calculations.isLimitPreview
+                ? "Preview at your limit price — execution is still market-only in this build"
+                : "Worst oracle price for your direction"
+            }
           />
           <SummaryRow
             label="Acceptable price"
@@ -295,7 +316,14 @@ function OrderSummaryInner({
 
       <div className="rounded-md border border-trade-border-subtle bg-trade-strip px-3 py-2">
         <p className="text-center text-[length:var(--text-trade-label)] leading-relaxed text-text-muted">
-          Simulation only — same mechanics as GMX V2, no real funds at risk.
+          {calculations.isLimitPreview ? (
+            <>
+              Limit previews use your price for math only — orders still execute as{" "}
+              <span className="text-text-secondary">market</span> when you submit.
+            </>
+          ) : (
+            <>Simulation only — same mechanics as GMX V2, no real funds at risk.</>
+          )}
         </p>
       </div>
     </div>

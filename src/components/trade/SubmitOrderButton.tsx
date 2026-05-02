@@ -4,6 +4,7 @@ import { memo, useCallback, useState, useEffect } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import type {
+  EntryOrderType,
   OrderDirection,
   OrderStatus,
   USD,
@@ -33,6 +34,8 @@ export interface SubmitOrderButtonProps {
   priceData: PriceData | undefined;
   connectionStatus: ApiConnectionStatus;
   needsApproval: boolean;
+  /** Limit entry shows preview only — submission stays disabled. */
+  entryOrderType?: EntryOrderType;
   onStatusChange: (status: OrderStatus) => void;
 }
 
@@ -52,6 +55,7 @@ function SubmitOrderButtonInner({
   priceData,
   connectionStatus,
   needsApproval,
+  entryOrderType = "market",
   onStatusChange,
 }: SubmitOrderButtonProps) {
   const { oneClickTrading, tradingMode } =
@@ -89,6 +93,7 @@ function SubmitOrderButtonInner({
   const insufficientBalance = collateralUsd > balance;
   const belowMinimum = collateralUsd < 1;
   const canSubmit =
+    entryOrderType === "market" &&
     hasPriceData &&
     !isFallbackOnly &&
     !insufficientBalance &&
@@ -190,6 +195,13 @@ function SubmitOrderButtonInner({
         if (belowMinimum) {
           return {
             text: "Minimum $1 Collateral",
+            bgClass: "bg-border-primary cursor-not-allowed",
+            showSpinner: false,
+          };
+        }
+        if (entryOrderType === "limit") {
+          return {
+            text: "Limit execution not simulated",
             bgClass: "bg-border-primary cursor-not-allowed",
             showSpinner: false,
           };

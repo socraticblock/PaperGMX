@@ -21,6 +21,9 @@ import type { USD, Price, BPS, Percent, Timestamp } from "@/lib/branded";
 
 export type TradingMode = "classic" | "1ct";
 
+/** Entry intent for the trade form only. Limit execution is not simulated yet. */
+export type EntryOrderType = "market" | "limit";
+
 export type OrderDirection = "long" | "short";
 
 export type OrderType = "market_increase" | "market_decrease";

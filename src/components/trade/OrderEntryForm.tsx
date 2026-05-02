@@ -1,11 +1,18 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
-import type { OrderDirection, MarketSlug, Position, USD } from "@/types";
+import type {
+  EntryOrderType,
+  OrderDirection,
+  MarketSlug,
+  Position,
+  USD,
+} from "@/types";
 import type { SegmentOption } from "./ui/SegmentedControl";
-import { usd } from "@/lib/branded";
+import { price, usd } from "@/lib/branded";
 import { SegmentedControl } from "./ui";
 import CollateralInput from "./CollateralInput";
 import OrderSummary from "./OrderSummary";
@@ -157,6 +164,22 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const [collateralUsd, setCollateralUsd] = useState<USD>(usd(0));
   const [leverage, setLeverage] = useState(5);
   const [tpSlEnabled, setTpSlEnabled] = useState(false);
+  const [entryOrderType, setEntryOrderType] =
+    useState<EntryOrderType>("market");
+  const [limitPriceInput, setLimitPriceInput] = useState("");
+
+  const limitEntryPrice = useMemo(() => {
+    if (entryOrderType !== "limit") return null;
+    const raw = limitPriceInput.trim().replace(/,/g, "");
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    try {
+      return price(n);
+    } catch {
+      return null;
+    }
+  }, [entryOrderType, limitPriceInput]);
 
   // ─── Handlers ───────────────────────────────────────────
   const handleCollateralChange = useCallback((value: USD) => {
@@ -172,8 +195,12 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const maxLeverage = MARKETS[market].maxLeverage;
   const sizeUsdDisplay = calculatePositionSize(collateralUsd, leverage);
   const markPx = priceData?.last ? Number(priceData.last) : 0;
+  const refPxForSize =
+    entryOrderType === "limit" && limitEntryPrice != null
+      ? Number(limitEntryPrice)
+      : markPx;
   const sizeTokenApprox =
-    markPx > 0 ? sizeUsdDisplay / markPx : 0;
+    refPxForSize > 0 ? sizeUsdDisplay / refPxForSize : 0;
 
   const allocationPct =
     balance > 0 ? Math.min(100, Math.round((collateralUsd / balance) * 100)) : 0;
@@ -346,15 +373,25 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               <button
                 type="button"
                 disabled={formDisabled}
-                className="flex-1 rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-primary ring-1 ring-trade-border-active"
+                onClick={() => setEntryOrderType("market")}
+                className={`flex-1 rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold transition-colors ${
+                  entryOrderType === "market"
+                    ? "text-text-primary ring-1 ring-trade-border-active"
+                    : "text-text-muted hover:text-text-secondary"
+                }`}
               >
                 Market
               </button>
               <button
                 type="button"
-                disabled
-                title="Limit orders are not simulated yet"
-                className="flex-1 cursor-not-allowed rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted opacity-40"
+                disabled={formDisabled}
+                onClick={() => setEntryOrderType("limit")}
+                title="Limit price preview — execution is still market-only"
+                className={`flex-1 rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold transition-colors ${
+                  entryOrderType === "limit"
+                    ? "text-text-primary ring-1 ring-trade-border-active"
+                    : "text-text-muted hover:text-text-secondary"
+                }`}
               >
                 Limit
               </button>
@@ -367,6 +404,41 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
                 More
               </button>
             </div>
+
+            <AnimatePresence initial={false}>
+              {entryOrderType === "limit" && (
+                <motion.div
+                  key="limit-price-field"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="space-y-1.5"
+                >
+                  <label
+                    htmlFor="limit-price-input"
+                    className="block text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted"
+                  >
+                    Limit price (USD)
+                  </label>
+                  <input
+                    id="limit-price-input"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    placeholder={`e.g. ${formatPrice(markPx || 0, MARKETS[market].decimals)}`}
+                    disabled={formDisabled}
+                    value={limitPriceInput}
+                    onChange={(e) => setLimitPriceInput(e.target.value)}
+                    className="w-full rounded-md border border-trade-border-subtle bg-trade-raised px-3 py-2 text-[length:var(--text-trade-body)] font-semibold tabular-nums text-text-primary placeholder:text-text-muted focus:border-trade-border-active focus:outline-none"
+                  />
+                  <p className="text-[length:var(--text-trade-label)] text-text-muted">
+                    Preview only — PaperGMX still submits market orders until limit
+                    execution is implemented.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <CollateralInput
               label="Margin"
@@ -461,6 +533,8 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           market={market}
           priceData={priceData}
           marketInfo={info}
+          entryOrderType={entryOrderType}
+          limitEntryPrice={limitEntryPrice}
         />
 
         {/* Submit Button */}
@@ -481,6 +555,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               priceData={priceData}
               connectionStatus={connectionStatus}
               needsApproval={needsApproval}
+              entryOrderType={entryOrderType}
               onStatusChange={handleStatusChange}
             />
           </div>
