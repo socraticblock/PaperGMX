@@ -304,6 +304,14 @@ export async function fetchMarketInfo(): Promise<
 
     const longOi = parseGmxUsdValue(validated.openInterestLong, 30);
     const shortOi = parseGmxUsdValue(validated.openInterestShort, 30);
+    const availableLiquidityLong = parseGmxUsdValue(
+      validated.availableLiquidityLong ?? "0",
+      30,
+    );
+    const availableLiquidityShort = parseGmxUsdValue(
+      validated.availableLiquidityShort ?? "0",
+      30,
+    );
 
     // Parse rates as per-second values for our calculation functions
     const borrowRateLong = parseGmxPerSecondRate(validated.borrowingRateLong);
@@ -321,6 +329,8 @@ export async function fetchMarketInfo(): Promise<
     );
     const fundingRateLongAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
     const fundingRateShortAnnualized = parseGmxAnnualRate(validated.fundingRateShort);
+    const netRateLongAnnualized = parseGmxAnnualRate(validated.netRateLong ?? "0");
+    const netRateShortAnnualized = parseGmxAnnualRate(validated.netRateShort ?? "0");
 
     // GMX V2: position fee is 4 BPS if the trade balances pool OI,
     // 6 BPS if it imbalances. The conservative default (when we can't
@@ -347,6 +357,9 @@ export async function fetchMarketInfo(): Promise<
       longOiUsd: longOi,
       shortOiUsd: shortOi,
       totalOiUsd: usd(longOi + shortOi),
+      availableLiquidityLongUsd: availableLiquidityLong,
+      availableLiquidityShortUsd: availableLiquidityShort,
+      totalLiquidityUsd: usd(availableLiquidityLong + availableLiquidityShort),
       borrowRateLongPerSecond: borrowRateLong,
       borrowRateShortPerSecond: borrowRateShort,
       borrowRateLongAnnualized,
@@ -355,6 +368,8 @@ export async function fetchMarketInfo(): Promise<
       fundingRateShortPerSecond: fundingRateShort,
       fundingRateLongAnnualized,
       fundingRateShortAnnualized,
+      netRateLongAnnualized,
+      netRateShortAnnualized,
       positionFeeBps,
       maxPnlFactorForTraders,
     };

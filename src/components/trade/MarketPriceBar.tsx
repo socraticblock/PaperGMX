@@ -69,6 +69,15 @@ function MarketPriceBarInner({
     return formatPercent(signed);
   }, [marketInfo]);
 
+  const netRateDisplay = useMemo(() => {
+    if (!marketInfo) return "—";
+    const longNet = marketInfo.netRateLongAnnualized;
+    const shortNet = marketInfo.netRateShortAnnualized;
+    const dominant = Math.abs(longNet) >= Math.abs(shortNet) ? longNet : shortNet;
+    if (!Number.isFinite(dominant) || Math.abs(dominant) < 0.005) return "0.00%";
+    return formatPercent(dominant);
+  }, [marketInfo]);
+
   return (
     <div className="min-w-0 space-y-2">
       <div className="scrollbar-none flex min-w-0 items-center gap-0 overflow-x-auto rounded-lg border border-trade-border-subtle bg-trade-strip px-3 py-2 md:px-4">
@@ -117,13 +126,24 @@ function MarketPriceBarInner({
               )
             }
           />
-          <MetricItem label="Volume" value="—" className="hidden md:flex" />
+          <MetricItem
+            label="Volume"
+            value={
+              priceData?.volume24hUsd && priceData.volume24hUsd > 0
+                ? formatUSDCompact(priceData.volume24hUsd)
+                : marketInfo?.totalLiquidityUsd && marketInfo.totalLiquidityUsd > 0
+                  ? `~${formatUSDCompact(marketInfo.totalLiquidityUsd)}`
+                : "—"
+            }
+            className="hidden md:flex"
+          />
           <MetricItem
             label="Open interest"
             value={totalOi > 0 ? formatUSDCompact(totalOi) : "—"}
           />
           <MetricItem label="Borrow" value={borrowRateAnnualized} className="hidden lg:flex" />
-          <MetricItem label="Funding" value={fundingDisplay} className="hidden xl:flex" />
+          <MetricItem label="Funding" value={fundingDisplay} className="hidden lg:flex" />
+          <MetricItem label="Net rate" value={netRateDisplay} className="hidden xl:flex" />
 
           <div
             className="ml-auto flex shrink-0 items-center gap-1.5 border-l border-trade-border-subtle pl-3"

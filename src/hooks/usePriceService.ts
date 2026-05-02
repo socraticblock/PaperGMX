@@ -74,6 +74,10 @@ export function usePriceService(): void {
             max: price(data.maxPrice),
             last: price(midPrice),
             change24h,
+            volume24hUsd:
+              data.volume24hUsd && data.volume24hUsd > 0
+                ? usd(data.volume24hUsd)
+                : undefined,
           };
         }
 
@@ -100,6 +104,9 @@ export function usePriceService(): void {
             slug: slug as MarketSlug,
             longOi: usd(data.longOiUsd),
             shortOi: usd(data.shortOiUsd),
+            availableLiquidityLong: usd(data.availableLiquidityLongUsd),
+            availableLiquidityShort: usd(data.availableLiquidityShortUsd),
+            totalLiquidityUsd: usd(data.totalLiquidityUsd),
             borrowRateLong: data.borrowRateLongPerSecond,
             borrowRateShort: data.borrowRateShortPerSecond,
             borrowRateLongAnnualized: data.borrowRateLongAnnualized,
@@ -108,6 +115,8 @@ export function usePriceService(): void {
             fundingRateShort: data.fundingRateShortPerSecond,
             fundingRateLongAnnualized: data.fundingRateLongAnnualized,
             fundingRateShortAnnualized: data.fundingRateShortAnnualized,
+            netRateLongAnnualized: data.netRateLongAnnualized,
+            netRateShortAnnualized: data.netRateShortAnnualized,
             positionFeeBps: bps(data.positionFeeBps),
             maxPnlFactorForTraders: data.maxPnlFactorForTraders,
           };

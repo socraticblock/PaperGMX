@@ -51,6 +51,8 @@ export interface ParsedMarketPrice {
   minPrice: number; // Already converted from 30-decimal
   maxPrice: number;
   midPrice: number;
+  /** 24h quote volume in USD when available (e.g. Binance miniTicker `q`) */
+  volume24hUsd?: number;
   updatedAt: number; // ms timestamp
   isStale: boolean; // true if updatedAt is > 30s ago
 }
@@ -63,6 +65,9 @@ export interface ParsedMarketInfo {
   longOiUsd: number;
   shortOiUsd: number;
   totalOiUsd: number;
+  availableLiquidityLongUsd: number;
+  availableLiquidityShortUsd: number;
+  totalLiquidityUsd: number;
   borrowRateLongPerSecond: number;
   borrowRateShortPerSecond: number;
   borrowRateLongAnnualized: number; // annualized % for display (e.g., 45.2)
@@ -71,6 +76,8 @@ export interface ParsedMarketInfo {
   fundingRateShortPerSecond: number;
   fundingRateLongAnnualized: number; // annualized % for display
   fundingRateShortAnnualized: number; // annualized % for display
+  netRateLongAnnualized: number; // annualized % for display
+  netRateShortAnnualized: number; // annualized % for display
   positionFeeBps: number; // 4 or 6 BPS — TODO: dynamic at execution time based on OI balance
 
   // ─── GMX V2 per-market factors ───

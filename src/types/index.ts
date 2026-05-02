@@ -133,12 +133,17 @@ export interface PriceData {
   last: Price;
   // TODO: Phase 4 — implement price history tracking to compute real 24h change
   change24h: Percent;
+  /** Optional 24h quote volume (USD) when provided by data source. */
+  volume24hUsd?: USD;
 }
 
 export interface MarketInfo {
   slug: MarketSlug;
   longOi: USD;
   shortOi: USD;
+  availableLiquidityLong: USD;
+  availableLiquidityShort: USD;
+  totalLiquidityUsd: USD;
   borrowRateLong: number; // per-second (for calculations)
   borrowRateShort: number; // per-second (for calculations)
   borrowRateLongAnnualized: number; // annualized % (for display)
@@ -147,6 +152,8 @@ export interface MarketInfo {
   fundingRateShort: number; // per-second (for calculations)
   fundingRateLongAnnualized: number; // annualized % (for display)
   fundingRateShortAnnualized: number; // annualized % (for display)
+  netRateLongAnnualized: number; // annualized % (for display)
+  netRateShortAnnualized: number; // annualized % (for display)
   positionFeeBps: BPS; // 4 or 6 BPS depending on OI balance
 
   // ─── GMX V2 per-market factors (from Reader contract) ───

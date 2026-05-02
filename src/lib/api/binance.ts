@@ -33,6 +33,7 @@ let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let priceCallback: PriceCallback | null = null;
 let lastPrices: Record<string, number> = {};
+let lastVolumes24hUsd: Record<string, number> = {};
 let isConnected = false;
 let isCleanedUp = false; // Guard against zombie reconnects after cleanup
 
@@ -69,6 +70,7 @@ export function connectBinanceWs(callback: PriceCallback): () => void {
         isConnected = true;
         // Clear stale prices from previous connection
         lastPrices = {};
+        lastVolumes24hUsd = {};
         console.info("[BinanceWS] Connected");
       };
 
@@ -143,14 +145,18 @@ function handleBinanceMessage(raw: Record<string, unknown>): void {
 
   const symbol = (data.s as string).toLowerCase();
   const closePrice = parseFloat(data.c as string);
+  const quoteVolume24h = parseFloat(data.q as string);
 
   if (!Number.isFinite(closePrice) || closePrice <= 0) return;
 
   lastPrices[symbol] = closePrice;
+  if (Number.isFinite(quoteVolume24h) && quoteVolume24h >= 0) {
+    lastVolumes24hUsd[symbol] = quoteVolume24h;
+  }
 
   // Convert to our format and notify
   if (priceCallback) {
-    const prices = convertBinancePrices(lastPrices);
+    const prices = convertBinancePrices(lastPrices, lastVolumes24hUsd);
     priceCallback(prices);
   }
 }
@@ -165,6 +171,7 @@ function handleBinanceMessage(raw: Record<string, unknown>): void {
  */
 function convertBinancePrices(
   binancePrices: Record<string, number>,
+  binanceVolumes24hUsd: Record<string, number>,
 ): Partial<Record<MarketSlug, ParsedMarketPrice>> {
   const result: Partial<Record<MarketSlug, ParsedMarketPrice>> = {};
   const now = Date.now();
@@ -184,6 +191,7 @@ function convertBinancePrices(
       minPrice,
       maxPrice,
       midPrice,
+      volume24hUsd: binanceVolumes24hUsd[binanceSymbol],
       updatedAt: now,
       isStale: false,
     };
