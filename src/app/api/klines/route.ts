@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-/** Binance occasionally blocks or rate-limits a single API hostname from cloud IPs. */
+/**
+ * Binance rejects many datacenter requests without a browser-like UA.
+ * Some regions also respond better to alternate hosts or Binance.US for spot klines.
+ */
+const UPSTREAM_HEADERS: HeadersInit = {
+  Accept: "application/json",
+  "User-Agent":
+    "Mozilla/5.0 (compatible; PaperGMX/1.0; +https://github.com/socraticblock/PaperGMX)",
+};
+
+/** Try in order — include Binance.US because Vercel (often US egress) can be blocked on .com. */
 const BINANCE_API_HOSTS = [
   "https://api.binance.com",
   "https://api1.binance.com",
   "https://api2.binance.com",
   "https://api3.binance.com",
+  "https://api.binance.us",
 ] as const;
 
 /** Allowlist: only perp index symbols we use in the UI. */
@@ -39,6 +50,9 @@ const DEFAULT_LIMIT = 500;
 /** Always fetch fresh klines (Vercel edge caching otherwise can stick on failures). */
 export const dynamic = "force-dynamic";
 
+/** Node runtime — Edge fetch to Binance is flakier from some regions. */
+export const runtime = "nodejs";
+
 /**
  * Proxy Binance spot klines (USDT) for the trade chart. Avoids browser CORS.
  * GET /api/klines?symbol=ETHUSDT&interval=5m&limit=500
@@ -67,17 +81,30 @@ export async function GET(request: NextRequest) {
 
   const query = `symbol=${encodeURIComponent(symbolRaw)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
 
+  function isBinanceErrorPayload(data: unknown): boolean {
+    return (
+      typeof data === "object" &&
+      data !== null &&
+      "code" in data &&
+      "msg" in data &&
+      typeof (data as { code?: unknown }).code === "number"
+    );
+  }
+
   for (const host of BINANCE_API_HOSTS) {
     const url = `${host}/api/v3/klines?${query}`;
     try {
       const res = await fetch(url, {
-        headers: { Accept: "application/json" },
+        headers: UPSTREAM_HEADERS,
         cache: "no-store",
       });
 
       if (!res.ok) continue;
 
       const data: unknown = await res.json();
+      if (isBinanceErrorPayload(data)) continue;
+      if (!Array.isArray(data) || data.length === 0) continue;
+
       return NextResponse.json(data);
     } catch {
       continue;

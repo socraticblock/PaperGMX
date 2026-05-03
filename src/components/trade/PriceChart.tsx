@@ -76,12 +76,28 @@ function PriceChartInner({
     const symbol = CHART_BINANCE_SYMBOL[market];
     const res = await fetch(
       `/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}&limit=500`,
+      { cache: "no-store" },
     );
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+    let raw: unknown;
+    try {
+      raw = await res.json();
+    } catch {
+      throw new Error(!res.ok ? `HTTP ${res.status}` : "Invalid chart response");
     }
-    const raw: unknown = await res.json();
+    if (!res.ok) {
+      const msg =
+        typeof raw === "object" &&
+        raw !== null &&
+        "error" in raw &&
+        typeof (raw as { error?: unknown }).error === "string"
+          ? (raw as { error: string }).error
+          : `HTTP ${res.status}`;
+      throw new Error(msg);
+    }
     const { candles, volumes } = parseBinanceKlineRows(raw);
+    if (candles.length === 0) {
+      throw new Error("No candle data returned.");
+    }
     const candleData = candles as CandlestickData[];
     candlesBufRef.current = candleData;
     candleRef.current?.setData(candleData);

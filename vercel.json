@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "src/app/api/klines/route.ts": {
+      "maxDuration": 10
+    }
+  }
+}
