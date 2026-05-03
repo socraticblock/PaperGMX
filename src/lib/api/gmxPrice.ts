@@ -167,6 +167,68 @@ export function parseGmxPerSecondRate(
   }
 }
 
+/** Seconds per Gregorian year (GMX-style annualization). */
+export const SECONDS_PER_YEAR = 31_536_000;
+
+/**
+ * After dividing a GMX 1e30 rate string by 10^30, values above this are treated as
+ * **annual APR decimals** (e.g. 0.12 = 12%/year). Smaller magnitudes are treated as
+ * **per-second** factors (unit tests / legacy shapes). This matches live
+ * `arbitrum-api.gmxinfra.io` /markets/info behaviour for borrowing/funding fields.
+ */
+export const GMX_RATE_ANNUAL_DECIMAL_THRESHOLD = 1e-5;
+
+const MAX_IMPLIED_APR_PERCENT = 500;
+
+function clampBorrowFundingRates(perSecond: number, annualizedPercent: number) {
+  const impliedApr = Math.abs(perSecond * SECONDS_PER_YEAR * 100);
+  if (impliedApr <= MAX_IMPLIED_APR_PERCENT || impliedApr === 0) {
+    return { perSecond, annualizedPercent };
+  }
+  const scale = MAX_IMPLIED_APR_PERCENT / impliedApr;
+  return {
+    perSecond: perSecond * scale,
+    annualizedPercent: annualizedPercent * scale,
+  };
+}
+
+/**
+ * Parse GMX borrowing/funding rate strings from `/markets/info` into per-second
+ * (for accrual) and annualized % (for display).
+ */
+export function parseGmxBorrowFundingRate(
+  rawRate: string,
+  tokenDecimals: number = 30,
+): { perSecond: number; annualizedPercent: number } {
+  if (!rawRate || rawRate === "0") {
+    return { perSecond: 0, annualizedPercent: 0 };
+  }
+
+  try {
+    const bigRate = BigInt(rawRate);
+    const divisor = BigInt(10) ** BigInt(tokenDecimals);
+    const precision = BigInt(10 ** 15);
+    const R = Number((bigRate * precision) / divisor) / 10 ** 15;
+
+    if (!Number.isFinite(R)) {
+      return { perSecond: 0, annualizedPercent: 0 };
+    }
+
+    const absR = Math.abs(R);
+    if (absR > GMX_RATE_ANNUAL_DECIMAL_THRESHOLD) {
+      const perSecond = R / SECONDS_PER_YEAR;
+      const annualizedPercent = R * 100;
+      return clampBorrowFundingRates(perSecond, annualizedPercent);
+    }
+
+    const perSecond = R;
+    const annualizedPercent = R * SECONDS_PER_YEAR * 100;
+    return clampBorrowFundingRates(perSecond, annualizedPercent);
+  } catch {
+    return { perSecond: 0, annualizedPercent: 0 };
+  }
+}
+
 /**
  * Calculate 24h price change percentage.
  * Since the GMX API doesn't directly provide 24h change,

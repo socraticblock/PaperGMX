@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/** Binance occasionally blocks or rate-limits a single API hostname from cloud IPs. */
+const BINANCE_API_HOSTS = [
+  "https://api.binance.com",
+  "https://api1.binance.com",
+  "https://api2.binance.com",
+  "https://api3.binance.com",
+] as const;
+
 /** Allowlist: only perp index symbols we use in the UI. */
 const ALLOWED_SYMBOLS = new Set([
   "ETHUSDT",
@@ -28,6 +36,9 @@ const ALLOWED_INTERVALS = new Set([
 const MAX_LIMIT = 1000;
 const DEFAULT_LIMIT = 500;
 
+/** Always fetch fresh klines (Vercel edge caching otherwise can stick on failures). */
+export const dynamic = "force-dynamic";
+
 /**
  * Proxy Binance spot klines (USDT) for the trade chart. Avoids browser CORS.
  * GET /api/klines?symbol=ETHUSDT&interval=5m&limit=500
@@ -54,27 +65,27 @@ export async function GET(request: NextRequest) {
     limit = n;
   }
 
-  const upstream = new URL("https://api.binance.com/api/v3/klines");
-  upstream.searchParams.set("symbol", symbolRaw);
-  upstream.searchParams.set("interval", interval);
-  upstream.searchParams.set("limit", String(limit));
+  const query = `symbol=${encodeURIComponent(symbolRaw)}&interval=${encodeURIComponent(interval)}&limit=${limit}`;
 
-  try {
-    const res = await fetch(upstream.toString(), {
-      headers: { Accept: "application/json" },
-      next: { revalidate: 10 },
-    });
+  for (const host of BINANCE_API_HOSTS) {
+    const url = `${host}/api/v3/klines?${query}`;
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: `Upstream ${res.status}` },
-        { status: 502 },
-      );
+      if (!res.ok) continue;
+
+      const data: unknown = await res.json();
+      return NextResponse.json(data);
+    } catch {
+      continue;
     }
-
-    const data: unknown = await res.json();
-    return NextResponse.json(data);
-  } catch {
-    return NextResponse.json({ error: "Upstream fetch failed" }, { status: 502 });
   }
+
+  return NextResponse.json(
+    { error: "Upstream fetch failed (all Binance hosts)" },
+    { status: 502 },
+  );
 }

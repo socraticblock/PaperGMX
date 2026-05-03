@@ -19,8 +19,7 @@ import type {
 import {
   parseGmxPrice,
   parseGmxUsdValue,
-  parseGmxPerSecondRate,
-  parseGmxAnnualRate,
+  parseGmxBorrowFundingRate,
 } from "./gmxPrice";
 import { usd } from "@/lib/branded";
 import type { MarketSlug } from "@/types";
@@ -328,22 +327,20 @@ export async function fetchMarketInfo(): Promise<
       0,
     );
 
-    // Parse rates as per-second values for our calculation functions
-    const borrowRateLong = parseGmxPerSecondRate(validated.borrowingRateLong);
-    const borrowRateShort = parseGmxPerSecondRate(validated.borrowingRateShort);
-    const fundingRateLong = parseGmxPerSecondRate(validated.fundingRateLong);
-    const fundingRateShort = parseGmxPerSecondRate(validated.fundingRateShort);
+    const brL = parseGmxBorrowFundingRate(validated.borrowingRateLong);
+    const brS = parseGmxBorrowFundingRate(validated.borrowingRateShort);
+    const frL = parseGmxBorrowFundingRate(validated.fundingRateLong);
+    const frS = parseGmxBorrowFundingRate(validated.fundingRateShort);
 
-    // Annualized rates for display — uses parseGmxAnnualRate for
-    // precise conversion from raw 30-decimal API strings
-    const borrowRateLongAnnualized = parseGmxAnnualRate(
-      validated.borrowingRateLong,
-    );
-    const borrowRateShortAnnualized = parseGmxAnnualRate(
-      validated.borrowingRateShort,
-    );
-    const fundingRateLongAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
-    const fundingRateShortAnnualized = parseGmxAnnualRate(validated.fundingRateShort);
+    const borrowRateLong = brL.perSecond;
+    const borrowRateShort = brS.perSecond;
+    const fundingRateLong = frL.perSecond;
+    const fundingRateShort = frS.perSecond;
+
+    const borrowRateLongAnnualized = brL.annualizedPercent;
+    const borrowRateShortAnnualized = brS.annualizedPercent;
+    const fundingRateLongAnnualized = frL.annualizedPercent;
+    const fundingRateShortAnnualized = frS.annualizedPercent;
     // NOTE: netRate* from /markets/info is already annualized-style factor data
     // (1e30 fixed-point), not a per-second rate. Convert directly to %.
     const netRateLongAnnualized = parseAnnualizedPercentFromGmxFactor(

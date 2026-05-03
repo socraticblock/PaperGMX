@@ -4,6 +4,8 @@ import {
   parseGmxPrice,
   parseGmxAnnualRate,
   parseGmxPerSecondRate,
+  parseGmxBorrowFundingRate,
+  SECONDS_PER_YEAR,
   calculateSpreadPercent,
   calculatePriceChangePercent,
 } from "../gmxPrice";
@@ -124,6 +126,25 @@ describe("parseGmxPrice", () => {
   it("returns 0 for zero input (invalid price signal)", () => {
     const result = parseGmxPrice("0", 18);
     expect(result).toBe(0); // Zero signals "no valid price" to downstream guards
+  });
+});
+
+describe("parseGmxBorrowFundingRate", () => {
+  it("treats large factors as annual APR decimals (live GMX /markets/info)", () => {
+    // 12% per year as decimal 0.12 → raw = 0.12 * 10^30
+    const raw = (12n * 10n ** 28n).toString();
+    const { perSecond, annualizedPercent } = parseGmxBorrowFundingRate(raw);
+    expect(annualizedPercent).toBeCloseTo(12, 5);
+    expect(perSecond).toBeCloseTo(0.12 / SECONDS_PER_YEAR, 12);
+  });
+
+  it("still interprets tiny factors as per-second (fixtures)", () => {
+    const { perSecond, annualizedPercent } =
+      parseGmxBorrowFundingRate(REAL_BORROW_RATE_BTC);
+    expect(perSecond).toBeGreaterThan(1e-9);
+    expect(perSecond).toBeLessThan(1e-5);
+    expect(annualizedPercent).toBeGreaterThan(30);
+    expect(annualizedPercent).toBeLessThan(60);
   });
 });
 
