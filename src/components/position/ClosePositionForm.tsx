@@ -240,6 +240,10 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const formDisabled =
     orderStatus !== "idle" || connectionStatus === "disconnected";
   const pnlIsPositive = pnl.netPnl >= 0;
+  /** Signed unrealized net P&L — drives which close label matches reality. */
+  const netPnlNum = Number(pnl.netPnl);
+  const takeProfitDisabled = formDisabled || netPnlNum < 0;
+  const cutLossDisabled = formDisabled || netPnlNum > 0;
 
   return (
     <>
@@ -291,18 +295,30 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
           </div>
         )}
 
-        {/* Two Close Buttons */}
+        {/* Two Close Buttons — label matches sign of unrealized net P&L */}
         <div className="grid grid-cols-2 gap-3">
           <button
+            type="button"
             onClick={() => handleClose("take_profit")}
-            disabled={formDisabled}
+            disabled={takeProfitDisabled}
+            title={
+              netPnlNum < 0
+                ? "Unrealized P&L is negative — use Cut Loss to close."
+                : undefined
+            }
             className="rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none bg-green-primary"
           >
             Take Profit
           </button>
           <button
+            type="button"
             onClick={() => handleClose("cut_loss")}
-            disabled={formDisabled}
+            disabled={cutLossDisabled}
+            title={
+              netPnlNum > 0
+                ? "Unrealized P&L is positive — use Take Profit to close."
+                : undefined
+            }
             className="rounded-xl py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none bg-red-primary"
           >
             Cut Loss
@@ -313,7 +329,11 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         <p className="text-[10px] text-text-muted text-center leading-relaxed">
           {connectionStatus === "disconnected"
             ? "Cannot reach the GMX oracle API — close is paused until Arbitrum infra responds (same as live GMX)."
-            : `"Take Profit" and "Cut Loss" only differ in your trade history label. Both execute a market decrease order at the current oracle price.`}
+            : netPnlNum < 0
+              ? "Negative unrealized P&L — only Cut Loss is available. Same market decrease order; the label is saved to trade history."
+              : netPnlNum > 0
+                ? "Positive unrealized P&L — only Take Profit is available. Same market decrease order; the label is saved to trade history."
+                : "Flat unrealized P&L — either button closes at the oracle price; only the trade history label differs."}
         </p>
       </div>
 
