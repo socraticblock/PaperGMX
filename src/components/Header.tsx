@@ -7,7 +7,8 @@ import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import { formatBalance } from "@/lib/format";
 import { Cog6ToothIcon } from "@heroicons/react/24/outline";
-import type { ApiConnectionStatus } from "@/types";
+import type { ApiConnectionStatus, MarketSlug } from "@/types";
+import { MARKET_SLUGS } from "@/lib/constants";
 
 // ─── Connection Status Config ───────────────────────────────
 
@@ -80,6 +81,16 @@ function HeaderInner() {
 
   const hasPosition = positionsCount > 0;
 
+  /** Keep the user on their current trade route when revisiting Trade from the nav. */
+  const tradeNavHref = (() => {
+    const parts = pathname?.split("/").filter(Boolean) ?? [];
+    if (parts[0] === "trade" && parts[1]) {
+      const slug = parts[1] as MarketSlug;
+      if (MARKET_SLUGS.includes(slug)) return `/trade/${slug}`;
+    }
+    return "/trade/eth";
+  })();
+
   const navBtn =
     "rounded-md px-2.5 py-1 text-[length:var(--text-trade-body)] font-medium transition-colors";
   const navIdle = `${navBtn} text-text-muted hover:bg-trade-raised hover:text-text-secondary`;
@@ -127,7 +138,7 @@ function HeaderInner() {
               Markets
             </Link>
             <Link
-              href="/trade/eth"
+              href={tradeNavHref}
               className={
                 pathname?.startsWith("/trade") ? navActive : navIdle
               }

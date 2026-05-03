@@ -47,6 +47,7 @@ const initialState = {
   positions: [] as Position[],
   selectedPositionId: null as string | null,
   orderStatus: "idle" as OrderStatus,
+  closeOrderStatus: "idle" as OrderStatus,
 
   // History
   tradeHistory: [] as ClosedTrade[],
@@ -78,7 +79,7 @@ const initialState = {
 
 // ─── Store Version (for migrations) ───────────────────────
 
-const STORE_VERSION = 4;
+const STORE_VERSION = 5;
 
 /**
  * Internal-only legacy shape carried by versions ≤ 3 of the persisted state.
@@ -139,6 +140,16 @@ export function migrateStore(
     state.positions = ap ? [ap] : [];
     state.selectedPositionId = ap?.id ?? null;
     delete state.activePosition;
+  }
+
+  // v4 → v5: separate close-order state machine from entry (open/increase).
+  if ((version ?? 0) < 5) {
+    const s = state as Partial<PaperStoreState> & {
+      closeOrderStatus?: OrderStatus;
+    };
+    if (s.closeOrderStatus === undefined) {
+      s.closeOrderStatus = "idle";
+    }
   }
 
   return state;
@@ -385,6 +396,42 @@ export const usePaperStore = create<PaperStoreState>()(
             return;
           }
           set({ orderStatus: "idle" as OrderStatus }, false, "dismissOrderResult");
+        },
+
+        setCloseOrderStatus: (status: OrderStatus) => {
+          const current = get().closeOrderStatus;
+          if (!isValidTransition(current, status)) {
+            console.warn(
+              `[PaperGMX] Blocked invalid close transition: ${current} → ${status}`,
+            );
+            return;
+          }
+          set(
+            { closeOrderStatus: status },
+            false,
+            "setCloseOrderStatus",
+          );
+          if (status === "filled") {
+            const s = get();
+            if (s.tradingMode === "1ct" && s.oneClickTrading.enabled) {
+              get().decrementOneClickActions();
+            }
+          }
+        },
+
+        dismissCloseOrderResult: () => {
+          const current = get().closeOrderStatus;
+          if (!isValidTransition(current, "idle")) {
+            console.warn(
+              `[PaperGMX] dismissCloseOrderResult: cannot dismiss from ${current}`,
+            );
+            return;
+          }
+          set(
+            { closeOrderStatus: "idle" as OrderStatus },
+            false,
+            "dismissCloseOrderResult",
+          );
         },
 
         updatePositionFees: (

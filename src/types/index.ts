@@ -209,7 +209,10 @@ export interface PaperStoreState {
   positions: Position[];
   /** ID of the currently focused position (drives the chart overlay). */
   selectedPositionId: string | null;
+  /** Open / increase order pipeline (trade form, keeper open). */
   orderStatus: OrderStatus;
+  /** Close-position pipeline — separate so entry signing never triggers the close modal. */
+  closeOrderStatus: OrderStatus;
 
   // History
   tradeHistory: ClosedTrade[];
@@ -261,8 +264,10 @@ export interface PaperStoreState {
   ) => void;
 
   setOrderStatus: (status: OrderStatus) => void;
-  /** Dismiss the current order result (filled/failed/cancelled) and return to idle. */
+  /** Dismiss entry pipeline result and return to idle. */
   dismissOrderResult: () => void;
+  setCloseOrderStatus: (status: OrderStatus) => void;
+  dismissCloseOrderResult: () => void;
   addClosedTrade: (trade: ClosedTrade) => void;
   setSettingsOpen: (open: boolean) => void;
   setTutorialEnabled: (enabled: boolean) => void;

@@ -33,7 +33,7 @@ export function useCloseKeeper(
   simulateKeeperDelay: boolean,
 ): CloseKeeperResult {
   // ─── Refs for latest values (avoid stale closures) ───────
-  // NOTE: We use usePaperStore.getState().setOrderStatus() directly
+  // NOTE: We use usePaperStore.getState().setCloseOrderStatus() directly
   // in the async flow instead of a ref to avoid the stale-ref pattern.
   // Refs are assigned during render (not in useEffect) so async callbacks
   // always see the latest values — same pattern as useKeeperExecution.
@@ -80,7 +80,7 @@ export function useCloseKeeper(
               runningRef.current = false;
               return;
             }
-            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setCloseOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         } else {
           for (let step = 1; step <= 4; step++) {
@@ -88,7 +88,7 @@ export function useCloseKeeper(
               runningRef.current = false;
               return;
             }
-            usePaperStore.getState().setOrderStatus(`keeper_step_${step}` as OrderStatus);
+            usePaperStore.getState().setCloseOrderStatus(`keeper_step_${step}` as OrderStatus);
           }
         }
 
@@ -101,7 +101,7 @@ export function useCloseKeeper(
         const currentPriceData = usePaperStore.getState().prices[marketRef.current];
 
         if (!currentPriceData || currentPriceData.last <= 0) {
-          usePaperStore.getState().setOrderStatus("failed");
+          usePaperStore.getState().setCloseOrderStatus("failed");
           runningRef.current = false;
           return;
         }
@@ -132,7 +132,7 @@ export function useCloseKeeper(
             );
             // GMX V2: slippage breach cancels the order, not fails it.
             // "cancelled" is the correct semantic — price moved beyond acceptable.
-            usePaperStore.getState().setOrderStatus("cancelled");
+            usePaperStore.getState().setCloseOrderStatus("cancelled");
             runningRef.current = false;
             return;
           }
@@ -142,7 +142,7 @@ export function useCloseKeeper(
         const simulatedFailure = Math.random() < KEEPER_FAILURE_RATE;
 
         if (simulatedFailure) {
-          usePaperStore.getState().setOrderStatus("failed");
+          usePaperStore.getState().setCloseOrderStatus("failed");
           runningRef.current = false;
           return;
         }
@@ -178,17 +178,17 @@ export function useCloseKeeper(
         // closePosition is a no-op and we should transition to "failed" instead
         // of leaving the order in an inconsistent "filled" state with no trade.
         if (positionBeforeClose && !positionAfterClose) {
-          usePaperStore.getState().setOrderStatus("filled");
+          usePaperStore.getState().setCloseOrderStatus("filled");
         } else {
           console.warn(
             "[CloseKeeper] closePosition was a no-op — position not found or already closed",
           );
-          usePaperStore.getState().setOrderStatus("failed");
+          usePaperStore.getState().setCloseOrderStatus("failed");
         }
         runningRef.current = false;
       } catch (error) {
         console.error("[CloseKeeper] Unexpected error:", error);
-        usePaperStore.getState().setOrderStatus("failed");
+        usePaperStore.getState().setCloseOrderStatus("failed");
         runningRef.current = false;
       }
     };
@@ -198,7 +198,7 @@ export function useCloseKeeper(
 
   // ─── Cancel keeper execution ─────────────────────────────
   const cancel = useCallback(() => {
-    const current = usePaperStore.getState().orderStatus;
+    const current = usePaperStore.getState().closeOrderStatus;
 
     // A close order can be in "submitted" before the async keeper loop starts
     // (for example, if price data vanished). The visible cancel button must
@@ -213,7 +213,7 @@ export function useCloseKeeper(
       ? "cancelled"
       : "failed";
 
-    usePaperStore.getState().setOrderStatus(targetStatus);
+    usePaperStore.getState().setCloseOrderStatus(targetStatus);
   }, []);
 
   return useMemo(() => ({ start, cancel }), [start, cancel]);

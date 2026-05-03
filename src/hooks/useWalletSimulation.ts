@@ -11,6 +11,9 @@ import { useShallow } from "zustand/react/shallow";
 
 export type PopupProcessingState = "idle" | "processing" | "success";
 
+/** `entry` = open/increase (trade form). `close` = market decrease (close form). */
+export type OrderPipeline = "entry" | "close";
+
 // ─── Return type ─────────────────────────────────────────
 
 export interface WalletSimulationResult {
@@ -42,13 +45,19 @@ const SIGNING_SUCCESS_MS = 300; // Green checkmark phase
 
 // ─── Hook ────────────────────────────────────────────────
 
-export function useWalletSimulation(): WalletSimulationResult {
-  const { orderStatus, approveToken, setOrderStatus } = usePaperStore(
-    useShallow((s) => ({
-      orderStatus: s.orderStatus,
-      approveToken: s.approveToken,
-      setOrderStatus: s.setOrderStatus,
-    })),
+export function useWalletSimulation(
+  pipeline: OrderPipeline = "entry",
+): WalletSimulationResult {
+  const orderStatus = usePaperStore(
+    useShallow((s) =>
+      pipeline === "entry" ? s.orderStatus : s.closeOrderStatus,
+    ),
+  );
+  const approveToken = usePaperStore(useShallow((s) => s.approveToken));
+  const setOrderStatus = usePaperStore(
+    useShallow((s) =>
+      pipeline === "entry" ? s.setOrderStatus : s.setCloseOrderStatus,
+    ),
   );
 
   const [processing, setProcessing] = useState<PopupProcessingState>("idle");
@@ -79,14 +88,18 @@ export function useWalletSimulation(): WalletSimulationResult {
       // some mid-flow states like "approved" have no valid transition to
       // "idle" — the state machine would block the reset and leave the
       // store stuck forever.
-      const status = usePaperStore.getState().orderStatus;
+      const st = usePaperStore.getState();
+      const status =
+        pipeline === "entry" ? st.orderStatus : st.closeOrderStatus;
       if (
         status === "approving" ||
         status === "approved" ||
         status === "signing"
       ) {
         usePaperStore.setState(
-          { orderStatus: "idle" as import("@/types").OrderStatus },
+          pipeline === "entry"
+            ? { orderStatus: "idle" as import("@/types").OrderStatus }
+            : { closeOrderStatus: "idle" as import("@/types").OrderStatus },
           false,
           "useWalletSimulation/unmount-cleanup",
         );
@@ -97,7 +110,7 @@ export function useWalletSimulation(): WalletSimulationResult {
       }
       timers.clear();
     };
-  }, []);
+  }, [pipeline]);
 
   // Helper: schedule a timeout that's tracked for cleanup
   const scheduleTimeout = useCallback((fn: () => void, delay: number) => {

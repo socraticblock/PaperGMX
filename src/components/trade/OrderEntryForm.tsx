@@ -96,7 +96,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   );
 
   // ─── Wallet simulation hook ─────────────────────────────
-  const wallet = useWalletSimulation();
+  const wallet = useWalletSimulation("entry");
 
   // ─── Derived data ───────────────────────────────────────
   const priceData = prices[market];
@@ -255,6 +255,37 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     [positions, market, direction],
   );
   const isIncrease = existingPosition !== null;
+
+  const otherMarketOpenPositions = useMemo(
+    () =>
+      positions.filter(
+        (p) =>
+          p.market !== market &&
+          p.status !== "closed" &&
+          p.status !== "liquidated",
+      ),
+    [positions, market],
+  );
+  const showLockedMarginHint =
+    otherMarketOpenPositions.length > 0 &&
+    (balance < 1 || collateralUsd > balance);
+
+  /** Same market already has the opposite side open — user may be opening the second leg (GMX-style hedge). */
+  const oppositeDirection: OrderDirection =
+    direction === "long" ? "short" : "long";
+  const hasOppositeSideOpenOnMarket = useMemo(
+    () =>
+      positions.some(
+        (p) =>
+          p.market === market &&
+          p.direction === oppositeDirection &&
+          p.status !== "closed" &&
+          p.status !== "liquidated",
+      ),
+    [positions, market, oppositeDirection],
+  );
+  const showSameMarketSecondSideHint =
+    hasOppositeSideOpenOnMarket && !existingPosition;
 
   // Project the post-increase state for the preview row. Mirrors the math
   // in usePaperStore.increasePosition (which mirrors GMX getEntryPrice):
@@ -440,6 +471,20 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               onChange={setDirection}
               disabled={formDisabled}
             />
+            {showSameMarketSecondSideHint && (
+              <p
+                className="text-[length:var(--text-trade-label)] text-text-secondary"
+                role="note"
+              >
+                GMX and PaperGMX keep <span className="text-text-primary">long</span> and{" "}
+                <span className="text-text-primary">short</span> as separate
+                positions on the same market. This order opens a new{" "}
+                {direction === "long" ? "long" : "short"}; your open{" "}
+                {oppositeDirection} is unchanged. Use the Long/Short switch
+                above — staying on the same side as an open position
+                &quot;increases&quot; that leg instead.
+              </p>
+            )}
 
             <div className="flex gap-1 rounded-md border border-trade-border-subtle bg-trade-panel p-0.5">
               <button
@@ -756,6 +801,20 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           entryOrderType={entryOrderType}
           limitEntryPrice={limitEntryPrice}
         />
+
+        {showLockedMarginHint && (
+          <p
+            className="rounded-md border border-trade-border-subtle bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-secondary"
+            role="note"
+          >
+            Available USDC is separate from margin locked in{" "}
+            {otherMarketOpenPositions.length === 1
+              ? "your other open position"
+              : "your other open positions"}
+            . Close or reduce those trades, or add funds in Settings, then you
+            can open here.
+          </p>
+        )}
 
         {/* Increase preview — shown when same (market, side) is already open */}
         {isIncrease && existingPosition && (

@@ -68,22 +68,22 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
   // ─── Store ─────────────────────────────────────────────
   const {
-    orderStatus,
+    closeOrderStatus,
     connectionStatus,
     simulateKeeperDelay,
     tradingMode,
     oneClickTrading,
-    setOrderStatus,
-    dismissOrderResult,
+    setCloseOrderStatus,
+    dismissCloseOrderResult,
   } = usePaperStore(
     useShallow((s) => ({
-      orderStatus: s.orderStatus,
+      closeOrderStatus: s.closeOrderStatus,
       connectionStatus: s.connectionStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
       tradingMode: s.tradingMode,
       oneClickTrading: s.oneClickTrading,
-      setOrderStatus: s.setOrderStatus,
-      dismissOrderResult: s.dismissOrderResult,
+      setCloseOrderStatus: s.setCloseOrderStatus,
+      dismissCloseOrderResult: s.dismissCloseOrderResult,
     }))
   );
 
@@ -101,7 +101,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   );
 
   // ─── Wallet simulation ─────────────────────────────────
-  const wallet = useWalletSimulation();
+  const wallet = useWalletSimulation("close");
 
   // ─── Estimate close values ─────────────────────────────
   const closeEstimate = useMemo(() => {
@@ -152,7 +152,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const startedRef = useRef(false);
 
   useEffect(() => {
-    if (orderStatus === "submitted" && !startedRef.current) {
+    if (closeOrderStatus === "submitted" && !startedRef.current) {
       const currentPriceData = usePaperStore.getState().prices[position.market];
       if (currentPriceData && currentPriceData.last > 0) {
         startedRef.current = true;
@@ -171,15 +171,19 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         closeKeeper.start(acceptablePrice);
       } else {
         console.warn("[PaperGMX] No price data available, failing close order");
-        usePaperStore.getState().setOrderStatus("failed");
+        usePaperStore.getState().setCloseOrderStatus("failed");
       }
     }
 
     // Reset started ref when flow resets
-    if (orderStatus === "idle" || orderStatus === "failed" || orderStatus === "cancelled") {
+    if (
+      closeOrderStatus === "idle" ||
+      closeOrderStatus === "failed" ||
+      closeOrderStatus === "cancelled"
+    ) {
       startedRef.current = false;
     }
-  }, [orderStatus, position.market, position.direction, closeKeeper]);
+  }, [closeOrderStatus, position.market, position.direction, closeKeeper]);
 
   // ─── Handlers ──────────────────────────────────────────
   const handleClose = useCallback(
@@ -189,32 +193,32 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         // 1CT skips wallet signing entirely. Go straight to submitted.
         // NOTE: We do NOT decrement the 1CT action quota here — the quota
         // should only burn when the close actually succeeds. A useEffect
-        // below handles the decrement when orderStatus reaches "filled".
-        setOrderStatus("submitted");
+        // below handles the decrement when closeOrderStatus reaches "filled".
+        setCloseOrderStatus("submitted");
         return;
       }
 
       // Classic close doesn't require token approval — only signing.
-      setOrderStatus("signing");
+      setCloseOrderStatus("signing");
     },
-    [is1ctMode, setOrderStatus]
+    [is1ctMode, setCloseOrderStatus]
   );
 
-  // 1CT action quota is now decremented in the store's setOrderStatus
+  // 1CT action quota is decremented in the store's setCloseOrderStatus
   // when transitioning to "filled" — not in this component's useEffect.
   // Same fix as SubmitOrderButton: the form can unmount during keeper
   // execution, so the store-level decrement is the reliable path.
 
   const handleResultDismiss = useCallback(() => {
-    dismissOrderResult(); // filled/failed/cancelled → idle
-  }, [dismissOrderResult]);
+    dismissCloseOrderResult(); // filled/failed/cancelled → idle
+  }, [dismissCloseOrderResult]);
 
   // ─── Keeper Wait Screen ────────────────────────────────
-  if (isKeeperPhase(orderStatus)) {
+  if (isKeeperPhase(closeOrderStatus)) {
     return (
       <CloseKeeperWaitScreen
         position={position}
-        orderStatus={orderStatus}
+        orderStatus={closeOrderStatus}
         closeKeeper={closeKeeper}
       />
     );
@@ -223,10 +227,20 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   // ─── Order result screen (filled/failed/cancelled) ────
   // filled = position closed successfully, dismiss returns to trade form
   // failed/cancelled = close did not complete, dismiss returns to position
-  if (orderStatus === "filled" || orderStatus === "failed" || orderStatus === "cancelled") {
+  if (
+    closeOrderStatus === "filled" ||
+    closeOrderStatus === "failed" ||
+    closeOrderStatus === "cancelled"
+  ) {
     return (
       <OrderResultScreen
-        resultType={orderStatus === "filled" ? "filled" : orderStatus === "failed" ? "failed" : "cancelled"}
+        resultType={
+          closeOrderStatus === "filled"
+            ? "filled"
+            : closeOrderStatus === "failed"
+              ? "failed"
+              : "cancelled"
+        }
         direction={position.direction}
         collateralUsd={position.collateralUsd}
         leverage={position.leverage}
@@ -238,7 +252,7 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
   // ─── Main Close Form ───────────────────────────────────
   const formDisabled =
-    orderStatus !== "idle" || connectionStatus === "disconnected";
+    closeOrderStatus !== "idle" || connectionStatus === "disconnected";
   const pnlIsPositive = pnl.netPnl >= 0;
   /** Signed unrealized net P&L — drives which close label matches reality. */
   const netPnlNum = Number(pnl.netPnl);
