@@ -161,7 +161,14 @@ function PositionCardInner({ position, prices, marketInfo }: PositionCardProps) 
           </span>
           <span className="text-border-primary">|</span>
           <span className="text-text-muted">
-            Fees: <span className="text-red-primary">-{formatUSD(totalFees)}</span>
+            Fees (net):{" "}
+            <span
+              className={
+                totalFees > 0 ? "text-red-primary" : "text-green-primary"
+              }
+            >
+              {formatUSD(totalFees)}
+            </span>
           </span>
         </div>
       </div>

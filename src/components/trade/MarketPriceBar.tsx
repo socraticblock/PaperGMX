@@ -15,16 +15,14 @@ export interface MarketPriceBarProps {
 }
 
 const CONNECTION_LABEL: Record<ApiConnectionStatus, string> = {
-  connected: "Live",
-  degraded: "Slow",
-  fallback: "Fallback",
-  disconnected: "Off",
+  connected: "GMX oracle",
+  degraded: "Stale",
+  disconnected: "No feed",
 };
 
 const CONNECTION_DOT: Record<ApiConnectionStatus, string> = {
   connected: "bg-green-primary",
   degraded: "bg-yellow-primary",
-  fallback: "bg-yellow-primary",
   disconnected: "bg-red-primary",
 };
 
@@ -62,11 +60,8 @@ function MarketPriceBarInner({
     if (priceData?.volume24hUsd && priceData.volume24hUsd > 0) {
       return formatUSDCompact(priceData.volume24hUsd);
     }
-    if (marketInfo?.totalLiquidityUsd && marketInfo.totalLiquidityUsd > 0) {
-      return `~${formatUSDCompact(marketInfo.totalLiquidityUsd)}`;
-    }
     return "—";
-  }, [priceData, marketInfo]);
+  }, [priceData]);
 
   const netHourly = useMemo(() => {
     if (!marketInfo) return { long: "—", short: "—" };
@@ -228,9 +223,22 @@ function MarketPriceBarInner({
         </div>
       </div>
 
-      {connectionStatus === "fallback" && (
+      {connectionStatus === "disconnected" && (
+        <div className="rounded-md border border-red-primary/25 bg-red-primary/10 px-3 py-1.5 text-[length:var(--text-trade-stat)] text-red-primary">
+          GMX Arbitrum API unreachable — oracle prices and pool stats load only
+          from GMX infra (no substitute exchange feed).
+        </div>
+      )}
+      {connectionStatus === "degraded" && (
         <div className="rounded-md border border-yellow-primary/25 bg-yellow-primary/10 px-3 py-1.5 text-[length:var(--text-trade-stat)] text-yellow-primary">
-          Binance fallback — prices may differ from the GMX oracle.
+          Oracle data may be stale. PaperGMX does not switch to non-GMX prices.
+        </div>
+      )}
+      {connectionStatus === "connected" && currentPrice > 0 && !marketInfo && (
+        <div className="rounded-md border border-yellow-primary/25 bg-yellow-primary/10 px-3 py-1.5 text-[length:var(--text-trade-stat)] text-yellow-primary">
+          Waiting for GMX pool metadata (open interest, borrow &amp; funding
+          rates). Execution uses oracle prices; accrued borrow/funding update
+          once this loads.
         </div>
       )}
     </div>

@@ -28,6 +28,10 @@ import {
   ONE_CLICK_MAX_ACTIONS,
   ONE_CLICK_DURATION_DAYS,
 } from "@/lib/constants";
+import {
+  normalizeEpochMs,
+  resolveFeeAccrualFromMs,
+} from "@/lib/feeAccrualTime";
 
 // ─── Initial State ────────────────────────────────────────
 
@@ -71,18 +75,52 @@ const initialState = {
 
 // ─── Store Version (for migrations) ───────────────────────
 
-const STORE_VERSION = 1;
+const STORE_VERSION = 3;
 
 function migrateStore(
   persistedState: unknown,
   version: number,
 ): Partial<PaperStoreState> {
-  if (version === 0) {
-    // Future: migrate from v0 to v1
-  }
-  // Basic shape validation — don't blindly cast corrupted data
   if (typeof persistedState !== "object" || persistedState === null) return {};
-  return persistedState as Partial<PaperStoreState>;
+  const state = persistedState as Partial<PaperStoreState>;
+
+  if ((version ?? 0) < 2 && state.activePosition) {
+    const pos = state.activePosition;
+    if (pos.lastFeeAccrualAt === undefined) {
+      state.activePosition = {
+        ...pos,
+        lastFeeAccrualAt: pos.openedAt,
+      };
+    }
+  }
+
+  if ((version ?? 0) < 3 && state.activePosition) {
+    const pos = state.activePosition;
+    try {
+      const openedNum = Number(pos.openedAt);
+      const openedMs = normalizeEpochMs(openedNum);
+      if (!Number.isFinite(openedMs) || openedMs <= 0) {
+        return state;
+      }
+      const accrualFrom = resolveFeeAccrualFromMs(
+        openedNum,
+        pos.lastFeeAccrualAt != null ? Number(pos.lastFeeAccrualAt) : undefined,
+      );
+      state.activePosition = {
+        ...pos,
+        openedAt: timestamp(openedMs),
+        lastFeeAccrualAt: timestamp(accrualFrom),
+        confirmedAt:
+          pos.confirmedAt != null
+            ? timestamp(normalizeEpochMs(Number(pos.confirmedAt)))
+            : null,
+      };
+    } catch {
+      /* leave position unchanged if timestamps are invalid */
+    }
+  }
+
+  return state;
 }
 
 // ─── Store ────────────────────────────────────────────────
@@ -192,10 +230,15 @@ export const usePaperStore = create<PaperStoreState>()(
           set({ orderStatus: "idle" as OrderStatus }, false, "dismissOrderResult");
         },
 
-        updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) =>
+        updatePositionFees: (
+          borrowFeeDelta: USD,
+          fundingFeeDelta: USD,
+          accrualEndAt?: Timestamp,
+        ) =>
           set(
             (state) => {
               if (!state.activePosition) return state;
+              const endAt = accrualEndAt ?? timestamp(Date.now());
               return {
                 activePosition: {
                   ...state.activePosition,
@@ -205,6 +248,7 @@ export const usePaperStore = create<PaperStoreState>()(
                   fundingFeeAccrued: addUSD(
                     state.activePosition.fundingFeeAccrued, fundingFeeDelta,
                   ),
+                  lastFeeAccrualAt: endAt,
                 },
               };
             },
@@ -419,11 +463,43 @@ export const usePaperStore = create<PaperStoreState>()(
             // survive page reloads, leaving positions permanently stuck in
             // "confirming" with no fee accrual or liquidation protection.
             if (state.activePosition?.status === "confirming") {
+              const pos = state.activePosition;
+              const openedNum = Number(pos.openedAt);
+              const lastCheckpoint = resolveFeeAccrualFromMs(
+                openedNum,
+                pos.lastFeeAccrualAt != null
+                  ? Number(pos.lastFeeAccrualAt)
+                  : undefined,
+              );
               state.activePosition = {
-                ...state.activePosition,
+                ...pos,
                 status: "active",
-                confirmedAt: timestamp(state.activePosition.openedAt),
+                confirmedAt: timestamp(normalizeEpochMs(openedNum)),
+                lastFeeAccrualAt: timestamp(lastCheckpoint),
               };
+            }
+
+            // One-time repair: bogus fee accrual from invalid checkpoints (e.g. `0`)
+            // produced astronomically large deltas; clear and restart accrual from now.
+            if (state.activePosition?.status === "active") {
+              const pos = state.activePosition;
+              const size = Math.abs(Number(pos.sizeUsd));
+              if (Number.isFinite(size) && size > 0) {
+                const cap = size * 100;
+                const b = Math.abs(Number(pos.borrowFeeAccrued));
+                const f = Math.abs(Number(pos.fundingFeeAccrued));
+                if (b > cap || f > cap) {
+                  console.warn(
+                    "[PaperGMX] Cleared implausible accrued borrow/funding amounts from persisted state.",
+                  );
+                  state.activePosition = {
+                    ...pos,
+                    borrowFeeAccrued: usd(0),
+                    fundingFeeAccrued: usd(0),
+                    lastFeeAccrualAt: timestamp(Date.now()),
+                  };
+                }
+              }
             }
             // Enforce 1CT expiry on rehydration. If the persisted session
             // has expired between visits, disable it so the user can't trade

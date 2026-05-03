@@ -97,6 +97,12 @@ export interface Position {
   positionFeePaid: USD;
   borrowFeeAccrued: USD;
   fundingFeeAccrued: USD;
+  /**
+   * End of the last window where borrow/funding deltas were applied (ms).
+   * Used for wall-clock accrual across sessions (matches on-chain continuous accrual
+   * in intent; rates still come from the latest GMX API snapshot per tick).
+   */
+  lastFeeAccrualAt: Timestamp;
   openedAt: Timestamp;
   confirmedAt: Timestamp | null;
   status: "confirming" | "active" | "closed" | "liquidated";
@@ -179,10 +185,9 @@ export interface OneClickTradingState {
 // ─── Store ────────────────────────────────────────────────
 
 export type ApiConnectionStatus =
-  | "connected" // GMX API responding normally
-  | "degraded" // GMX API slow or partially failing
-  | "fallback" // Using Binance fallback
-  | "disconnected"; // All sources failing
+  | "connected" // GMX Oracle Keeper API — fresh prices
+  | "degraded" // GMX API responding but data is stale or partially failing
+  | "disconnected"; // Cannot load GMX oracle prices (same source as app.gmx.io infra)
 
 export interface PaperStoreState {
   // Wallet
@@ -237,7 +242,11 @@ export interface PaperStoreState {
   disableOneClickTrading: () => void;
   decrementOneClickActions: () => void;
   renewOneClickTrading: () => void;
-  updatePositionFees: (borrowFeeDelta: USD, fundingFeeDelta: USD) => void;
+  updatePositionFees: (
+    borrowFeeDelta: USD,
+    fundingFeeDelta: USD,
+    accrualEndAt?: Timestamp,
+  ) => void;
   closePosition: (
     exitPrice: Price,
     closeReason: ClosedTrade["closeReason"],

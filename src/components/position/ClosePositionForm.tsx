@@ -236,7 +236,8 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   }
 
   // ─── Main Close Form ───────────────────────────────────
-  const formDisabled = orderStatus !== "idle" || connectionStatus === "fallback";
+  const formDisabled =
+    orderStatus !== "idle" || connectionStatus === "disconnected";
   const pnlIsPositive = pnl.netPnl >= 0;
 
   return (
@@ -309,8 +310,8 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
         {/* Note */}
         <p className="text-[10px] text-text-muted text-center leading-relaxed">
-          {connectionStatus === "fallback"
-            ? "GMX oracle data is unavailable. Binance fallback prices are display-only, so close execution is paused."
+          {connectionStatus === "disconnected"
+            ? "Cannot reach the GMX oracle API — close is paused until Arbitrum infra responds (same as live GMX)."
             : `"Take Profit" and "Cut Loss" only differ in your trade history label. Both execute a market decrease order at the current oracle price.`}
         </p>
       </div>

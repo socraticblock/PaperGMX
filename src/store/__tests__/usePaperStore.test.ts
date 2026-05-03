@@ -29,6 +29,7 @@ function createTestPosition(overrides?: Partial<Position>): Position {
     positionFeePaid: usd(6),
     borrowFeeAccrued: usd(0),
     fundingFeeAccrued: usd(0),
+    lastFeeAccrualAt: timestamp(1700000000000),
     openedAt: timestamp(1700000000000),
     confirmedAt: null,
     status: "active",
@@ -120,6 +121,21 @@ describe("Store: Position Open Flow", () => {
     const position = createTestPosition({ confirmedAt: null });
     usePaperStore.getState().setActivePosition(position);
     expect(usePaperStore.getState().activePosition?.confirmedAt).toBeNull();
+  });
+});
+
+describe("Store: fee accrual checkpoint", () => {
+  it("updatePositionFees updates lastFeeAccrualAt", () => {
+    const t0 = timestamp(1_700_000_000_000);
+    const t1 = timestamp(1_700_000_003_000);
+    usePaperStore.getState().setActivePosition(
+      createTestPosition({ lastFeeAccrualAt: t0, openedAt: t0 }),
+    );
+    usePaperStore.getState().updatePositionFees(usd(0.01), usd(0.02), t1);
+    const pos = usePaperStore.getState().activePosition;
+    expect(pos?.lastFeeAccrualAt).toBe(t1);
+    expect(pos?.borrowFeeAccrued).toBe(0.01);
+    expect(pos?.fundingFeeAccrued).toBe(0.02);
   });
 });
 

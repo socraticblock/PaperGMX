@@ -61,6 +61,7 @@ function position(overrides?: Partial<Position>): Position {
     positionFeePaid: usd(3),
     borrowFeeAccrued: usd(0),
     fundingFeeAccrued: usd(0),
+    lastFeeAccrualAt: timestamp(1_700_000_000_000),
     openedAt: timestamp(1_700_000_000_000),
     confirmedAt: timestamp(1_700_000_001_000),
     status: "active",

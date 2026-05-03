@@ -243,6 +243,7 @@ export function useKeeperExecution(
           positionFeePaid,
           borrowFeeAccrued: usd(0),
           fundingFeeAccrued: usd(0),
+          lastFeeAccrualAt: timestamp(Date.now()),
           openedAt: timestamp(Date.now()),
           confirmedAt: null, // Will be set after 2-3s confirmation delay
           status: "confirming", // Starts as confirming, transitions to active

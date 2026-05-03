@@ -8,6 +8,7 @@ import type {
   EntryOrderType,
   OrderDirection,
   MarketSlug,
+  Price,
   Position,
   USD,
 } from "@/types";
@@ -46,8 +47,9 @@ export interface OrderEntryFormProps {
 const TRADE_MODE_OPTIONS = [
   { value: "long", label: "Long", tone: "long" as const },
   { value: "short", label: "Short", tone: "short" as const },
-  { value: "swap", label: "Swap", disabled: true },
-] as const satisfies readonly SegmentOption<OrderDirection | "swap">[];
+] as const satisfies readonly SegmentOption<OrderDirection>[];
+
+const TP_SL_PCTS = [25, 50, 75, 100] as const;
 
 function isKeeperPhase(status: string): boolean {
   return (
@@ -166,7 +168,12 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const [tpSlEnabled, setTpSlEnabled] = useState(false);
   const [entryOrderType, setEntryOrderType] =
     useState<EntryOrderType>("market");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [limitPriceInput, setLimitPriceInput] = useState("");
+  const [tpPriceInput, setTpPriceInput] = useState("");
+  const [slPriceInput, setSlPriceInput] = useState("");
+  const [tpClosePct, setTpClosePct] = useState<(typeof TP_SL_PCTS)[number]>(100);
+  const [slClosePct, setSlClosePct] = useState<(typeof TP_SL_PCTS)[number]>(100);
 
   const limitEntryPrice = useMemo(() => {
     if (entryOrderType !== "limit") return null;
@@ -180,6 +187,30 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       return null;
     }
   }, [entryOrderType, limitPriceInput]);
+
+  const tpTriggerPrice = useMemo<Price | null>(() => {
+    const raw = tpPriceInput.trim().replace(/,/g, "");
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    try {
+      return price(n);
+    } catch {
+      return null;
+    }
+  }, [tpPriceInput]);
+
+  const slTriggerPrice = useMemo<Price | null>(() => {
+    const raw = slPriceInput.trim().replace(/,/g, "");
+    if (!raw) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    try {
+      return price(n);
+    } catch {
+      return null;
+    }
+  }, [slPriceInput]);
 
   // ─── Handlers ───────────────────────────────────────────
   const handleCollateralChange = useCallback((value: USD) => {
@@ -360,12 +391,10 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           position="left"
         >
           <div className="space-y-3">
-            <SegmentedControl<OrderDirection | "swap">
+            <SegmentedControl<OrderDirection>
               options={TRADE_MODE_OPTIONS}
               value={direction}
-              onChange={(v) => {
-                if (v === "long" || v === "short") setDirection(v);
-              }}
+              onChange={setDirection}
               disabled={formDisabled}
             />
 
@@ -395,14 +424,36 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               >
                 Limit
               </button>
-              <button
-                type="button"
-                disabled
-                title="Coming soon"
-                className="flex-1 cursor-not-allowed rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted opacity-40"
-              >
-                More
-              </button>
+              <div className="relative flex-1">
+                <button
+                  type="button"
+                  disabled={formDisabled}
+                  onClick={() => setMoreOpen((v) => !v)}
+                  className="w-full rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted transition-colors hover:text-text-secondary disabled:opacity-40"
+                >
+                  More
+                </button>
+                <AnimatePresence>
+                  {moreOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.14, ease: "easeOut" }}
+                      className="absolute right-0 z-10 mt-1 w-36 rounded-md border border-trade-border-subtle bg-trade-panel p-1 shadow-lg"
+                    >
+                      <button
+                        type="button"
+                        disabled
+                        title="Stop Market will be simulated in a later phase"
+                        className="w-full cursor-not-allowed rounded px-2 py-1.5 text-left text-[length:var(--text-trade-body)] font-medium text-text-muted opacity-70"
+                      >
+                        Stop Market
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <AnimatePresence initial={false}>
@@ -518,11 +569,137 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
                 />
               </button>
             </div>
-            {tpSlEnabled && (
-              <p className="rounded-md border border-dashed border-trade-border-active bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-muted">
-                TP/SL controls are not simulated yet — layout mirrors GMX for practice.
-              </p>
-            )}
+            <AnimatePresence initial={false}>
+              {tpSlEnabled && (
+                <motion.div
+                  key="tp-sl-expanded"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="space-y-3"
+                >
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2 rounded-md border border-trade-border-subtle bg-trade-panel p-3">
+                      <p className="text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-green-primary">
+                        Take-Profit
+                      </p>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                        <div>
+                          <label
+                            htmlFor="tp-price-input"
+                            className="mb-1 block text-[length:var(--text-trade-label)] text-text-muted"
+                          >
+                            Price
+                          </label>
+                          <input
+                            id="tp-price-input"
+                            type="text"
+                            inputMode="decimal"
+                            disabled={formDisabled}
+                            value={tpPriceInput}
+                            onChange={(e) => setTpPriceInput(e.target.value)}
+                            placeholder={
+                              markPx > 0
+                                ? formatPrice(markPx, MARKETS[market].decimals)
+                                : "0.00"
+                            }
+                            className="w-full rounded-md border border-trade-border-subtle bg-trade-raised px-3 py-2 text-[length:var(--text-trade-body)] font-semibold tabular-nums text-text-primary focus:border-trade-border-active focus:outline-none"
+                          />
+                        </div>
+                        <div className="rounded-md border border-trade-border-subtle bg-trade-raised px-2.5 py-2 text-right">
+                          <p className="text-[length:var(--text-trade-label)] text-text-muted">Est.</p>
+                          <p className="text-[length:var(--text-trade-body)] font-semibold tabular-nums text-green-primary">
+                            Gain: +{formatUSD(0)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {TP_SL_PCTS.map((pct) => (
+                          <button
+                            key={`tp-${pct}`}
+                            type="button"
+                            disabled={formDisabled}
+                            onClick={() => setTpClosePct(pct)}
+                            className={`rounded px-2 py-1 text-[length:var(--text-trade-label)] font-medium tabular-nums transition-colors ${
+                              tpClosePct === pct
+                                ? "bg-trade-raised text-text-primary ring-1 ring-trade-border-active"
+                                : "bg-trade-strip text-text-muted hover:text-text-secondary"
+                            }`}
+                          >
+                            {pct}%
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[length:var(--text-trade-label)] text-text-muted">
+                        Trigger {tpTriggerPrice ? `$${formatPrice(tpTriggerPrice, MARKETS[market].decimals)}` : "—"} · Close {tpClosePct}%
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 rounded-md border border-trade-border-subtle bg-trade-panel p-3">
+                      <p className="text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-red-primary">
+                        Stop-Loss
+                      </p>
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+                        <div>
+                          <label
+                            htmlFor="sl-price-input"
+                            className="mb-1 block text-[length:var(--text-trade-label)] text-text-muted"
+                          >
+                            Price
+                          </label>
+                          <input
+                            id="sl-price-input"
+                            type="text"
+                            inputMode="decimal"
+                            disabled={formDisabled}
+                            value={slPriceInput}
+                            onChange={(e) => setSlPriceInput(e.target.value)}
+                            placeholder={
+                              markPx > 0
+                                ? formatPrice(markPx, MARKETS[market].decimals)
+                                : "0.00"
+                            }
+                            className="w-full rounded-md border border-trade-border-subtle bg-trade-raised px-3 py-2 text-[length:var(--text-trade-body)] font-semibold tabular-nums text-text-primary focus:border-trade-border-active focus:outline-none"
+                          />
+                        </div>
+                        <div className="rounded-md border border-trade-border-subtle bg-trade-raised px-2.5 py-2 text-right">
+                          <p className="text-[length:var(--text-trade-label)] text-text-muted">Est.</p>
+                          <p className="text-[length:var(--text-trade-body)] font-semibold tabular-nums text-red-primary">
+                            Loss: -{formatUSD(0)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {TP_SL_PCTS.map((pct) => (
+                          <button
+                            key={`sl-${pct}`}
+                            type="button"
+                            disabled={formDisabled}
+                            onClick={() => setSlClosePct(pct)}
+                            className={`rounded px-2 py-1 text-[length:var(--text-trade-label)] font-medium tabular-nums transition-colors ${
+                              slClosePct === pct
+                                ? "bg-trade-raised text-text-primary ring-1 ring-trade-border-active"
+                                : "bg-trade-strip text-text-muted hover:text-text-secondary"
+                            }`}
+                          >
+                            {pct}%
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[length:var(--text-trade-label)] text-text-muted">
+                        Trigger {slTriggerPrice ? `$${formatPrice(slTriggerPrice, MARKETS[market].decimals)}` : "—"} · Close {slClosePct}%
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="rounded-md border border-dashed border-trade-border-active bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-muted">
+                    Take profit and stop loss are not simulated yet — layout mirrors
+                    GMX for practice.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </TutorialTooltip>
 

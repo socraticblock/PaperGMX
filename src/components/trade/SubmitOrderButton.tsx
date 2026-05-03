@@ -89,13 +89,14 @@ function SubmitOrderButtonInner({
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
-  const isFallbackOnly = connectionStatus === "fallback";
+  /** PaperGMX uses only the GMX oracle API — no alternate venue when it is down */
+  const isGmxOracleDown = connectionStatus === "disconnected";
   const insufficientBalance = collateralUsd > balance;
   const belowMinimum = collateralUsd < 1;
   const canSubmit =
     entryOrderType === "market" &&
     hasPriceData &&
-    !isFallbackOnly &&
+    !isGmxOracleDown &&
     !insufficientBalance &&
     !belowMinimum &&
     collateralUsd > 0 &&
@@ -148,7 +149,7 @@ function SubmitOrderButtonInner({
           showSpinner: true,
         };
       // Keeper states are handled by KeeperWaitScreen, not this button.
-      // But we still need fallback states in case the button is visible.
+      // Keeper states if this button is still visible during an edge transition.
       case "submitted":
       case "keeper_step_1":
       case "keeper_step_2":
@@ -213,9 +214,9 @@ function SubmitOrderButtonInner({
             showSpinner: false,
           };
         }
-        if (isFallbackOnly) {
+        if (isGmxOracleDown) {
           return {
-            text: "GMX Oracle Unavailable",
+            text: "Waiting for GMX oracle…",
             bgClass: "bg-yellow-primary cursor-not-allowed",
             showSpinner: false,
           };

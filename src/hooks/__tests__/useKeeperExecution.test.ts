@@ -28,6 +28,7 @@ function makeTestPosition(overrides?: Partial<Position>): Position {
     positionFeePaid: usd(3),
     borrowFeeAccrued: usd(0),
     fundingFeeAccrued: usd(0),
+    lastFeeAccrualAt: timestamp(Date.now()),
     openedAt: timestamp(Date.now()),
     confirmedAt: null,
     status: "confirming",

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { timestamp } from "@/lib/branded";
+import { resolveFeeAccrualFromMs } from "@/lib/feeAccrualTime";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { Position, MarketSlug, PriceData } from "@/types";
 import { calculateFeeAccrualDelta } from "@/lib/positionEngine";
@@ -11,13 +13,12 @@ import { PRICE_POLL_INTERVAL } from "@/lib/constants";
 /**
  * Accrues borrow and funding fees for an active position.
  *
- * This hook runs on the same cadence as price updates (every 3 seconds)
- * and calculates the fee delta since the last accrual. It calls
- * `updatePositionFees` on the store to accumulate the fees.
- *
- * Without this hook, `borrowFeeAccrued` and `fundingFeeAccrued` on the
- * position remain at $0, making the entire borrow/funding/liquidation
- * system non-functional.
+ * Uses GMX `/markets/info` per-second rates from the store (same source as the
+ * live app) and integrates over **wall-clock** elapsed time since
+ * `lastFeeAccrualAt`, including across browser sessions when state is persisted.
+ * This matches the intent of on-chain continuous accrual; the remaining gap vs
+ * exact chain settlement is that each tick applies the **latest** API snapshot
+ * over the whole interval (GMX updates factors continuously on-chain).
  */
 export function useFeeAccrual(
   position: Position | null,
@@ -26,33 +27,26 @@ export function useFeeAccrual(
   const updatePositionFees = usePaperStore((s) => s.updatePositionFees);
   const marketInfo = usePaperStore((s) => s.marketInfo);
 
-  // Track the last timestamp we accrued fees at
-  const lastAccrualTimeRef = useRef<number>(0);
-
   useEffect(() => {
     if (!position || position.status !== "active") {
-      // Reset accrual time when there's no active position
-      lastAccrualTimeRef.current = 0;
       return;
     }
-
-    const now = Date.now();
-
-    // Initialize accrual time on first run for this position.
-    // Use the position's openedAt timestamp to avoid the first-cycle fee
-    // gap (previously used `now`, which skipped the first 3 seconds of fees).
-    if (lastAccrualTimeRef.current === 0) {
-      lastAccrualTimeRef.current = position.openedAt;
-      return;
-    }
-
-    const durationMs = now - lastAccrualTimeRef.current;
-
-    // Skip if less than one price poll interval has elapsed
-    if (durationMs < PRICE_POLL_INTERVAL) return;
 
     const info = marketInfo[position.market];
     if (!info) return;
+
+    const now = Date.now();
+    const from = resolveFeeAccrualFromMs(
+      Number(position.openedAt),
+      position.lastFeeAccrualAt != null
+        ? Number(position.lastFeeAccrualAt)
+        : undefined,
+    );
+    const durationMs = Math.max(0, now - Math.min(from, now));
+
+    if (durationMs < PRICE_POLL_INTERVAL) {
+      return;
+    }
 
     const { borrowFeeDelta, fundingFeeDelta } = calculateFeeAccrualDelta(
       position,
@@ -60,10 +54,6 @@ export function useFeeAccrual(
       durationMs,
     );
 
-    // Update the position's accrued fees
-    updatePositionFees(borrowFeeDelta, fundingFeeDelta);
-
-    // Mark this accrual time
-    lastAccrualTimeRef.current = now;
+    updatePositionFees(borrowFeeDelta, fundingFeeDelta, timestamp(now));
   }, [position, prices, marketInfo, updatePositionFees]);
 }

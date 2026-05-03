@@ -61,17 +61,30 @@ const MARKET_INDEX_TOKENS: Record<MarketSlug, string> = {
   arb: "0x912ce59144191c1204e64559fe8253a0e49e6548",
 };
 
-// Market contract addresses (for matching in /markets/info)
+// Canonical GMX USDC market contracts for our supported symbols.
 const MARKET_CONTRACTS: Record<string, MarketSlug> = {
-  // ETH/USD market
-  "0x70d95587d40a2caf56bd97485af3f73a4a4cf3b0": "eth",
-  // BTC/USD market
+  // ETH/USD [ETH-USDC]
+  "0x70d95587d40a2caf56bd97485ab3eec10bee6336": "eth",
+  // BTC/USD [WBTC.b-USDC]
   "0x47c031236e19d024b42f8ae6780e44a573170703": "btc",
-  // SOL/USD market
-  "0xf7bF0b742E7A4e63E4B6882B0997CD6cd2405029": "sol",
-  // ARB/USD market
-  "0x6d75Bc5e7BD71d5D2e4E25C785BcE7D7d0d08044": "arb",
+  // SOL/USD [SOL-USDC]
+  "0x09400d9db990d5ed3f35d7be61dfaeb900af03c9": "sol",
+  // ARB/USD [ARB-USDC]
+  "0xc25cef6061cf5de5eb761b50e4743c1f5d7e5407": "arb",
 };
+
+function parseAnnualizedPercentFromGmxFactor(rawRate: string): number {
+  if (!rawRate || rawRate === "0") return 0;
+  try {
+    // /markets/info netRate* fields are annualized decimal factors in 1e30 precision.
+    // Example: 0.17 => 17% annualized.
+    const factor = Number(rawRate) / 1e30;
+    if (!Number.isFinite(factor)) return 0;
+    return factor * 100;
+  } catch {
+    return 0;
+  }
+}
 
 // ─── Circuit Breaker State ────────────────────────────────
 
@@ -298,19 +311,21 @@ export async function fetchMarketInfo(): Promise<
     if (!validated) continue;
     if (!validated.isListed) continue;
 
-    // Match to our markets by market contract address
+    // Match to canonical USDC market contracts (avoid selecting alt pools).
     const slug = MARKET_CONTRACTS[validated.marketToken.toLowerCase()];
     if (!slug) continue;
 
-    const longOi = parseGmxUsdValue(validated.openInterestLong, 30);
-    const shortOi = parseGmxUsdValue(validated.openInterestShort, 30);
+    // GMX /markets/info USD fields are 30-decimal fixed-point USD values.
+    // Use tokenDecimals=0 so parse divides by 1e30 and returns real USD.
+    const longOi = parseGmxUsdValue(validated.openInterestLong, 0);
+    const shortOi = parseGmxUsdValue(validated.openInterestShort, 0);
     const availableLiquidityLong = parseGmxUsdValue(
       validated.availableLiquidityLong ?? "0",
-      30,
+      0,
     );
     const availableLiquidityShort = parseGmxUsdValue(
       validated.availableLiquidityShort ?? "0",
-      30,
+      0,
     );
 
     // Parse rates as per-second values for our calculation functions
@@ -329,8 +344,14 @@ export async function fetchMarketInfo(): Promise<
     );
     const fundingRateLongAnnualized = parseGmxAnnualRate(validated.fundingRateLong);
     const fundingRateShortAnnualized = parseGmxAnnualRate(validated.fundingRateShort);
-    const netRateLongAnnualized = parseGmxAnnualRate(validated.netRateLong ?? "0");
-    const netRateShortAnnualized = parseGmxAnnualRate(validated.netRateShort ?? "0");
+    // NOTE: netRate* from /markets/info is already annualized-style factor data
+    // (1e30 fixed-point), not a per-second rate. Convert directly to %.
+    const netRateLongAnnualized = parseAnnualizedPercentFromGmxFactor(
+      validated.netRateLong ?? "0",
+    );
+    const netRateShortAnnualized = parseAnnualizedPercentFromGmxFactor(
+      validated.netRateShort ?? "0",
+    );
 
     // GMX V2: position fee is 4 BPS if the trade balances pool OI,
     // 6 BPS if it imbalances. The conservative default (when we can't

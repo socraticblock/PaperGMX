@@ -50,7 +50,7 @@ export function usePriceService(): void {
           const midPrice = data.midPrice;
 
           // Guard against zero/negative prices that would cause price() to
-          // throw. This can happen if the GMX API or Binance fallback returns
+          // throw. This can happen if the GMX API returns
           // stale or malformed data for a particular market.
           if (midPrice <= 0 || data.minPrice <= 0 || data.maxPrice <= 0) continue;
 
@@ -123,7 +123,7 @@ export function usePriceService(): void {
         }
 
         // Always merge with existing info — GMX API may return partial data
-        // for some markets, and Binance fallback never provides market info.
+        // for some markets until all pools resolve.
         const existing = usePaperStore.getState().marketInfo;
         setMarketInfo({ ...existing, ...brandedInfo });
       },

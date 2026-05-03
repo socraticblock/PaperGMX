@@ -15,10 +15,9 @@ const STATUS_CONFIG: Record<
   ApiConnectionStatus,
   { label: string; color: string }
 > = {
-  connected: { label: "Live", color: "bg-green-primary" },
-  degraded: { label: "Slow", color: "bg-yellow-primary" },
-  fallback: { label: "Binance", color: "bg-yellow-primary" },
-  disconnected: { label: "Offline", color: "bg-red-primary" },
+  connected: { label: "GMX live", color: "bg-green-primary" },
+  degraded: { label: "GMX stale", color: "bg-yellow-primary" },
+  disconnected: { label: "No GMX", color: "bg-red-primary" },
 };
 
 // ─── Skeleton Card ────────────────────────────────────────
@@ -69,26 +68,20 @@ function MarketGridInner({ onSelectMarket }: MarketGridProps) {
         </div>
       </div>
 
-      {/* Stale/Fallback/Disconnected warnings */}
       {connectionStatus === "degraded" && (
         <div className="mb-4 rounded-lg border border-yellow-primary/30 bg-yellow-bg p-3">
           <p className="text-xs text-yellow-primary">
-            GMX API is responding slowly. Prices may be stale.
-          </p>
-        </div>
-      )}
-      {connectionStatus === "fallback" && (
-        <div className="mb-4 rounded-lg border border-yellow-primary/30 bg-yellow-bg p-3">
-          <p className="text-xs text-yellow-primary">
-            GMX API unavailable. Using Binance data — prices may differ slightly
-            from GMX oracle.
+            GMX Arbitrum oracle feed is slow or recovering. Last prices may be
+            stale — execution always mirrors GMX infra when it responds again.
           </p>
         </div>
       )}
       {connectionStatus === "disconnected" && (
         <div className="mb-4 rounded-lg border border-red-primary/30 bg-red-bg p-3">
           <p className="text-xs text-red-primary">
-            Price data unavailable. Check your internet connection.
+            Cannot reach the GMX Arbitrum API (same source as the live app).
+            No alternate price feed is used. Check your connection and try
+            again.
           </p>
         </div>
       )}

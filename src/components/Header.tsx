@@ -23,12 +23,7 @@ const STATUS_CONFIG: Record<
   degraded: {
     dotColor: "bg-yellow-primary",
     pulse: true,
-    label: "API slow",
-  },
-  fallback: {
-    dotColor: "bg-yellow-primary",
-    pulse: true,
-    label: "Fallback",
+    label: "Oracle stale",
   },
   disconnected: {
     dotColor: "bg-red-primary",
