@@ -26,6 +26,7 @@ export interface CloseKeeperResult {
 // - Gets fill price at execution time for close direction
 
 export function useCloseKeeper(
+  positionId: string,
   market: MarketSlug,
   direction: OrderDirection,
   closeReason: ClosedTrade["closeReason"],
@@ -36,6 +37,9 @@ export function useCloseKeeper(
   // in the async flow instead of a ref to avoid the stale-ref pattern.
   // Refs are assigned during render (not in useEffect) so async callbacks
   // always see the latest values — same pattern as useKeeperExecution.
+  const positionIdRef = useRef(positionId);
+  // eslint-disable-next-line react-hooks/refs
+  positionIdRef.current = positionId;
   const marketRef = useRef(market);
   // eslint-disable-next-line react-hooks/refs
   marketRef.current = market;
@@ -154,18 +158,31 @@ export function useCloseKeeper(
         );
 
         // closePosition no longer resets orderStatus — we manage the state machine here
-        const positionBeforeClose = usePaperStore.getState().activePosition;
-        usePaperStore.getState().closePosition(fillPrice, closeReasonRef.current, closeFeeBps);
-        const positionAfterClose = usePaperStore.getState().activePosition;
+        const positionBeforeClose = usePaperStore
+          .getState()
+          .positions.find((p) => p.id === positionIdRef.current);
+        usePaperStore
+          .getState()
+          .closePosition(
+            positionIdRef.current,
+            fillPrice,
+            closeReasonRef.current,
+            closeFeeBps,
+          );
+        const positionAfterClose = usePaperStore
+          .getState()
+          .positions.find((p) => p.id === positionIdRef.current);
 
-        // Only transition to "filled" if closePosition actually closed a position.
-        // If activePosition was already null (e.g., double-fire or external reset),
+        // Only transition to "filled" if closePosition actually removed the position.
+        // If it was already gone (double-fire, liquidated by checker, external reset),
         // closePosition is a no-op and we should transition to "failed" instead
         // of leaving the order in an inconsistent "filled" state with no trade.
         if (positionBeforeClose && !positionAfterClose) {
           usePaperStore.getState().setOrderStatus("filled");
         } else {
-          console.warn("[CloseKeeper] closePosition was a no-op — no active position to close");
+          console.warn(
+            "[CloseKeeper] closePosition was a no-op — position not found or already closed",
+          );
           usePaperStore.getState().setOrderStatus("failed");
         }
         runningRef.current = false;

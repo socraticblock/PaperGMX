@@ -42,7 +42,8 @@ describe("Keeper Execution Flow", () => {
       balance: usd(10000),
       isInitialized: true,
       approvedTokens: ["USDC"], // Already approved
-      activePosition: null,
+      positions: [],
+      selectedPositionId: null,
       orderStatus: "idle" as const,
       tradeHistory: [],
     });
@@ -178,28 +179,68 @@ describe("Keeper Execution Flow", () => {
 
   describe("Position Confirmation", () => {
     it("position starts with status 'confirming' and null confirmedAt", () => {
-      usePaperStore.getState().setActivePosition(makeTestPosition());
+      const p = makeTestPosition();
+      usePaperStore.getState().addPosition(p);
 
-      const pos = usePaperStore.getState().activePosition;
-      expect(pos).not.toBeNull();
+      const pos = usePaperStore
+        .getState()
+        .positions.find((x) => x.id === p.id);
+      expect(pos).not.toBeUndefined();
       expect(pos!.status).toBe("confirming");
       expect(pos!.confirmedAt).toBeNull();
     });
 
-    it("position transitions from confirming to active", () => {
-      usePaperStore.getState().setActivePosition(makeTestPosition());
+    it("position transitions from confirming to active via updatePosition", () => {
+      const p = makeTestPosition();
+      usePaperStore.getState().addPosition(p);
 
-      usePaperStore.setState({
-        activePosition: {
-          ...usePaperStore.getState().activePosition!,
-          confirmedAt: timestamp(Date.now()),
-          status: "active",
-        },
+      usePaperStore.getState().updatePosition(p.id, {
+        confirmedAt: timestamp(Date.now()),
+        status: "active",
       });
 
-      const pos = usePaperStore.getState().activePosition;
+      const pos = usePaperStore
+        .getState()
+        .positions.find((x) => x.id === p.id);
       expect(pos!.status).toBe("active");
       expect(pos!.confirmedAt).not.toBeNull();
+    });
+  });
+
+  // ─── Open vs Increase routing (multi-position model) ────────
+
+  describe("Open vs Increase routing", () => {
+    it("addPosition then second addPosition with same key would shadow — increasePosition merges instead", () => {
+      const first = makeTestPosition({ id: "first" });
+      usePaperStore.getState().addPosition(first);
+
+      // Same (market, direction) — the keeper would route this through
+      // increasePosition, NOT addPosition. We assert the merged shape here.
+      usePaperStore.getState().increasePosition(first.id, {
+        sizeDeltaUsd: usd(5000),
+        collateralDeltaUsd: usd(1000),
+        executionPrice: price(3500),
+        openFeeUsd: usd(2),
+        now: timestamp(Date.now()),
+      });
+
+      const positions = usePaperStore.getState().positions;
+      expect(positions).toHaveLength(1);
+      const merged = positions[0]!;
+      expect(merged.id).toBe("first");
+      expect(merged.sizeUsd).toBe(10000); // 5000 + 5000
+    });
+
+    it("opening different (market, side) keys yields multiple distinct positions", () => {
+      const ethLong = makeTestPosition({ id: "eth-long", market: "eth" });
+      const btcShort = makeTestPosition({
+        id: "btc-short",
+        market: "btc",
+        direction: "short",
+      });
+      usePaperStore.getState().addPosition(ethLong);
+      usePaperStore.getState().addPosition(btcShort);
+      expect(usePaperStore.getState().positions).toHaveLength(2);
     });
   });
 });

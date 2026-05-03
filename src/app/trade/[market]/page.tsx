@@ -13,6 +13,9 @@ import OrderEntryForm from "@/components/trade/OrderEntryForm";
 import PriceChart from "@/components/trade/PriceChart";
 import TradeBottomTabs from "@/components/trade/TradeBottomTabs";
 import { Panel, PanelHeader } from "@/components/trade/ui";
+import { PositionsList } from "@/components/position/PositionsList";
+import { PositionCard } from "@/components/position/PositionCard";
+import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 import type { MarketSlug } from "@/types";
 
 export default function TradePage() {
@@ -40,7 +43,11 @@ export default function TradePage() {
     }
   }, [isInitialized, isValidMarket, router]);
 
-  const activePosition = usePaperStore(useShallow((s) => s.activePosition));
+  const positions = usePaperStore(useShallow((s) => s.positions));
+  const selectedPositionId = usePaperStore(
+    useShallow((s) => s.selectedPositionId),
+  );
+  const selectPosition = usePaperStore(useShallow((s) => s.selectPosition));
   const [chartPositionsOnChart, setChartPositionsOnChart] = useState(true);
 
   if (!isInitialized || !isValidMarket) {
@@ -56,6 +63,15 @@ export default function TradePage() {
   const slug = market as MarketSlug;
   const priceData = prices[slug];
   const info = marketInfo[slug];
+
+  // Positions belonging to the route market — drives chart overlay and the
+  // managed position card / close form. Prefer the user's selection when
+  // it's on this market; otherwise pick the first market-matching position.
+  const positionsOnThisMarket = positions.filter((p) => p.market === slug);
+  const overlayPosition =
+    positionsOnThisMarket.find((p) => p.id === selectedPositionId) ??
+    positionsOnThisMarket[0] ??
+    null;
 
   return (
     <div className="flex min-h-screen flex-col bg-trade-page">
@@ -106,12 +122,12 @@ export default function TradePage() {
                 market={slug}
                 priceData={priceData}
                 positionOverlay={
-                  chartPositionsOnChart && activePosition
+                  chartPositionsOnChart && overlayPosition
                     ? {
-                        entryPrice: Number(activePosition.entryPrice),
+                        entryPrice: Number(overlayPosition.entryPrice),
                         liquidationPrice:
-                          activePosition.liquidationPrice != null
-                            ? Number(activePosition.liquidationPrice)
+                          overlayPosition.liquidationPrice != null
+                            ? Number(overlayPosition.liquidationPrice)
                             : null,
                       }
                     : null
@@ -123,17 +139,56 @@ export default function TradePage() {
               />
             </div>
 
-            <aside className="order-1 w-full min-w-0 xl:sticky xl:order-2 xl:top-14 xl:self-start">
+            <aside className="order-1 w-full min-w-0 space-y-3 xl:sticky xl:order-2 xl:top-14 xl:self-start">
+              {/* Trade box — always available; supports new opens and increases */}
               <Panel padding="none" className="overflow-hidden">
                 <PanelHeader>
                   <span className="text-[length:var(--text-trade-body)] font-semibold text-text-primary">
-                    {activePosition ? "Position" : "Trade"}
+                    Trade
                   </span>
                 </PanelHeader>
                 <div className="p-3 md:p-4">
                   <OrderEntryForm market={slug} />
                 </div>
               </Panel>
+
+              {/* All open positions across markets — selectable */}
+              {positions.length > 0 && (
+                <Panel padding="none" className="overflow-hidden">
+                  <div className="p-3 md:p-4">
+                    <PositionsList
+                      positions={positions}
+                      prices={prices}
+                      marketInfo={marketInfo}
+                      selectedPositionId={selectedPositionId}
+                      onSelect={selectPosition}
+                    />
+                  </div>
+                </Panel>
+              )}
+
+              {/* Manage panel — visible when the selected position is on this market */}
+              {overlayPosition && (
+                <Panel padding="none" className="overflow-hidden">
+                  <PanelHeader>
+                    <span className="text-[length:var(--text-trade-body)] font-semibold text-text-primary">
+                      Manage position
+                    </span>
+                  </PanelHeader>
+                  <div className="space-y-4 p-3 md:p-4">
+                    <PositionCard
+                      position={overlayPosition}
+                      prices={prices}
+                      marketInfo={marketInfo}
+                    />
+                    <ClosePositionForm
+                      position={overlayPosition}
+                      prices={prices}
+                      marketInfo={marketInfo}
+                    />
+                  </div>
+                </Panel>
+              )}
             </aside>
           </div>
         </div>

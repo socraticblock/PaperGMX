@@ -36,6 +36,12 @@ export interface SubmitOrderButtonProps {
   needsApproval: boolean;
   /** Limit entry shows preview only — submission stays disabled. */
   entryOrderType?: EntryOrderType;
+  /**
+   * Override for the primary action verb shown when the button is in the idle
+   * "ready to submit" state. Defaults to "Long X" / "Short X". Used to swap
+   * to "Increase Long X" when an existing position would be increased.
+   */
+  actionLabel?: string;
   onStatusChange: (status: OrderStatus) => void;
 }
 
@@ -56,6 +62,7 @@ function SubmitOrderButtonInner({
   connectionStatus,
   needsApproval,
   entryOrderType = "market",
+  actionLabel,
   onStatusChange,
 }: SubmitOrderButtonProps) {
   const { oneClickTrading, tradingMode } =
@@ -236,16 +243,19 @@ function SubmitOrderButtonInner({
             showSpinner: false,
           };
         }
-        // Normal submit text — include ⚡ badge for 1CT
+        // Normal submit text — include ⚡ badge for 1CT.
+        // actionLabel overrides the verb (e.g. "Increase Long ETH").
+        const verb =
+          actionLabel ?? `${isLong ? "Long" : "Short"} ${marketConfig.symbol}`;
         if (is1ctMode) {
           return {
-            text: `${isLong ? "Long" : "Short"} ${marketConfig.symbol} ⚡ — ${formatUSD(sizeUsd)}`,
+            text: `${verb} ⚡ — ${formatUSD(sizeUsd)}`,
             bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
             showSpinner: false,
           };
         }
         return {
-          text: `${isLong ? "Long" : "Short"} ${marketConfig.symbol} — ${formatUSD(sizeUsd)}`,
+          text: `${verb} — ${formatUSD(sizeUsd)}`,
           bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
           showSpinner: false,
         };

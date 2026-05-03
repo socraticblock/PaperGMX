@@ -201,8 +201,14 @@ export interface PaperStoreState {
   connectionStatus: ApiConnectionStatus;
   pricesLoaded: boolean;
 
-  // Position
-  activePosition: Position | null;
+  // Positions — multi-position model keyed by (market, direction).
+  // Real GMX V2 keys positions as (account, market, collateralToken, isLong);
+  // PaperGMX is single-user and v1 is USDC-only collateral, so account and
+  // collateralToken are implicit. isLong is part of the key, so a user CAN
+  // hold both a long and a short on the same market (matches GMX hedge mode).
+  positions: Position[];
+  /** ID of the currently focused position (drives the chart overlay). */
+  selectedPositionId: string | null;
   orderStatus: OrderStatus;
 
   // History
@@ -227,7 +233,33 @@ export interface PaperStoreState {
   resetWallet: () => void;
   approveToken: (token: string) => void;
   lockCollateral: (amount: USD) => void;
-  setActivePosition: (position: Position | null) => void;
+
+  // ─── Multi-position actions ─────────────────────────────
+  /** Append a new position. Auto-selects it if no position is currently selected. */
+  addPosition: (position: Position) => void;
+  /** Patch a single position by id. No-op if id not found. */
+  updatePosition: (id: string, patch: Partial<Position>) => void;
+  /** Remove a single position by id. Advances selection if needed. */
+  removePosition: (id: string) => void;
+  /** Set the currently focused position (drives chart overlay). */
+  selectPosition: (id: string | null) => void;
+  /**
+   * GMX-style increase: merges a new fill into an existing position using
+   * weighted-average entry (sizeUsd / sizeInTokens). Recomputes liquidation
+   * price from the new totals and resets the fee accrual checkpoint.
+   * No-op if id not found.
+   */
+  increasePosition: (
+    id: string,
+    args: {
+      sizeDeltaUsd: USD;
+      collateralDeltaUsd: USD;
+      executionPrice: Price;
+      openFeeUsd: USD;
+      now: Timestamp;
+    },
+  ) => void;
+
   setOrderStatus: (status: OrderStatus) => void;
   /** Dismiss the current order result (filled/failed/cancelled) and return to idle. */
   dismissOrderResult: () => void;
@@ -243,11 +275,13 @@ export interface PaperStoreState {
   decrementOneClickActions: () => void;
   renewOneClickTrading: () => void;
   updatePositionFees: (
+    id: string,
     borrowFeeDelta: USD,
     fundingFeeDelta: USD,
     accrualEndAt?: Timestamp,
   ) => void;
   closePosition: (
+    id: string,
     exitPrice: Price,
     closeReason: ClosedTrade["closeReason"],
     closeFeeBpsOverride?: BPS,

@@ -93,10 +93,11 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
   // ─── Close keeper ──────────────────────────────────────
   const closeKeeper = useCloseKeeper(
+    position.id,
     position.market,
     position.direction,
     selectedReason, // Dynamic — ref updates on re-render
-    simulateKeeperDelay
+    simulateKeeperDelay,
   );
 
   // ─── Wallet simulation ─────────────────────────────────

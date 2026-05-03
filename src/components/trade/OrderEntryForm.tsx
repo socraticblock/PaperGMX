@@ -9,7 +9,6 @@ import type {
   OrderDirection,
   MarketSlug,
   Price,
-  Position,
   USD,
 } from "@/types";
 import type { SegmentOption } from "./ui/SegmentedControl";
@@ -30,11 +29,10 @@ import { ApprovalPopup } from "@/components/wallet/ApprovalPopup";
 import { SigningPopup } from "@/components/wallet/SigningPopup";
 import { KeeperWaitScreen } from "@/components/keeper/KeeperWaitScreen";
 import { OrderResultScreen } from "@/components/keeper/OrderResultScreen";
-import { PositionCard } from "@/components/position/PositionCard";
-import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 import { LiquidationScreen } from "@/components/position/LiquidationScreen";
 import { ClosedTradeResultCard } from "@/components/position/ClosedTradeResultCard";
 import { TutorialTooltip } from "@/components/tutorial/TutorialTooltip";
+import type { KeeperFillResult } from "@/hooks/useKeeperExecution";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -67,7 +65,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   // ─── Store subscriptions ────────────────────────────────
   const {
     balance,
-    activePosition,
+    positions,
     orderStatus,
     prices,
     marketInfo,
@@ -75,13 +73,14 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     simulateKeeperDelay,
     approvedTokens,
     lockCollateral,
-    setActivePosition,
+    addPosition,
+    increasePosition,
     setOrderStatus,
     dismissOrderResult,
   } = usePaperStore(
     useShallow((s) => ({
       balance: s.balance,
-      activePosition: s.activePosition,
+      positions: s.positions,
       orderStatus: s.orderStatus,
       prices: s.prices,
       marketInfo: s.marketInfo,
@@ -89,7 +88,8 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       simulateKeeperDelay: s.simulateKeeperDelay,
       approvedTokens: s.approvedTokens,
       lockCollateral: s.lockCollateral,
-      setActivePosition: s.setActivePosition,
+      addPosition: s.addPosition,
+      increasePosition: s.increasePosition,
       setOrderStatus: s.setOrderStatus,
       dismissOrderResult: s.dismissOrderResult,
     })),
@@ -101,20 +101,16 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   // ─── Derived data ───────────────────────────────────────
   const priceData = prices[market];
   const info = marketInfo[market];
-  const hasActivePosition = activePosition !== null;
   const needsApproval = !approvedTokens.includes("USDC");
 
-  // ─── Liquidation checker (runs while position is active) ──
-  // This hook runs side effects (auto-liquidation) — return value is for
-  // consumers that need real-time liquidation status, but we don't use it
-  // directly here since the LiquidationScreen is triggered via trade history.
-  useLiquidationChecker(activePosition, prices);
+  // ─── Multi-position fee accrual + liquidation watch ─────
+  // These hooks loop over every active position in the store, so they live
+  // here at the top of the trade UI even when the trade box is rendering
+  // an interim state (keeper wait, order result).
+  useLiquidationChecker(positions, prices);
+  useFeeAccrual(positions, prices);
 
-  // ─── Fee accrual (runs while position is active) ─────────
-  // Accrues borrow and funding fees every price update cycle.
-  useFeeAccrual(activePosition, prices);
-
-  // ─── Trade history for liquidation detection ─────────────
+  // ─── Trade history for liquidation popup detection ───────
   const tradeHistory = usePaperStore(useShallow((s) => s.tradeHistory));
 
   // ─── Liquidation screen state ────────────────────────────
@@ -123,10 +119,10 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     Set<string>
   >(() => new Set());
 
-  // Derive whether to show the LiquidationScreen from trade history
+  // Show the most recent liquidation that hasn't been dismissed yet —
+  // works regardless of how many other positions are still open.
   const lastTrade = tradeHistory.length > 0 ? tradeHistory[0] : null;
   const recentLiquidation =
-    !hasActivePosition &&
     lastTrade &&
     lastTrade.closeReason === "liquidated" &&
     !dismissedLiquidationIds.has(lastTrade.id)
@@ -154,12 +150,19 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     dismissOrderResult();
   }, [lastTrade, tradeHistory, dismissOrderResult]);
 
-  /** Manual close completes with activePosition cleared — close form unmounts before its result UI. */
+  /**
+   * "Manual close needs dismiss" only applies to closes triggered from this
+   * form — those happen via ClosePositionForm now, which is rendered inside
+   * PositionsList. The OrderResultScreen below handles open/increase results.
+   * We keep this dismiss path for liquidations the form needs to surface.
+   */
   const manualCloseNeedsDismiss =
-    !hasActivePosition &&
     orderStatus === "filled" &&
     lastTrade != null &&
-    lastTrade.closeReason !== "liquidated";
+    lastTrade.closeReason !== "liquidated" &&
+    // Only show if the trade just landed (within ~2s) — otherwise it's stale
+    // history from a previous interaction.
+    Date.now() - Number(lastTrade.closedAt) < 2_000;
 
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");
@@ -236,6 +239,46 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const allocationPct =
     balance > 0 ? Math.min(100, Math.round((collateralUsd / balance) * 100)) : 0;
 
+  // ─── Existing-position lookup (drives Open vs Increase) ────
+  // GMX position key = (account, market, collateralToken, isLong). PaperGMX
+  // is single-user and v1 is USDC-only collateral, so account and
+  // collateralToken are implicit — the effective key is (market, direction).
+  const existingPosition = useMemo(
+    () =>
+      positions.find(
+        (p) =>
+          p.market === market &&
+          p.direction === direction &&
+          p.status !== "closed" &&
+          p.status !== "liquidated",
+      ) ?? null,
+    [positions, market, direction],
+  );
+  const isIncrease = existingPosition !== null;
+
+  // Project the post-increase state for the preview row. Mirrors the math
+  // in usePaperStore.increasePosition (which mirrors GMX getEntryPrice):
+  //   sizeInTokens' = sizeInTokens + sizeDelta / executionPrice
+  //   entryPrice'   = (sizeUsd + sizeDelta) / sizeInTokens'
+  const increasePreview = useMemo(() => {
+    if (!existingPosition || sizeUsdDisplay <= 0 || refPxForSize <= 0)
+      return null;
+    const existingTokens =
+      existingPosition.sizeInTokens ??
+      existingPosition.sizeUsd / existingPosition.entryPrice;
+    const tokensDelta = sizeUsdDisplay / refPxForSize;
+    const nextTokens = existingTokens + tokensDelta;
+    if (!Number.isFinite(nextTokens) || nextTokens <= 0) return null;
+    const nextSizeUsd = (existingPosition.sizeUsd as number) + sizeUsdDisplay;
+    const nextEntry = nextSizeUsd / nextTokens;
+    return {
+      currentSizeUsd: existingPosition.sizeUsd as number,
+      currentEntry: existingPosition.entryPrice as number,
+      nextSizeUsd,
+      nextEntry,
+    };
+  }, [existingPosition, sizeUsdDisplay, refPxForSize]);
+
   const handleAllocationPct = useCallback(
     (pct: number) => {
       const clamped = Math.min(100, Math.max(0, pct));
@@ -245,14 +288,25 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   );
 
   const handleSubmit = useCallback(
-    (position: Position) => {
-      // Lock collateral (deduct from available balance)
-      // GMX deducts full collateral when position opens.
-      // Position fee is taken from collateral within the protocol.
-      lockCollateral(position.collateralUsd);
-      setActivePosition(position);
+    (result: KeeperFillResult) => {
+      // Lock collateral (deduct from available balance) before mutating the
+      // position list. GMX deducts full collateral when the position opens
+      // or increases; position fee is taken from collateral by the protocol.
+      if (result.kind === "open") {
+        lockCollateral(result.position.collateralUsd);
+        addPosition(result.position);
+      } else {
+        lockCollateral(result.collateralDeltaUsd);
+        increasePosition(result.positionId, {
+          sizeDeltaUsd: result.sizeDeltaUsd,
+          collateralDeltaUsd: result.collateralDeltaUsd,
+          executionPrice: result.executionPrice,
+          openFeeUsd: result.openFeeUsd,
+          now: result.now,
+        });
+      }
     },
-    [lockCollateral, setActivePosition],
+    [lockCollateral, addPosition, increasePosition],
   );
 
   const handleStatusChange = useCallback(
@@ -280,24 +334,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   if (manualCloseNeedsDismiss) {
     return (
       <ClosedTradeResultCard trade={lastTrade} onDismiss={handleResultDismiss} />
-    );
-  }
-
-  // ─── Already have a position — show Position Card + Close Form ──
-  if (hasActivePosition) {
-    return (
-      <>
-        <PositionCard
-          position={activePosition}
-          prices={prices}
-          marketInfo={marketInfo}
-        />
-        <ClosePositionForm
-          position={activePosition}
-          prices={prices}
-          marketInfo={marketInfo}
-        />
-      </>
     );
   }
 
@@ -375,8 +411,15 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
             </div>
           </div>
           <div>
-            <span className="mb-1 block text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted">
+            <span className="mb-1 flex items-center gap-1 text-[length:var(--text-trade-label)] font-medium uppercase tracking-wide text-text-muted">
               Collateral
+              <span
+                title="PaperGMX v1 uses USDC collateral. Real GMX V2 also lets you collateralize with the index token (e.g. ETH for ETH-USD). PnL math is the same; non-stable collateral just adds the collateral token's price exposure on top of the position."
+                className="cursor-help text-[9px] text-text-muted/70"
+                aria-label="Why USDC only"
+              >
+                ⓘ
+              </span>
             </span>
             <div className="flex h-[38px] items-center rounded-md border border-trade-border-subtle bg-trade-panel px-2 text-[length:var(--text-trade-body)] font-semibold text-text-primary">
               USDC
@@ -714,6 +757,43 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           limitEntryPrice={limitEntryPrice}
         />
 
+        {/* Increase preview — shown when same (market, side) is already open */}
+        {isIncrease && existingPosition && (
+          <div className="rounded-md border border-blue-primary/40 bg-blue-primary/10 px-3 py-2 text-[length:var(--text-trade-body)] text-text-primary">
+            <p className="mb-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-blue-primary">
+              Increase existing position
+            </p>
+            {increasePreview ? (
+              <div className="space-y-0.5 text-[length:var(--text-trade-label)] tabular-nums text-text-secondary">
+                <div className="flex justify-between">
+                  <span>Now</span>
+                  <span>
+                    {formatUSD(increasePreview.currentSizeUsd)} · entry $
+                    {formatPrice(
+                      increasePreview.currentEntry,
+                      MARKETS[market].decimals,
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>After</span>
+                  <span className="font-medium text-text-primary">
+                    {formatUSD(increasePreview.nextSizeUsd)} · entry $
+                    {formatPrice(
+                      increasePreview.nextEntry,
+                      MARKETS[market].decimals,
+                    )}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-[length:var(--text-trade-label)] text-text-muted">
+                Enter a margin amount to preview the new average entry.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Submit Button */}
         <TutorialTooltip
           tutorialKey="submit-order"
@@ -733,6 +813,11 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               connectionStatus={connectionStatus}
               needsApproval={needsApproval}
               entryOrderType={entryOrderType}
+              actionLabel={
+                isIncrease
+                  ? `Increase ${direction === "long" ? "Long" : "Short"} ${MARKETS[market].symbol}`
+                  : undefined
+              }
               onStatusChange={handleStatusChange}
             />
           </div>

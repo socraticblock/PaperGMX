@@ -68,17 +68,17 @@ function ConnectionPulse() {
 
 function HeaderInner() {
   const pathname = usePathname();
-  const { balance, isInitialized, activePosition, setSettingsOpen } =
+  const { balance, isInitialized, positionsCount, setSettingsOpen } =
     usePaperStore(
       useShallow((s) => ({
         balance: s.balance,
         isInitialized: s.isInitialized,
-        activePosition: s.activePosition,
+        positionsCount: s.positions.length,
         setSettingsOpen: s.setSettingsOpen,
       })),
     );
 
-  const hasPosition = activePosition !== null;
+  const hasPosition = positionsCount > 0;
 
   const navBtn =
     "rounded-md px-2.5 py-1 text-[length:var(--text-trade-body)] font-medium transition-colors";
@@ -103,7 +103,7 @@ function HeaderInner() {
                 </span>
                 {hasPosition && (
                   <span className="rounded border border-trade-border-active bg-trade-raised px-1.5 py-px text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-green-primary">
-                    Open position
+                    Open positions ({positionsCount})
                   </span>
                 )}
               </div>

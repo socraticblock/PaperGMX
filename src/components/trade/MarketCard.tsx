@@ -18,7 +18,7 @@ function MarketCardInner({ slug, onClick }: MarketCardProps) {
   const priceData = usePaperStore(useShallow((s) => s.prices[slug]));
   const info = usePaperStore(useShallow((s) => s.marketInfo[slug]));
   const hasPosition = usePaperStore(
-    useShallow((s) => s.activePosition?.market === slug),
+    useShallow((s) => s.positions.some((p) => p.market === slug)),
   );
 
   const currentPrice = priceData?.last ?? 0;

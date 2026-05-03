@@ -8,10 +8,12 @@ import type {
   USD,
   Price,
   MarketSlug,
-  Position,
 } from "@/types";
 import { usePaperStore } from "@/store/usePaperStore";
-import { useKeeperExecution } from "@/hooks/useKeeperExecution";
+import {
+  useKeeperExecution,
+  type KeeperFillResult,
+} from "@/hooks/useKeeperExecution";
 import { MARKETS, SLIPPAGE_OPEN_BPS } from "@/lib/constants";
 import { calculateAcceptablePrice } from "@/lib/calculations";
 
@@ -34,7 +36,7 @@ interface KeeperWaitScreenProps {
   market: MarketSlug;
   orderStatus: OrderStatus;
   simulateKeeperDelay: boolean;
-  onSubmit: (position: Position) => void;
+  onSubmit: (result: KeeperFillResult) => void;
 }
 
 // ─── Component ───────────────────────────────────────────

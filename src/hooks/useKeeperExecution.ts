@@ -28,6 +28,22 @@ import {
 
 // ─── Types ────────────────────────────────────────────────
 
+/**
+ * Either a brand-new position (open) or an increase against an existing one.
+ * `kind` discriminates so the form can update UI accordingly.
+ */
+export type KeeperFillResult =
+  | { kind: "open"; position: Position }
+  | {
+      kind: "increase";
+      positionId: string;
+      sizeDeltaUsd: USD;
+      collateralDeltaUsd: USD;
+      executionPrice: Price;
+      openFeeUsd: USD;
+      now: import("@/types").Timestamp;
+    };
+
 export interface KeeperExecutionResult {
   /** Start the keeper execution. Call when signing is confirmed. */
   start: (orderTimeAcceptablePrice: Price) => void;
@@ -55,7 +71,7 @@ export function useKeeperExecution(
   leverage: number,
   market: MarketSlug,
   simulateKeeperDelay: boolean,
-  onSubmit: (position: Position) => void,
+  onSubmit: (result: KeeperFillResult) => void,
 ): KeeperExecutionResult {
   // ─── Refs for latest values (avoid stale closures) ───────
   // Refs are assigned during render so async callbacks always see the
@@ -212,10 +228,40 @@ export function useKeeperExecution(
           collateralUsdRef.current,
           leverageRef.current,
         );
-        const sizeInTokens = sizeUsd / fillPrice;
         const positionFeePaid = calculatePositionFee(sizeUsd, feeBps);
         const currentMarketConfig = MARKETS[marketRef.current];
+        const now = timestamp(Date.now());
 
+        // Step 5: existing-key check (GMX position key = market + side, with
+        // collateralToken implicit/USDC in v1). If a position is already open
+        // for the same (market, direction), this fill increases it; otherwise
+        // it opens a new one.
+        const existing = usePaperStore
+          .getState()
+          .positions.find(
+            (p) =>
+              p.market === marketRef.current &&
+              p.direction === directionRef.current &&
+              p.status !== "closed" &&
+              p.status !== "liquidated",
+          );
+
+        if (existing) {
+          onSubmitRef.current({
+            kind: "increase",
+            positionId: existing.id,
+            sizeDeltaUsd: sizeUsd,
+            collateralDeltaUsd: collateralUsdRef.current,
+            executionPrice: fillPrice,
+            openFeeUsd: positionFeePaid,
+            now,
+          });
+          usePaperStore.getState().setOrderStatus("filled");
+          runningRef.current = false;
+          return;
+        }
+
+        const sizeInTokens = sizeUsd / fillPrice;
         const liquidationPrice = calculateLiquidationPrice(
           directionRef.current,
           fillPrice,
@@ -227,7 +273,6 @@ export function useKeeperExecution(
           usd(0),
         );
 
-        // Step 5: Create position
         const position: Position = {
           id: generatePositionId(marketRef.current, directionRef.current),
           market: marketRef.current,
@@ -243,30 +288,28 @@ export function useKeeperExecution(
           positionFeePaid,
           borrowFeeAccrued: usd(0),
           fundingFeeAccrued: usd(0),
-          lastFeeAccrualAt: timestamp(Date.now()),
-          openedAt: timestamp(Date.now()),
+          lastFeeAccrualAt: now,
+          openedAt: now,
           confirmedAt: null, // Will be set after 2-3s confirmation delay
           status: "confirming", // Starts as confirming, transitions to active
         };
 
-        onSubmitRef.current(position);
+        onSubmitRef.current({ kind: "open", position });
         usePaperStore.getState().setOrderStatus("filled");
         runningRef.current = false;
 
-        // Step 6: Confirmation delay — simulate on-chain confirmation
-        // After 2-3s, update position status from "confirming" to "active"
-        // Tracked in ref for cleanup on component unmount
+        // Step 6: Confirmation delay — simulate on-chain confirmation.
+        // After 2-3s, update position status from "confirming" to "active".
+        // Tracked in ref for cleanup on component unmount.
         confirmationTimeoutRef.current = setTimeout(
           () => {
             confirmationTimeoutRef.current = null;
             const store = usePaperStore.getState();
-            if (store.activePosition && store.activePosition.id === position.id) {
-              usePaperStore.setState({
-                activePosition: {
-                  ...store.activePosition,
-                  confirmedAt: timestamp(Date.now()),
-                  status: "active",
-                },
+            const exists = store.positions.find((p) => p.id === position.id);
+            if (exists && exists.status === "confirming") {
+              store.updatePosition(position.id, {
+                confirmedAt: timestamp(Date.now()),
+                status: "active",
               });
             }
           },

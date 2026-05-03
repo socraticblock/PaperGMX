@@ -13,7 +13,8 @@ describe("Wallet Simulation Flow", () => {
       balance: usd(10000),
       isInitialized: true,
       approvedTokens: [],
-      activePosition: null,
+      positions: [],
+      selectedPositionId: null,
       orderStatus: "idle" as const,
       tradeHistory: [],
     });

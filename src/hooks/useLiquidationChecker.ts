@@ -1,138 +1,169 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
-import { usePositionPnl } from "@/hooks/usePositionPnl";
-import type { Position, PriceData, MarketSlug, Price, Percent } from "@/types";
+import type {
+  Position,
+  PriceData,
+  MarketSlug,
+  Price,
+  OrderStatus,
+} from "@/types";
+import { addUSD, bpsToDecimal, percent, usd } from "@/lib/branded";
+import {
+  calculateGrossPnl,
+  calculateNetPnl,
+  calculatePositionFee,
+} from "@/lib/calculations";
+import {
+  capPositivePnl,
+  getMarkPrice,
+  getMaxPnlFactorForTraders,
+  getPositionFeeBps,
+  getWorstClosePrice,
+} from "@/lib/positionEngine";
+import { MARKETS } from "@/lib/constants";
 
-// ─── Return type ─────────────────────────────────────────
+// ─── Per-position eval (mirrors usePositionPnl's isLiquidatable path) ──
 
-export interface LiquidationCheckerResult {
-  /** Whether the position is currently liquidatable */
-  isLiquidatable: boolean;
-  /** Close reason if liquidatable ("liquidated" or null) */
-  liquidationReason: "liquidated" | null;
-  /** Distance to liquidation as a percentage */
-  distanceToLiq: Percent;
+function evaluateLiquidation(
+  position: Position,
+  prices: Record<MarketSlug, PriceData>,
+  marketInfo: ReturnType<typeof usePaperStore.getState>["marketInfo"],
+): { isLiquidatable: boolean; exitPrice: Price | null } {
+  if (position.status !== "active") {
+    return { isLiquidatable: false, exitPrice: null };
+  }
+  const priceData = prices[position.market];
+  if (!priceData || priceData.last <= 0) {
+    return { isLiquidatable: false, exitPrice: null };
+  }
+  const info = marketInfo[position.market];
+  const marketConfig = MARKETS[position.market];
+
+  const midPrice = getMarkPrice(priceData);
+  const worstClosePrice = getWorstClosePrice(position.direction, priceData);
+
+  let grossPnl = calculateGrossPnl(
+    position.direction,
+    position.entryPrice,
+    midPrice,
+    position.sizeUsd,
+    position.sizeInTokens,
+  );
+  grossPnl = capPositivePnl(
+    grossPnl,
+    position.sizeUsd,
+    getMaxPnlFactorForTraders(info),
+  );
+
+  const closeFeeBps = getPositionFeeBps(position.direction, true, info);
+  const positionFeeClose = calculatePositionFee(position.sizeUsd, closeFeeBps);
+  const netPnl = calculateNetPnl(
+    grossPnl,
+    position.positionFeePaid,
+    positionFeeClose,
+    position.borrowFeeAccrued,
+    position.fundingFeeAccrued,
+  );
+
+  const remainingCollateral = addUSD(position.collateralUsd, netPnl);
+  const minCollateralUsdFloor = usd(1);
+  const minCollateral =
+    position.sizeUsd * bpsToDecimal(marketConfig.maintenanceMarginBps);
+  const requiredMinCollateral = Math.max(
+    Number(minCollateral),
+    minCollateralUsdFloor,
+  );
+  // Defensive: silence unused var if tooling complains
+  void percent;
+
+  return {
+    isLiquidatable: remainingCollateral <= requiredMinCollateral,
+    exitPrice: worstClosePrice,
+  };
 }
 
 // ─── Hook ────────────────────────────────────────────────
 
 /**
- * Continuously monitors an active position for liquidation conditions.
+ * Continuously monitors every active position for liquidation conditions.
  * Runs on the same cadence as price updates (every 3 seconds).
  *
- * When the position becomes liquidatable:
- * 1. Sets position status to "liquidated"
- * 2. Calls closePosition(currentPrice, "liquidated")
- * 3. Triggers the LiquidationScreen display
+ * For each position that becomes liquidatable:
+ *   1. Calls closePosition(p.id, worstClosePrice, "liquidated") on the store
+ *   2. If `orderStatus` is idle, transitions it to "filled" so the UI can
+ *      show the liquidation result. If a manual close is in flight on a
+ *      DIFFERENT position, we still close the liquidated one but leave
+ *      orderStatus alone so we don't disrupt the in-flight order.
  *
- * Returns liquidation status info for UI display.
+ * Multi-position model: liquidations are tracked per id via a Set ref so
+ * the same position can't be double-liquidated within a single render cycle.
  */
 export function useLiquidationChecker(
-  position: Position | null,
-  prices: Record<MarketSlug, PriceData>
-): LiquidationCheckerResult {
-  const pnl = usePositionPnl(position, prices);
-
+  positions: Position[],
+  prices: Record<MarketSlug, PriceData>,
+): void {
   const { closePosition } = usePaperStore(
     useShallow((s) => ({
       closePosition: s.closePosition,
-    }))
+    })),
   );
 
-  // Ref to prevent double-liquidation
-  const liquidationTriggered = useRef(false);
+  const triggeredRef = useRef<Set<string>>(new Set());
 
-  // Refs to access latest values inside callbacks without re-subscribing.
-  // Updated during render (not in effect) to avoid stale-value gaps between
-  // the position changing and the effect running — same pattern as
-  // useKeeperExecution.
-  const pnlRef = useRef(pnl);
-  // eslint-disable-next-line react-hooks/refs
-  pnlRef.current = pnl;
-  const positionRef = useRef(position);
-  // eslint-disable-next-line react-hooks/refs
-  positionRef.current = position;
-
-  const triggerLiquidation = useCallback(() => {
-    const pos = positionRef.current;
-    const currentPnl = pnlRef.current;
-
-    if (!pos || liquidationTriggered.current) return;
-
-    // Don't liquidate if a close order is already in progress — prevents
-    // a race where liquidation + manual close both call closePosition().
-    // The manual close's "filled" result would overwrite the liquidation
-    // reason, showing "Order Filled!" instead of the liquidation screen.
-    const currentOrderStatus = usePaperStore.getState().orderStatus;
-    if (currentOrderStatus !== "idle") return;
-
-    // Use the worst close price as exit price for liquidation.
-    // worstClosePrice is the oracle worst price for the position's direction
-    // (min for longs, max for shorts) — this is the price the position would
-    // actually close at. currentPrice (mid-price) is for PnL display only.
-    // worstClosePrice is null when no price data is available — skip liquidation
-    // entirely. We must NOT mark the position as "liquidated" before confirming
-    // we have a valid price, otherwise the position gets stuck in a "liquidated"
-    // state with no balance return and no trade history entry.
-    if (!currentPnl.worstClosePrice) return;
-    const exitPrice: Price = currentPnl.worstClosePrice;
-
-    // Mark as triggered immediately to prevent race conditions
-    liquidationTriggered.current = true;
-
-    // Close the position with liquidated reason.
-    // closePosition handles all P&L calculations and balance updates.
-    // It sets activePosition: null and appends the trade to tradeHistory.
-    // The redundant setActivePosition({...pos, status: "liquidated"}) was
-    // previously called here, but it's dead code — closePosition immediately
-    // sets activePosition to null, overwriting any status change.
-    closePosition(exitPrice, "liquidated");
-
-    // Transition orderStatus to "filled" so the UI can display the
-    // liquidation result. We must bypass the state machine here because
-    // orderStatus is "idle" (verified by the guard above), and
-    // idle → filled is not a valid transition. Liquidation is an emergency
-    // close — it doesn't go through the normal keeper flow, so the
-    // state machine doesn't have a path for it. Using setState directly
-    // is the same pattern used in useWalletSimulation's unmount cleanup.
-    //
-    // IMPORTANT: Since we bypass setOrderStatus, we must manually handle
-    // the 1CT quota decrement that would normally happen in setOrderStatus.
-    // Liquidation always consumes a 1CT action if 1CT is active.
-    const store = usePaperStore.getState();
-    if (store.tradingMode === "1ct" && store.oneClickTrading.enabled) {
-      store.decrementOneClickActions();
+  // Drop dedup entries for positions that no longer exist so the set
+  // doesn't grow unbounded across many open/close cycles.
+  useEffect(() => {
+    const live = new Set(positions.map((p) => p.id));
+    const triggered = triggeredRef.current;
+    for (const id of triggered) {
+      if (!live.has(id)) triggered.delete(id);
     }
-    usePaperStore.setState(
-      { orderStatus: "filled" as import("@/types").OrderStatus },
-      false,
-      "useLiquidationChecker/liquidation-filled",
-    );
-  }, [closePosition]);
+  }, [positions]);
 
   useEffect(() => {
-    // Reset trigger when position changes
-    liquidationTriggered.current = false;
-  }, [position?.id]);
+    if (positions.length === 0) return;
 
-  // Check for liquidation on every price update (useEffect fires on every
-  // pnl.isLiquidatable change, which updates with every price tick).
-  // The previous redundant setInterval was removed — the effect alone
-  // catches every change, and the liquidationTriggered ref prevents doubles.
-  useEffect(() => {
-    if (!position || position.status !== "active") return;
+    const marketInfo = usePaperStore.getState().marketInfo;
 
-    if (pnl.isLiquidatable && !liquidationTriggered.current) {
-      triggerLiquidation();
+    // Snapshot positions to avoid races if the array mutates during the loop.
+    const snapshot = positions.slice();
+
+    for (const pos of snapshot) {
+      if (triggeredRef.current.has(pos.id)) continue;
+
+      const { isLiquidatable, exitPrice } = evaluateLiquidation(
+        pos,
+        prices,
+        marketInfo,
+      );
+      if (!isLiquidatable || !exitPrice) continue;
+
+      // Mark immediately to prevent re-entry within the same cycle.
+      triggeredRef.current.add(pos.id);
+
+      // Close the liquidated position. closePosition is per-id so other
+      // positions are unaffected.
+      closePosition(pos.id, exitPrice, "liquidated");
+
+      // Bump orderStatus to "filled" so the UI can surface the result, but
+      // ONLY when the order machine is idle. If a manual order is mid-flight
+      // (the keeper machine is busy), leave it alone — the liquidation still
+      // closed the position, the user just won't get a per-liquidation popup
+      // until the in-flight order finishes.
+      const store = usePaperStore.getState();
+      if (store.orderStatus === "idle") {
+        if (store.tradingMode === "1ct" && store.oneClickTrading.enabled) {
+          store.decrementOneClickActions();
+        }
+        usePaperStore.setState(
+          { orderStatus: "filled" as OrderStatus },
+          false,
+          "useLiquidationChecker/liquidation-filled",
+        );
+      }
     }
-  }, [position, pnl.isLiquidatable, triggerLiquidation]);
-
-  return {
-    isLiquidatable: pnl.isLiquidatable,
-    liquidationReason: pnl.isLiquidatable ? "liquidated" as const : null,
-    distanceToLiq: pnl.distanceToLiq,
-  };
+  }, [positions, prices, closePosition]);
 }

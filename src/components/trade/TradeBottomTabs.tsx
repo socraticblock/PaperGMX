@@ -6,7 +6,13 @@ import { usePaperStore } from "@/store/usePaperStore";
 import { Panel } from "@/components/trade/ui";
 import { formatUSD, formatPrice } from "@/lib/format";
 import { MARKETS } from "@/lib/constants";
-import type { ClosedTrade, USD } from "@/types";
+import type {
+  ClosedTrade,
+  MarketInfo,
+  MarketSlug,
+  Position,
+  PriceData,
+} from "@/types";
 import { getMarkPrice } from "@/lib/positionEngine";
 import { usePositionPnl } from "@/hooks/usePositionPnl";
 import { addUSD } from "@/lib/branded";
@@ -28,59 +34,66 @@ export interface TradeBottomTabsProps {
 
 /** Memoized row — receives primitives so price ticks don’t rebuild unrelated cells. */
 const OpenPositionTableRow = memo(function OpenPositionTableRow({
-  symbol,
-  isLong,
-  sizeUsd,
-  collateralUsd,
-  entryPrice,
-  mark,
-  netValueUsd,
-  unrealizedNetPnl,
-  decimals,
+  position,
+  prices,
+  marketInfo,
+  isSelected,
+  onSelect,
 }: {
-  symbol: string;
-  isLong: boolean;
-  sizeUsd: USD;
-  collateralUsd: USD;
-  entryPrice: number;
-  mark: number;
-  netValueUsd: number | null;
-  unrealizedNetPnl: number;
-  decimals: number;
+  position: Position;
+  prices: Record<MarketSlug, PriceData>;
+  marketInfo: Record<MarketSlug, MarketInfo>;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
 }) {
+  const marketConfig = MARKETS[position.market];
+  const isLong = position.direction === "long";
+  const pnl = usePositionPnl(position, prices, marketInfo);
+  const markPriceData = prices[position.market];
+  const mark = markPriceData ? Number(getMarkPrice(markPriceData)) : 0;
+  const netValueUsd =
+    pnl.currentPrice != null && pnl.currentPrice > 0
+      ? Number(addUSD(position.collateralUsd, pnl.netPnl))
+      : null;
+
   const sideCls = isLong ? "text-green-primary" : "text-red-primary";
-  const pnlCls =
-    unrealizedNetPnl >= 0 ? "text-green-primary" : "text-red-primary";
+  const pnlCls = pnl.netPnl >= 0 ? "text-green-primary" : "text-red-primary";
 
   return (
-    <tr className="border-b border-trade-border-subtle">
+    <tr
+      onClick={() => onSelect(position.id)}
+      className={`cursor-pointer border-b border-trade-border-subtle transition-colors hover:bg-trade-raised ${
+        isSelected ? "bg-trade-raised/60" : ""
+      }`}
+      aria-selected={isSelected}
+    >
       <td className="px-3 py-3 font-medium text-text-primary">
-        {symbol}{" "}
+        {marketConfig.symbol}{" "}
         <span className={sideCls}>{isLong ? "Long" : "Short"}</span>
       </td>
       <td
         className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell"
-        title="Collateral + unrealized net P&amp;L (after fees if closed now)"
+        title="Collateral + unrealized net P&L (after fees if closed now)"
       >
         {netValueUsd != null ? formatUSD(netValueUsd) : "—"}
       </td>
       <td
         className={`hidden px-3 py-3 tabular-nums md:table-cell ${pnlCls}`}
-        title="Unrealized net P&amp;L (includes accrued borrow/funding vs close)"
+        title="Unrealized net P&L (includes accrued borrow/funding vs close)"
       >
-        {formatUSD(unrealizedNetPnl)}
+        {formatUSD(pnl.netPnl)}
       </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
-        {formatUSD(sizeUsd)}
+        {formatUSD(position.sizeUsd)}
       </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
-        {formatUSD(collateralUsd)}
+        {formatUSD(position.collateralUsd)}
       </td>
       <td className="hidden px-3 py-3 tabular-nums text-text-secondary md:table-cell">
-        {formatPrice(entryPrice, decimals)}
+        {formatPrice(position.entryPrice, marketConfig.decimals)}
       </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
-        {mark > 0 ? formatPrice(mark, decimals) : "—"}
+        {mark > 0 ? formatPrice(mark, marketConfig.decimals) : "—"}
       </td>
     </tr>
   );
@@ -118,41 +131,26 @@ function TradeBottomTabsInner({
   onShowChartPositionsChange,
 }: TradeBottomTabsProps) {
   const [active, setActive] = useState<TabId>("positions");
-  const { activePosition, tradeHistory, prices, marketInfo } = usePaperStore(
+  const {
+    positions,
+    selectedPositionId,
+    selectPosition,
+    tradeHistory,
+    prices,
+    marketInfo,
+  } = usePaperStore(
     useShallow((s) => ({
-      activePosition: s.activePosition,
+      positions: s.positions,
+      selectedPositionId: s.selectedPositionId,
+      selectPosition: s.selectPosition,
       tradeHistory: s.tradeHistory,
       prices: s.prices,
       marketInfo: s.marketInfo,
     })),
   );
 
-  const pnl = usePositionPnl(activePosition, prices, marketInfo);
-  const netValueUsd =
-    activePosition && pnl.currentPrice != null && pnl.currentPrice > 0
-      ? addUSD(activePosition.collateralUsd, pnl.netPnl)
-      : null;
-
   const recentTrades = tradeHistory.slice(0, 8);
-  const posCount = activePosition ? 1 : 0;
-  const markPriceData = activePosition
-    ? prices[activePosition.market]
-    : undefined;
-  const mark = markPriceData ? Number(getMarkPrice(markPriceData)) : 0;
-
-  const positionRowProps = activePosition
-    ? {
-        symbol: MARKETS[activePosition.market].symbol,
-        isLong: activePosition.direction === "long",
-        sizeUsd: activePosition.sizeUsd,
-        collateralUsd: activePosition.collateralUsd,
-        entryPrice: Number(activePosition.entryPrice),
-        mark,
-        netValueUsd: netValueUsd != null ? Number(netValueUsd) : null,
-        unrealizedNetPnl: Number(pnl.netPnl),
-        decimals: MARKETS[activePosition.market].decimals,
-      }
-    : null;
+  const posCount = positions.length;
 
   return (
     <Panel padding="none" className="mt-3 overflow-hidden">
@@ -199,7 +197,7 @@ function TradeBottomTabsInner({
       <div className="min-h-[140px] p-0">
         {active === "positions" && (
           <>
-            {!activePosition ? (
+            {positions.length === 0 ? (
               <p className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted">
                 No open positions
               </p>
@@ -224,19 +222,16 @@ function TradeBottomTabsInner({
                     </tr>
                   </thead>
                   <tbody>
-                    {positionRowProps && (
+                    {positions.map((p) => (
                       <OpenPositionTableRow
-                        symbol={positionRowProps.symbol}
-                        isLong={positionRowProps.isLong}
-                        sizeUsd={positionRowProps.sizeUsd}
-                        collateralUsd={positionRowProps.collateralUsd}
-                        entryPrice={positionRowProps.entryPrice}
-                        mark={positionRowProps.mark}
-                        netValueUsd={positionRowProps.netValueUsd}
-                        unrealizedNetPnl={positionRowProps.unrealizedNetPnl}
-                        decimals={positionRowProps.decimals}
+                        key={p.id}
+                        position={p}
+                        prices={prices}
+                        marketInfo={marketInfo}
+                        isSelected={p.id === selectedPositionId}
+                        onSelect={selectPosition}
                       />
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
