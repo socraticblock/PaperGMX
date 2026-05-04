@@ -42,15 +42,15 @@ export default function MarketsPage() {
       <Header />
       <SettingsPanel />
 
-      <main className="flex-1 px-4 py-6 md:px-6">
-        <div className="mx-auto max-w-2xl">
+      <main className="flex-1 py-6">
+        <div className="app-canvas">
           <TutorialTooltip
             tutorialKey="market-selection"
             title="Pick a market to trade"
             description="Choose from 4 perpetual futures markets — ETH, BTC, SOL, and ARB. Prices are live from the GMX V2 oracle on Arbitrum. Each market has different leverage limits and fee rates."
             position="bottom"
           >
-            <div>
+            <div className="mx-auto w-full max-w-6xl">
               <MarketGrid onSelectMarket={handleSelectMarket} />
             </div>
           </TutorialTooltip>
@@ -58,15 +58,17 @@ export default function MarketsPage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border-primary px-4 py-4 text-center">
-        <a
-          href="https://app.gmx.io"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-text-muted transition-colors hover:text-blue-primary"
-        >
-          Ready for real trading? Switch to GMX →
-        </a>
+      <footer className="border-t border-border-primary">
+        <div className="app-canvas py-4 text-center">
+          <a
+            href="https://app.gmx.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-text-muted transition-colors hover:text-blue-primary"
+          >
+            Ready for real trading? Switch to GMX →
+          </a>
+        </div>
       </footer>
     </div>
   );

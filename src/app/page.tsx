@@ -61,13 +61,14 @@ export default function Home() {
       <Header />
       <SettingsPanel />
 
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-12">
+      <main className="flex flex-1 py-10 md:py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="w-full max-w-2xl text-center"
+          className="app-canvas"
         >
+          <div className="mx-auto w-full max-w-5xl text-center">
           {/* Hero */}
           <div className="mb-2">
             <Logo size="large" />
@@ -167,6 +168,7 @@ export default function Home() {
               Ready for real trading? Switch to GMX →
             </a>
           </motion.div>
+          </div>
         </motion.div>
       </main>
     </div>

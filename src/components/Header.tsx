@@ -97,8 +97,8 @@ function HeaderInner() {
   const navActive = `${navBtn} bg-trade-raised text-text-primary`;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-trade-border-subtle bg-trade-strip/95 px-3 py-2 backdrop-blur-md md:px-5">
-      <div className="mx-auto flex max-w-[1920px] items-center gap-3">
+    <header className="sticky top-0 z-40 border-b border-trade-border-subtle bg-trade-strip/95 py-2 backdrop-blur-md">
+      <div className="app-canvas flex items-center gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-4">
           <Link href="/" className="flex shrink-0 items-center gap-2 md:gap-3">
             <div

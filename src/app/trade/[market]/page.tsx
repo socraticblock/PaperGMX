@@ -80,7 +80,7 @@ export default function TradePage() {
 
       <main className="flex-1">
         <div className="border-b border-trade-border-subtle bg-trade-page">
-          <div className="mx-auto flex max-w-[1920px] items-stretch gap-2 px-3 py-2 md:gap-3 md:px-5 lg:px-6">
+          <div className="app-canvas flex items-stretch gap-2 py-2 md:gap-3">
             <button
               type="button"
               onClick={() => router.push("/markets")}
@@ -115,8 +115,8 @@ export default function TradePage() {
           </div>
         </div>
 
-        <div className="mx-auto max-w-[1920px] px-3 py-3 md:px-5 lg:px-6 lg:py-4">
-          <div className="flex flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_min(420px,100%)] xl:items-start xl:gap-4">
+        <div className="app-canvas py-3 lg:py-4">
+          <div className="flex w-full flex-col gap-3 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] xl:items-start xl:justify-center xl:gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,500px)]">
             <div className="order-2 flex min-w-0 flex-col xl:order-1">
               <PriceChart
                 market={slug}
@@ -194,15 +194,17 @@ export default function TradePage() {
         </div>
       </main>
 
-      <footer className="mt-auto border-t border-trade-border-subtle bg-trade-page px-4 py-3 text-center">
-        <a
-          href="https://app.gmx.io"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[length:var(--text-trade-stat)] text-text-muted transition-colors hover:text-blue-primary"
-        >
-          Ready for real trading? Switch to GMX →
-        </a>
+      <footer className="mt-auto border-t border-trade-border-subtle bg-trade-page">
+        <div className="app-canvas py-3 text-center">
+          <a
+            href="https://app.gmx.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[length:var(--text-trade-stat)] text-text-muted transition-colors hover:text-blue-primary"
+          >
+            Ready for real trading? Switch to GMX →
+          </a>
+        </div>
       </footer>
     </div>
   );

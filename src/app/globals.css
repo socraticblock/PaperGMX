@@ -37,12 +37,26 @@
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Centered app canvas: max width + equal side gutters on ultrawide */
+  --app-canvas-max: 2600px;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+@layer components {
+  /**
+   * Single source of truth for horizontal centering + side gutters.
+   * Use on header inner row, page sections, and footers so edges align.
+   */
+  .app-canvas {
+    @apply mx-auto w-full px-3 md:px-5 lg:px-6 2xl:px-8;
+    max-width: var(--app-canvas-max);
+  }
 }
 
 html,
