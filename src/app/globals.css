@@ -39,7 +39,7 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   /* Centered app canvas: max width + equal side gutters on ultrawide */
-  --app-canvas-max: 2600px;
+  --app-canvas-max: 1680px;
 }
 
 * {
