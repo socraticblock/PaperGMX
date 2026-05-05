@@ -250,20 +250,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   );
   const isIncrease = existingPosition !== null;
 
-  const otherMarketOpenPositions = useMemo(
-    () =>
-      positions.filter(
-        (p) =>
-          p.market !== market &&
-          p.status !== "closed" &&
-          p.status !== "liquidated",
-      ),
-    [positions, market],
-  );
-  const showLockedMarginHint =
-    otherMarketOpenPositions.length > 0 &&
-    (balance < 1 || collateralUsd > balance);
-
   /** Same market already has the opposite side open — user may be opening the second leg (GMX-style hedge). */
   const oppositeDirection: OrderDirection =
     direction === "long" ? "short" : "long";
@@ -280,29 +266,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   );
   const showSameMarketSecondSideHint =
     hasOppositeSideOpenOnMarket && !existingPosition;
-
-  // Project the post-increase state for the preview row. Mirrors the math
-  // in usePaperStore.increasePosition (which mirrors GMX getEntryPrice):
-  //   sizeInTokens' = sizeInTokens + sizeDelta / executionPrice
-  //   entryPrice'   = (sizeUsd + sizeDelta) / sizeInTokens'
-  const increasePreview = useMemo(() => {
-    if (!existingPosition || sizeUsdDisplay <= 0 || refPxForSize <= 0)
-      return null;
-    const existingTokens =
-      existingPosition.sizeInTokens ??
-      existingPosition.sizeUsd / existingPosition.entryPrice;
-    const tokensDelta = sizeUsdDisplay / refPxForSize;
-    const nextTokens = existingTokens + tokensDelta;
-    if (!Number.isFinite(nextTokens) || nextTokens <= 0) return null;
-    const nextSizeUsd = (existingPosition.sizeUsd as number) + sizeUsdDisplay;
-    const nextEntry = nextSizeUsd / nextTokens;
-    return {
-      currentSizeUsd: existingPosition.sizeUsd as number,
-      currentEntry: existingPosition.entryPrice as number,
-      nextSizeUsd,
-      nextEntry,
-    };
-  }, [existingPosition, sizeUsdDisplay, refPxForSize]);
 
   const handleAllocationPct = useCallback(
     (pct: number) => {
@@ -790,57 +753,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           entryOrderType={entryOrderType}
           limitEntryPrice={limitEntryPrice}
         />
-
-        {false && showLockedMarginHint && (
-          <p
-            className="rounded-md border border-trade-border-subtle bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-secondary"
-            role="note"
-          >
-            Available USDC is separate from margin locked in{" "}
-            {otherMarketOpenPositions.length === 1
-              ? "your other open position"
-              : "your other open positions"}
-            . Close or reduce those trades, or add funds in Settings, then you
-            can open here.
-          </p>
-        )}
-
-        {/* Increase preview — shown when same (market, side) is already open */}
-        {false && isIncrease && existingPosition && (
-          <div className="rounded-md border border-blue-primary/40 bg-blue-primary/10 px-3 py-2 text-[length:var(--text-trade-body)] text-text-primary">
-            <p className="mb-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-blue-primary">
-              Increase existing position
-            </p>
-            {increasePreview ? (
-              <div className="space-y-0.5 text-[length:var(--text-trade-label)] tabular-nums text-text-secondary">
-                <div className="flex justify-between">
-                  <span>Now</span>
-                  <span>
-                    {formatUSD(increasePreview.currentSizeUsd)} · entry $
-                    {formatPrice(
-                      increasePreview.currentEntry,
-                      MARKETS[market].decimals,
-                    )}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>After</span>
-                  <span className="font-medium text-text-primary">
-                    {formatUSD(increasePreview.nextSizeUsd)} · entry $
-                    {formatPrice(
-                      increasePreview.nextEntry,
-                      MARKETS[market].decimals,
-                    )}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-[length:var(--text-trade-label)] text-text-muted">
-                Enter a margin amount to preview the new average entry.
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Submit Button */}
         <TutorialTooltip
