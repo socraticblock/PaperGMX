@@ -566,11 +566,11 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           limitEntryPrice={limitEntryPrice}
         />
 
-        {/* Submit Button */}
+        {/* Paper trade submit button */}
         <TutorialTooltip
           tutorialKey="submit-order"
           title="Submit your order"
-          description="This simulates the full GMX V2 trading flow: wallet approval (first time only) → order signing → keeper execution. No real crypto is used — it's all simulated! If you enable One-Click Trading, you can skip the approval popups."
+          description="This simulates a GMX V2 market order with paper funds. No wallet, approval, or real crypto is used. PaperGMX sends the order into a simulated keeper execution flow so you can practice the GMX perp experience safely."
           position="top"
         >
           <div>
