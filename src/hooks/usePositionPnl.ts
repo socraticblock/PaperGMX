@@ -13,7 +13,7 @@ import {
   calculateHourlyBorrowFeeForPosition,
   getMarkPrice,
   getMaxPnlFactorForTraders,
-  getPositionFeeBps,
+  getPositionFeeBpsWithDelta,
   getWorstClosePrice,
   capPositivePnl,
 } from "@/lib/positionEngine";
@@ -120,7 +120,12 @@ export function usePositionPnl(
 
     // Estimate closing position fee using current OI balance
     // GMX V2: close fee BPS is determined at close time based on OI
-    const closeFeeBps = getPositionFeeBps(position.direction, true, info);
+    const closeFeeBps = getPositionFeeBpsWithDelta(
+      position.direction,
+      true,
+      info,
+      position.sizeUsd,
+    );
     const positionFeeClose = calculatePositionFee(position.sizeUsd, closeFeeBps);
 
     // Net P&L = gross - (open fee + close fee + borrow + funding)

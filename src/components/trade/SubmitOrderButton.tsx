@@ -1,8 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState, useEffect } from "react";
-import { usePaperStore } from "@/store/usePaperStore";
-import { useShallow } from "zustand/react/shallow";
+import { memo, useCallback } from "react";
 import type {
   EntryOrderType,
   OrderDirection,
@@ -14,13 +12,8 @@ import type {
 } from "@/types";
 import { formatUSD } from "@/lib/format";
 import { calculatePositionSize } from "@/lib/calculations";
-import {
-  MARKETS,
-  ONE_CLICK_MAX_ACTIONS,
-  ONE_CLICK_WARNING_THRESHOLD,
-} from "@/lib/constants";
+import { MARKETS } from "@/lib/constants";
 import { motion, AnimatePresence } from "framer-motion";
-import { BoltIcon } from "@heroicons/react/24/outline";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -45,8 +38,6 @@ export interface SubmitOrderButtonProps {
 }
 
 // ─── Component ────────────────────────────────────────────
-// Phase 5 + Phase 10: This button triggers the wallet flow.
-// In 1CT mode, it skips wallet popups and submits directly.
 // Keeper execution is handled by useKeeperExecution hook
 // (used by KeeperWaitScreen), not here.
 
@@ -63,34 +54,9 @@ function SubmitOrderButtonInner({
   actionLabel,
   onStatusChange,
 }: SubmitOrderButtonProps) {
-  const { oneClickTrading, tradingMode } =
-    usePaperStore(
-      useShallow((s) => ({
-        oneClickTrading: s.oneClickTrading,
-        tradingMode: s.tradingMode,
-      })),
-    );
-
   const marketConfig = MARKETS[market];
   const sizeUsd = calculatePositionSize(collateralUsd, leverage);
   const isLong = direction === "long";
-
-  // ─── 1CT State ──────────────────────────────────────
-  const is1ctMode = tradingMode === "1ct" && oneClickTrading.enabled;
-  // Track current time in state to avoid calling Date.now() during render
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
-  const isExpired =
-    oneClickTrading.expiresAt !== null &&
-    oneClickTrading.expiresAt < now;
-  const isDepleted = oneClickTrading.actionsRemaining <= 0;
-  const needsRenewal = is1ctMode && (isExpired || isDepleted);
-  const isLow1ct =
-    is1ctMode &&
-    oneClickTrading.actionsRemaining <= ONE_CLICK_WARNING_THRESHOLD;
 
   // ─── Validation ─────────────────────────────────────────
   const hasPriceData = priceData && priceData.last > 0;
@@ -105,26 +71,14 @@ function SubmitOrderButtonInner({
     !insufficientBalance &&
     !belowMinimum &&
     collateralUsd > 0 &&
-    (orderStatus === "idle" || orderStatus === "failed" || orderStatus === "cancelled") &&
-    !needsRenewal; // Can't submit if 1CT needs renewal
+    (orderStatus === "idle" ||
+      orderStatus === "failed" ||
+      orderStatus === "cancelled");
 
-  // ─── Button click: start the wallet flow ────────────────
   const handleClick = useCallback(() => {
     if (!canSubmit) return;
-
-    // In 1CT mode: skip approval entirely, go straight to signing
-    // In classic mode: show approval popup if needed
     onStatusChange("submitted");
-  }, [
-    canSubmit,
-    onStatusChange,
-  ]);
-
-  // 1CT action quota is now decremented in the store's setOrderStatus
-  // when transitioning to "filled" — not in this component's useEffect.
-  // Previously, this component used a useEffect to decrement, but it could
-  // unmount before the order fills (replaced by KeeperWaitScreen), causing
-  // the decrement to be missed. The store-level decrement is reliable.
+  }, [canSubmit, onStatusChange]);
 
   // ─── Button state config ────────────────────────────────
   const buttonConfig = (() => {
@@ -210,25 +164,8 @@ function SubmitOrderButtonInner({
             showSpinner: false,
           };
         }
-        // 1CT renewal needed
-        if (needsRenewal) {
-          return {
-            text: isExpired ? "1CT Expired — Renew" : "1CT Depleted — Renew",
-            bgClass: "bg-yellow-primary",
-            showSpinner: false,
-          };
-        }
-        // Normal submit text — include ⚡ badge for 1CT.
-        // actionLabel overrides the verb (e.g. "Increase Long ETH").
         const verb =
           actionLabel ?? `${isLong ? "Long" : "Short"} ${marketConfig.symbol}`;
-        if (is1ctMode) {
-          return {
-            text: `${verb} ⚡ — ${formatUSD(sizeUsd)}`,
-            bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
-            showSpinner: false,
-          };
-        }
         return {
           text: `${verb} — ${formatUSD(sizeUsd)}`,
           bgClass: isLong ? "bg-green-primary" : "bg-red-primary",
@@ -272,18 +209,8 @@ function SubmitOrderButtonInner({
         <p>
           Paper trading only — no real funds at risk.
           <br />
-          Position fee: 4-6 BPS (based on pool balance). Keeper execution
-          simulated.
+          Position fee: 4-6 BPS based on pool balance. Keeper execution simulated.
         </p>
-        {is1ctMode && (
-          <p
-            className={`mt-1 ${isLow1ct ? "text-yellow-primary" : "text-purple-primary"}`}
-          >
-            <BoltIcon className="inline h-3 w-3" aria-hidden="true" /> 1CT:{" "}
-            {oneClickTrading.actionsRemaining}/{ONE_CLICK_MAX_ACTIONS} actions
-            remaining
-          </p>
-        )}
       </div>
     </div>
   );

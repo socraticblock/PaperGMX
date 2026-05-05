@@ -70,10 +70,10 @@ describe("Wallet Simulation Flow", () => {
       expect(usePaperStore.getState().orderStatus).toBe("idle"); // Stays idle
     });
 
-    it("blocks invalid transition: idle → submitted", () => {
+    it("allows direct transition: idle → submitted", () => {
       const store = usePaperStore.getState();
-      store.setOrderStatus("submitted"); // Should be blocked
-      expect(usePaperStore.getState().orderStatus).toBe("idle");
+      store.setOrderStatus("submitted");
+      expect(usePaperStore.getState().orderStatus).toBe("submitted");
     });
 
     it("blocks invalid transition: approving → signing (must go through approved first)", () => {

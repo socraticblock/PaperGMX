@@ -120,19 +120,6 @@ export default function TradePage() {
           </div>
         </div>
       </main>
-
-      <footer className="mt-auto border-t border-trade-border-subtle bg-trade-page">
-        <div className="app-canvas py-3 text-center">
-          <a
-            href="https://app.gmx.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[length:var(--text-trade-stat)] text-text-muted transition-colors hover:text-blue-primary"
-          >
-            Ready for real trading? Switch to GMX →
-          </a>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { usePaperStore } from "@/store/usePaperStore";
 import { Panel } from "@/components/trade/ui";
@@ -73,14 +73,14 @@ const OpenPositionTableRow = memo(function OpenPositionTableRow({
         {marketConfig.symbol}{" "}
         <span className={sideCls}>{isLong ? "Long" : "Short"}</span>
       </td>
-      <td
-        className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell"
-        title="Collateral + unrealized net P&L (after fees if closed now)"
-      >
-        {netValueUsd != null ? formatUSD(netValueUsd) : "—"}
-      </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
         {formatUSD(position.sizeUsd)}
+      </td>
+      <td
+        className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell"
+        title="Collateral + unrealized net P&L after fees"
+      >
+        {netValueUsd != null ? formatUSD(netValueUsd) : "—"}
       </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
         {formatUSD(position.collateralUsd)}
@@ -151,6 +151,8 @@ function TradeBottomTabsInner({
     tradeHistory,
     prices,
     marketInfo,
+    closeOrderStatus,
+    dismissCloseOrderResult,
   } = usePaperStore(
     useShallow((s) => ({
       positions: s.positions,
@@ -159,11 +161,40 @@ function TradeBottomTabsInner({
       tradeHistory: s.tradeHistory,
       prices: s.prices,
       marketInfo: s.marketInfo,
+      closeOrderStatus: s.closeOrderStatus,
+      dismissCloseOrderResult: s.dismissCloseOrderResult,
     })),
   );
 
   const recentTrades = tradeHistory.slice(0, 8);
   const posCount = positions.length;
+
+  useEffect(() => {
+    if (!closeModalPosition) return;
+
+    const stillExists = positions.some((p) => p.id === closeModalPosition.id);
+
+    if (closeOrderStatus === "filled" && !stillExists) {
+      const timer = window.setTimeout(() => {
+        dismissCloseOrderResult();
+        setCloseModalPosition(null);
+      }, 1200);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    if (closeOrderStatus === "idle" && !stillExists) {
+      const timer = window.setTimeout(() => {
+        setCloseModalPosition(null);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [
+    closeModalPosition,
+    positions,
+    closeOrderStatus,
+    dismissCloseOrderResult,
+  ]);
 
   return (
     <Panel padding="none" className="mt-3 overflow-hidden">

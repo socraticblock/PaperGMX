@@ -47,7 +47,7 @@ export type OrderStatus =
 // ─── Order State Machine ──────────────────────────────────
 
 export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  idle: ["approving", "signing"], // signing if already approved or 1CT
+  idle: ["submitted", "approving", "signing"], // signing if already approved or 1CT
   approving: ["approved", "failed", "cancelled"],
   approved: ["signing", "failed"],
   signing: ["submitted", "failed", "cancelled"],

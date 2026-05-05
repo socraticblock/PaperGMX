@@ -319,14 +319,6 @@ function PriceChartInner({
         </IconButton>
       </div>
 
-      <div className="relative border-b border-trade-border-subtle px-3 py-2 md:px-4">
-        <p className="text-[length:var(--text-trade-label)] text-text-muted">
-          <span className="text-text-secondary">{CHART_BINANCE_SYMBOL[market]}</span>
-          {" · "}
-          Binance spot candles (visual). Execution uses your oracle / simulator prices.
-        </p>
-      </div>
-
       {loadError ? (
         <div
           className="flex items-center justify-center bg-trade-panel px-4 py-16 text-center text-[length:var(--text-trade-body)] text-red-primary"
