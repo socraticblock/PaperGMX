@@ -9,13 +9,11 @@ import type {
   PriceData,
   MarketInfo,
   ClosedTrade,
-  Price,
 } from "@/types";
 import { usePaperStore } from "@/store/usePaperStore";
 import { useShallow } from "zustand/react/shallow";
 import { useCloseKeeper } from "@/hooks/useCloseKeeper";
 import { usePositionPnl } from "@/hooks/usePositionPnl";
-import { useWalletSimulation } from "@/hooks/useWalletSimulation";
 import {
   calculateAcceptablePrice,
   calculateClosePosition,
@@ -23,12 +21,10 @@ import {
 import {
   estimateExecutionFeeUsd,
   getExecutionPrice,
-  getPositionFeeBps,
+  getPositionFeeBpsWithDelta,
 } from "@/lib/positionEngine";
 import { formatUSD, formatPrice } from "@/lib/format";
 import { MARKETS, SLIPPAGE_CLOSE_BPS } from "@/lib/constants";
-import { WalletOverlay } from "@/components/wallet/WalletOverlay";
-import { WalletAnimator } from "@/components/wallet/WalletAnimator";
 
 // ─── Props ───────────────────────────────────────────────
 
@@ -71,8 +67,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     closeOrderStatus,
     connectionStatus,
     simulateKeeperDelay,
-    tradingMode,
-    oneClickTrading,
     setCloseOrderStatus,
     dismissCloseOrderResult,
   } = usePaperStore(
@@ -80,8 +74,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       closeOrderStatus: s.closeOrderStatus,
       connectionStatus: s.connectionStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
-      tradingMode: s.tradingMode,
-      oneClickTrading: s.oneClickTrading,
       setCloseOrderStatus: s.setCloseOrderStatus,
       dismissCloseOrderResult: s.dismissCloseOrderResult,
     }))
@@ -89,7 +81,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
 
   // ─── Close reason (selected by user) ───────────────────
   const [selectedReason, setSelectedReason] = useState<ClosedTrade["closeReason"]>("take_profit");
-  const is1ctMode = tradingMode === "1ct" && oneClickTrading.enabled;
 
   // ─── Close keeper ──────────────────────────────────────
   const closeKeeper = useCloseKeeper(
@@ -99,9 +90,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
     selectedReason, // Dynamic — ref updates on re-render
     simulateKeeperDelay,
   );
-
-  // ─── Wallet simulation ─────────────────────────────────
-  const wallet = useWalletSimulation("close");
 
   // ─── Estimate close values ─────────────────────────────
   const closeEstimate = useMemo(() => {
@@ -130,10 +118,11 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
       position.sizeUsd,
       position.collateralUsd,
       position.positionFeePaid,
-      getPositionFeeBps(
+      getPositionFeeBpsWithDelta(
         position.direction,
         true, // isClose
         marketInfo[position.market],
+        position.sizeUsd,
       ),
       position.borrowFeeAccrued,
       position.fundingFeeAccrued,
@@ -189,19 +178,9 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
   const handleClose = useCallback(
     (reason: ClosedTrade["closeReason"]) => {
       setSelectedReason(reason);
-      if (is1ctMode) {
-        // 1CT skips wallet signing entirely. Go straight to submitted.
-        // NOTE: We do NOT decrement the 1CT action quota here — the quota
-        // should only burn when the close actually succeeds. A useEffect
-        // below handles the decrement when closeOrderStatus reaches "filled".
-        setCloseOrderStatus("submitted");
-        return;
-      }
-
-      // Classic close doesn't require token approval — only signing.
-      setCloseOrderStatus("signing");
+      setCloseOrderStatus("submitted");
     },
-    [is1ctMode, setCloseOrderStatus]
+    [setCloseOrderStatus]
   );
 
   // 1CT action quota is decremented in the store's setCloseOrderStatus
@@ -351,20 +330,6 @@ function ClosePositionFormInner({ position, prices, marketInfo }: ClosePositionF
         </p>
       </div>
 
-      {/* ─── Wallet Popup Layer ──────────────────────────── */}
-      <WalletOverlay visible={wallet.isVisible} />
-
-      <WalletAnimator visible={wallet.isVisible}>
-        {wallet.showSigning ? (
-          <CloseSigningPopup
-            position={position}
-            closeEstimate={closeEstimate}
-            processing={wallet.processing}
-            onConfirm={wallet.handleConfirm}
-            onReject={wallet.handleRejectSigning}
-          />
-        ) : null}
-      </WalletAnimator>
     </>
   );
 }
@@ -397,196 +362,6 @@ function CloseSummaryRow({ label, value, valueColor, tooltip }: CloseSummaryRowP
 }
 
 // ─── Close Signing Popup ────────────────────────────────
-
-interface CloseSigningPopupProps {
-  position: Position;
-  closeEstimate: {
-    estFillPrice: Price;
-    acceptablePrice: Price;
-    positionFeeClose: import("@/types").USD;
-    netPnl: import("@/types").USD;
-    returnedCollateral: import("@/types").USD;
-    executionFee: import("@/types").USD;
-  } | null;
-  processing: import("@/hooks/useWalletSimulation").PopupProcessingState;
-  onConfirm: () => void;
-  onReject: () => void;
-}
-
-function CloseSigningPopup({
-  position,
-  closeEstimate,
-  processing,
-  onConfirm,
-  onReject,
-}: CloseSigningPopupProps) {
-  const marketConfig = MARKETS[position.market];
-  const isLong = position.direction === "long";
-  const isIdle = processing === "idle";
-  const isProcessing = processing === "processing";
-  const isSuccess = processing === "success";
-
-  return (
-    <div className="rounded-2xl border border-border-primary bg-bg-card shadow-2xl overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border-primary px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-primary/20">
-          <svg
-            className="h-4 w-4 text-blue-primary"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"
-            />
-          </svg>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary">
-            Confirm Close Position
-          </h2>
-          <p className="text-xs text-text-muted">Market Decrease Order</p>
-        </div>
-        <div className="ml-auto">
-          <span
-            className={`rounded-md px-2 py-0.5 text-xs font-bold ${
-              isLong
-                ? "bg-green-primary/20 text-green-primary"
-                : "bg-red-primary/20 text-red-primary"
-            }`}
-          >
-            {isLong ? "LONG" : "SHORT"}
-          </span>
-        </div>
-      </div>
-
-      {/* Details */}
-      <div className="px-5 py-4 space-y-3">
-        <PopupDetailRow label="Market" value={marketConfig.pair} />
-        <PopupDetailRow label="Position Size" value={formatUSD(position.sizeUsd)} highlight />
-        <PopupDetailRow
-          label="Est. Exit Price"
-          value={
-            closeEstimate
-              ? `$${formatPrice(closeEstimate.estFillPrice, marketConfig.decimals)}`
-              : "—"
-          }
-        />
-        <PopupDetailRow
-          label="Acceptable Price"
-          value={
-            closeEstimate
-              ? `$${formatPrice(closeEstimate.acceptablePrice, marketConfig.decimals)}`
-              : "—"
-          }
-          tooltip="Max slippage: 3%"
-        />
-        <PopupDetailRow
-          label="Close Fee"
-          value={closeEstimate ? formatUSD(closeEstimate.positionFeeClose) : "—"}
-        />
-        <PopupDetailRow
-          label="Est. Net P&amp;L"
-          value={closeEstimate ? formatUSD(closeEstimate.netPnl) : "—"}
-          highlight
-        />
-        <PopupDetailRow
-          label="Est. Gas"
-          value={closeEstimate ? `~${formatUSD(closeEstimate.executionFee)}` : "—"}
-        />
-      </div>
-
-      {/* Disclaimer */}
-      <div className="mx-5 mb-4 rounded-lg bg-bg-input px-3 py-2">
-        <p className="text-[10px] text-text-muted leading-relaxed text-center">
-          Paper trading simulation. Same fees &amp; pricing as GMX V2, zero real risk.
-        </p>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex gap-3 px-5 pb-5">
-        {isIdle && (
-          <>
-            <button
-              onClick={onReject}
-              className="flex-1 rounded-xl border border-border-primary py-3 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-input"
-            >
-              Reject
-            </button>
-            <button
-              onClick={onConfirm}
-              className="flex-1 rounded-xl bg-blue-primary py-3 text-sm font-bold text-white transition-all hover:brightness-110 active:scale-[0.98]"
-            >
-              Confirm Close
-            </button>
-          </>
-        )}
-
-        {isProcessing && (
-          <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-primary/20 py-3">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current text-blue-primary" />
-            <span className="text-sm font-medium text-blue-primary">
-              Submitting...
-            </span>
-          </div>
-        )}
-
-        {isSuccess && (
-          <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-primary/20 py-3">
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", damping: 12, stiffness: 200 }}
-              className="text-lg text-green-primary"
-              aria-hidden="true"
-            >
-              ✓
-            </motion.span>
-            <span className="text-sm font-bold text-green-primary">
-              Confirmed!
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Popup Detail Row ───────────────────────────────────
-
-interface PopupDetailRowProps {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  tooltip?: string;
-}
-
-function PopupDetailRow({ label, value, highlight, tooltip }: PopupDetailRowProps) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-xs text-text-muted">
-        {label}
-        {tooltip && (
-          <span title={tooltip} className="ml-1 cursor-help opacity-60">
-            ⓘ
-          </span>
-        )}
-      </span>
-      <span
-        className={`text-xs font-mono ${
-          highlight ? "text-text-primary font-semibold" : "text-text-secondary"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
 
 // ─── Close Keeper Wait Screen ───────────────────────────
 

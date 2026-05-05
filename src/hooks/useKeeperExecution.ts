@@ -17,7 +17,7 @@ import {
   calculatePositionFee,
   calculateLiquidationPrice,
 } from "@/lib/calculations";
-import { getExecutionPrice, getPositionFeeBps } from "@/lib/positionEngine";
+import { getExecutionPrice, getPositionFeeBpsWithDelta } from "@/lib/positionEngine";
 import { ORDER_TRANSITIONS } from "@/types";
 import {
   MARKETS,
@@ -219,14 +219,15 @@ export function useKeeperExecution(
         // GMX V2: position fee is 4 BPS if the trade balances pool OI,
         // 6 BPS if it imbalances. We determine this at execution time using
         // the current OI data from the market info.
-        const feeBps: BPS = getPositionFeeBps(
-          directionRef.current,
-          false,
-          currentMarketInfo,
-        );
         const sizeUsd = calculatePositionSize(
           collateralUsdRef.current,
           leverageRef.current,
+        );
+        const feeBps: BPS = getPositionFeeBpsWithDelta(
+          directionRef.current,
+          false,
+          currentMarketInfo,
+          sizeUsd,
         );
         const positionFeePaid = calculatePositionFee(sizeUsd, feeBps);
         const currentMarketConfig = MARKETS[marketRef.current];

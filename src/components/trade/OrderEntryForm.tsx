@@ -71,7 +71,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
     marketInfo,
     connectionStatus,
     simulateKeeperDelay,
-    approvedTokens,
     lockCollateral,
     addPosition,
     increasePosition,
@@ -86,7 +85,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       marketInfo: s.marketInfo,
       connectionStatus: s.connectionStatus,
       simulateKeeperDelay: s.simulateKeeperDelay,
-      approvedTokens: s.approvedTokens,
       lockCollateral: s.lockCollateral,
       addPosition: s.addPosition,
       increasePosition: s.increasePosition,
@@ -101,7 +99,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   // ─── Derived data ───────────────────────────────────────
   const priceData = prices[market];
   const info = marketInfo[market];
-  const needsApproval = !approvedTokens.includes("USDC");
 
   // ─── Multi-position fee accrual + liquidation watch ─────
   // These hooks loop over every active position in the store, so they live
@@ -159,10 +156,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
   const manualCloseNeedsDismiss =
     orderStatus === "filled" &&
     lastTrade != null &&
-    lastTrade.closeReason !== "liquidated" &&
-    // Only show if the trade just landed (within ~2s) — otherwise it's stale
-    // history from a previous interaction.
-    Date.now() - Number(lastTrade.closedAt) < 2_000;
+    lastTrade.closeReason !== "liquidated";
 
   // ─── Local form state ───────────────────────────────────
   const [direction, setDirection] = useState<OrderDirection>("long");
@@ -501,14 +495,9 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               </button>
               <button
                 type="button"
-                disabled={formDisabled}
-                onClick={() => setEntryOrderType("limit")}
-                title="Limit price preview — execution is still market-only"
-                className={`flex-1 rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold transition-colors ${
-                  entryOrderType === "limit"
-                    ? "text-text-primary ring-1 ring-trade-border-active"
-                    : "text-text-muted hover:text-text-secondary"
-                }`}
+                disabled
+                title="Limit orders coming soon"
+                className="flex-1 cursor-not-allowed rounded py-1.5 text-[length:var(--text-trade-body)] font-semibold text-text-muted opacity-70"
               >
                 Limit
               </button>
@@ -545,7 +534,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
             </div>
 
             <AnimatePresence initial={false}>
-              {entryOrderType === "limit" && (
+              {false && entryOrderType === "limit" && (
                 <motion.div
                   key="limit-price-field"
                   initial={{ opacity: 0, y: -6 }}
@@ -802,7 +791,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
           limitEntryPrice={limitEntryPrice}
         />
 
-        {showLockedMarginHint && (
+        {false && showLockedMarginHint && (
           <p
             className="rounded-md border border-trade-border-subtle bg-trade-panel px-3 py-2 text-[length:var(--text-trade-body)] text-text-secondary"
             role="note"
@@ -817,7 +806,7 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
         )}
 
         {/* Increase preview — shown when same (market, side) is already open */}
-        {isIncrease && existingPosition && (
+        {false && isIncrease && existingPosition && (
           <div className="rounded-md border border-blue-primary/40 bg-blue-primary/10 px-3 py-2 text-[length:var(--text-trade-body)] text-text-primary">
             <p className="mb-1 text-[length:var(--text-trade-label)] font-semibold uppercase tracking-wide text-blue-primary">
               Increase existing position
@@ -870,7 +859,6 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
               orderStatus={orderStatus}
               priceData={priceData}
               connectionStatus={connectionStatus}
-              needsApproval={needsApproval}
               entryOrderType={entryOrderType}
               actionLabel={
                 isIncrease
@@ -884,10 +872,10 @@ function OrderEntryFormInner({ market }: OrderEntryFormProps) {
       </div>
 
       {/* ─── Wallet Popup Layer ──────────────────────────── */}
-      <WalletOverlay visible={wallet.isVisible} />
+      <WalletOverlay visible={false} />
 
-      <WalletAnimator visible={wallet.isVisible}>
-        {wallet.showApproval ? (
+      <WalletAnimator visible={false}>
+        {false && wallet.showApproval ? (
           <ApprovalPopup
             processing={wallet.processing}
             onApprove={wallet.handleApprove}

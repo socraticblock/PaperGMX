@@ -4,7 +4,7 @@ import { useRef, useCallback, useMemo } from "react";
 import { usePaperStore } from "@/store/usePaperStore";
 import type { OrderStatus, OrderDirection, Price, MarketSlug, BPS, ClosedTrade } from "@/types";
 import { ORDER_TRANSITIONS } from "@/types";
-import { getExecutionPrice, getPositionFeeBps } from "@/lib/positionEngine";
+import { getExecutionPrice, getPositionFeeBpsWithDelta } from "@/lib/positionEngine";
 import { sampleKeeperDelay, KEEPER_FAILURE_RATE } from "@/lib/constants";
 
 // ─── Types ────────────────────────────────────────────────
@@ -150,17 +150,18 @@ export function useCloseKeeper(
         // Step 4: Close the position in the store
         // GMX V2: close fee BPS is determined at close time based on OI balance.
         // We compute the close fee here and pass it to closePosition.
-        const currentMarketInfo = usePaperStore.getState().marketInfo[marketRef.current];
-        const closeFeeBps: BPS = getPositionFeeBps(
-          directionRef.current,
-          true,
-          currentMarketInfo,
-        );
-
-        // closePosition no longer resets orderStatus — we manage the state machine here
         const positionBeforeClose = usePaperStore
           .getState()
           .positions.find((p) => p.id === positionIdRef.current);
+        const currentMarketInfo = usePaperStore.getState().marketInfo[marketRef.current];
+        const closeFeeBps: BPS = getPositionFeeBpsWithDelta(
+          directionRef.current,
+          true,
+          currentMarketInfo,
+          positionBeforeClose?.sizeUsd,
+        );
+
+        // closePosition no longer resets orderStatus — we manage the state machine here
         usePaperStore
           .getState()
           .closePosition(

@@ -17,6 +17,7 @@ import { getMarkPrice } from "@/lib/positionEngine";
 import { usePositionPnl } from "@/hooks/usePositionPnl";
 import { addUSD } from "@/lib/branded";
 import ShareTradeSummaryButton from "@/components/trade/ShareTradeSummaryButton";
+import { ClosePositionForm } from "@/components/position/ClosePositionForm";
 
 const TABS = [
   { id: "positions", label: "Positions" },
@@ -39,12 +40,14 @@ const OpenPositionTableRow = memo(function OpenPositionTableRow({
   marketInfo,
   isSelected,
   onSelect,
+  onClose,
 }: {
   position: Position;
   prices: Record<MarketSlug, PriceData>;
   marketInfo: Record<MarketSlug, MarketInfo>;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  onClose: (position: Position) => void;
 }) {
   const marketConfig = MARKETS[position.market];
   const isLong = position.direction === "long";
@@ -57,7 +60,6 @@ const OpenPositionTableRow = memo(function OpenPositionTableRow({
       : null;
 
   const sideCls = isLong ? "text-green-primary" : "text-red-primary";
-  const pnlCls = pnl.netPnl >= 0 ? "text-green-primary" : "text-red-primary";
 
   return (
     <tr
@@ -77,12 +79,6 @@ const OpenPositionTableRow = memo(function OpenPositionTableRow({
       >
         {netValueUsd != null ? formatUSD(netValueUsd) : "—"}
       </td>
-      <td
-        className={`hidden px-3 py-3 tabular-nums md:table-cell ${pnlCls}`}
-        title="Unrealized net P&L (includes accrued borrow/funding vs close)"
-      >
-        {formatUSD(pnl.netPnl)}
-      </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
         {formatUSD(position.sizeUsd)}
       </td>
@@ -94,6 +90,22 @@ const OpenPositionTableRow = memo(function OpenPositionTableRow({
       </td>
       <td className="px-3 py-3 tabular-nums text-text-secondary">
         {mark > 0 ? formatPrice(mark, marketConfig.decimals) : "—"}
+      </td>
+      <td className="hidden px-3 py-3 tabular-nums text-text-secondary lg:table-cell">
+        {position.liquidationPrice != null ? formatPrice(position.liquidationPrice, marketConfig.decimals) : "N/A"}
+      </td>
+      <td className="hidden px-3 py-3 text-text-muted md:table-cell">—</td>
+      <td className="px-3 py-3 text-right">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose(position);
+          }}
+          className="rounded border border-trade-border-subtle bg-trade-panel px-2 py-1 text-[length:var(--text-trade-label)] text-text-secondary hover:border-trade-border-active hover:text-text-primary"
+        >
+          Close
+        </button>
       </td>
     </tr>
   );
@@ -131,6 +143,7 @@ function TradeBottomTabsInner({
   onShowChartPositionsChange,
 }: TradeBottomTabsProps) {
   const [active, setActive] = useState<TabId>("positions");
+  const [closeModalPosition, setCloseModalPosition] = useState<Position | null>(null);
   const {
     positions,
     selectedPositionId,
@@ -203,22 +216,24 @@ function TradeBottomTabsInner({
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] border-collapse text-left text-[length:var(--text-trade-body)]">
+                <table className="w-full min-w-[980px] border-collapse text-left text-[length:var(--text-trade-body)]">
                   <thead>
                     <tr className="border-b border-trade-border-subtle text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
-                      <th className="px-3 py-2 font-medium">Asset</th>
+                      <th className="px-3 py-2 font-medium">Position</th>
+                      <th className="px-3 py-2 font-medium">Size</th>
                       <th className="hidden px-3 py-2 font-medium lg:table-cell">
                         Net value
                       </th>
-                      <th className="hidden px-3 py-2 font-medium md:table-cell">
-                        Unrealized P&amp;L
-                      </th>
-                      <th className="px-3 py-2 font-medium">Size</th>
                       <th className="px-3 py-2 font-medium">Margin</th>
                       <th className="hidden px-3 py-2 font-medium md:table-cell">
-                        Entry
+                        Entry price
                       </th>
-                      <th className="px-3 py-2 font-medium">Mark</th>
+                      <th className="px-3 py-2 font-medium">Mark price</th>
+                      <th className="hidden px-3 py-2 font-medium lg:table-cell">
+                        Liquidation price
+                      </th>
+                      <th className="hidden px-3 py-2 font-medium md:table-cell">TP/SL</th>
+                      <th className="px-3 py-2 text-right font-medium">Close / Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -230,6 +245,7 @@ function TradeBottomTabsInner({
                         marketInfo={marketInfo}
                         isSelected={p.id === selectedPositionId}
                         onSelect={selectPosition}
+                        onClose={setCloseModalPosition}
                       />
                     ))}
                   </tbody>
@@ -244,14 +260,7 @@ function TradeBottomTabsInner({
             className="p-6 text-center text-[length:var(--text-trade-body)] text-text-muted"
             role="status"
           >
-            <p>
-              Limit and trigger orders are not simulated in PaperGMX. All entries
-              and exits use the same market order + keeper flow as the live GMX
-              app.
-            </p>
-            <p className="mt-2 text-[length:var(--text-trade-label)]">
-              Open interest and pool balances still update from live GMX data.
-            </p>
+            <p>No open orders</p>
           </div>
         )}
 
@@ -277,6 +286,29 @@ function TradeBottomTabsInner({
           </p>
         )}
       </div>
+      {closeModalPosition && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 p-4">
+          <div className="max-h-[90vh] w-full max-w-[720px] overflow-auto rounded-lg border border-trade-border-subtle bg-trade-page p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[length:var(--text-trade-body)] font-semibold text-text-primary">
+                Close position
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCloseModalPosition(null)}
+                className="rounded border border-trade-border-subtle px-2 py-1 text-[length:var(--text-trade-label)] text-text-muted hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+            <ClosePositionForm
+              position={closeModalPosition}
+              prices={prices}
+              marketInfo={marketInfo}
+            />
+          </div>
+        </div>
+      )}
     </Panel>
   );
 }

@@ -33,7 +33,6 @@ export interface SubmitOrderButtonProps {
   orderStatus: OrderStatus;
   priceData: PriceData | undefined;
   connectionStatus: ApiConnectionStatus;
-  needsApproval: boolean;
   /** Limit entry shows preview only — submission stays disabled. */
   entryOrderType?: EntryOrderType;
   /**
@@ -60,7 +59,6 @@ function SubmitOrderButtonInner({
   orderStatus,
   priceData,
   connectionStatus,
-  needsApproval,
   entryOrderType = "market",
   actionLabel,
   onStatusChange,
@@ -116,20 +114,9 @@ function SubmitOrderButtonInner({
 
     // In 1CT mode: skip approval entirely, go straight to signing
     // In classic mode: show approval popup if needed
-    if (is1ctMode) {
-      // 1CT: idle → submitted (skip approval and signing popups).
-      // The 1CT action quota is decremented in the store when the order
-      // fills — so that failed/cancelled orders don't waste the action budget.
-      onStatusChange("submitted");
-    } else if (needsApproval) {
-      onStatusChange("approving"); // Triggers ApprovalPopup
-    } else {
-      onStatusChange("signing"); // Skip approval, go to signing
-    }
+    onStatusChange("submitted");
   }, [
     canSubmit,
-    is1ctMode,
-    needsApproval,
     onStatusChange,
   ]);
 
@@ -144,15 +131,10 @@ function SubmitOrderButtonInner({
     switch (orderStatus) {
       case "approving":
       case "approved":
-        return {
-          text: "Approving USDC...",
-          bgClass: "bg-yellow-primary",
-          showSpinner: true,
-        };
       case "signing":
         return {
-          text: is1ctMode ? "Submitting via 1CT..." : "Confirm in Wallet...",
-          bgClass: is1ctMode ? "bg-purple-primary" : "bg-blue-primary",
+          text: "Submitting order...",
+          bgClass: "bg-blue-primary",
           showSpinner: true,
         };
       // Keeper states are handled by KeeperWaitScreen, not this button.
@@ -232,13 +214,6 @@ function SubmitOrderButtonInner({
         if (needsRenewal) {
           return {
             text: isExpired ? "1CT Expired — Renew" : "1CT Depleted — Renew",
-            bgClass: "bg-yellow-primary",
-            showSpinner: false,
-          };
-        }
-        if (needsApproval && !is1ctMode) {
-          return {
-            text: "Approve USDC",
             bgClass: "bg-yellow-primary",
             showSpinner: false,
           };

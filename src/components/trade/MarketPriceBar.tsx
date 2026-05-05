@@ -2,6 +2,8 @@
 
 import { memo, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { usePaperStore } from "@/store/usePaperStore";
+import { useShallow } from "zustand/react/shallow";
 import type { ApiConnectionStatus, MarketSlug, PriceData, MarketInfo } from "@/types";
 import { formatPrice, formatUSDCompact, formatPercent } from "@/lib/format";
 import { MARKETS, MARKET_SLUGS } from "@/lib/constants";
@@ -39,6 +41,7 @@ function MarketPriceBarInner({
   connectionStatus = "disconnected",
 }: MarketPriceBarProps) {
   const router = useRouter();
+  const balance = usePaperStore(useShallow((s) => s.balance));
   const marketConfig = MARKETS[market];
   const currentPrice = priceData?.last ?? 0;
   const change24h = priceData?.change24h ?? 0;
@@ -88,9 +91,8 @@ function MarketPriceBarInner({
   return (
     <div className="min-w-0 space-y-2">
       <div className="rounded-lg border border-trade-border-subtle bg-trade-strip">
-        {/* Desktop-first: two-row strip similar to app.gmx.io */}
-        <div className="scrollbar-none overflow-x-auto px-3 py-3 md:px-4 lg:px-5">
-          <div className="flex min-w-[720px] flex-col gap-4 lg:min-w-0 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+        <div className="scrollbar-none overflow-x-auto px-3 py-2 md:px-4 lg:px-5">
+          <div className="flex min-w-[720px] flex-col gap-3 lg:min-w-0 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
             {/* Pair + price + selector */}
             <div className="flex shrink-0 items-start gap-3">
               <span className="text-2xl leading-none" aria-hidden="true">
@@ -135,10 +137,10 @@ function MarketPriceBarInner({
             </div>
 
             {/* Stats clusters */}
-            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-8 gap-y-4 lg:justify-end">
+            <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-8 gap-y-3 lg:justify-end">
               <div className="min-w-[100px]">
                 <p className="text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
-                  24h
+                  Session
                 </p>
                 <p
                   className={`mt-0.5 text-[length:var(--text-trade-stat)] font-medium tabular-nums ${
@@ -208,15 +210,31 @@ function MarketPriceBarInner({
                 </div>
               </div>
 
-              <div className="flex shrink-0 items-center gap-2 border-t border-trade-border-subtle pt-3 lg:border-t-0 lg:pt-0">
-                <span className="relative flex h-2 w-2">
-                  <span
-                    className={`inline-flex h-2 w-2 rounded-full ${CONNECTION_DOT[connectionStatus]}`}
-                  />
-                </span>
-                <span className="text-[length:var(--text-trade-stat)] text-text-muted">
-                  {CONNECTION_LABEL[connectionStatus]}
-                </span>
+              <div className="flex shrink-0 items-center gap-3 border-t border-trade-border-subtle pt-3 lg:border-t-0 lg:pt-0">
+                <div className="rounded-md border border-trade-border-subtle bg-trade-panel px-3 py-1.5">
+                  <p className="text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
+                    Paper balance
+                  </p>
+                  <p className="text-[length:var(--text-trade-stat)] font-semibold tabular-nums text-text-primary">
+                    ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
+                  </p>
+                  <p
+                    className="text-[length:var(--text-trade-label)] text-text-muted"
+                    title="No wallet required. PaperGMX uses fake funds for GMX training."
+                  >
+                    Simulated funds
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span
+                      className={`inline-flex h-2 w-2 rounded-full ${CONNECTION_DOT[connectionStatus]}`}
+                    />
+                  </span>
+                  <span className="text-[length:var(--text-trade-stat)] text-text-muted">
+                    {CONNECTION_LABEL[connectionStatus]}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

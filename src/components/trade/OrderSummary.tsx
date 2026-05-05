@@ -15,19 +15,17 @@ import {
   calculateHourlyBorrowFee,
   calculateLiquidationPrice,
   calculateAcceptablePrice,
+  calculatePositionFee,
 } from "@/lib/calculations";
 import {
   estimateExecutionFeeUsd,
   getBorrowRateForPosition,
   getExecutionPrice,
-  getPositionFee,
+  getPositionFeeBpsWithDelta,
 } from "@/lib/positionEngine";
 import { usd } from "@/lib/branded";
 import { formatUSD, formatPrice, formatPercent } from "@/lib/format";
-import {
-  MARKETS,
-  SLIPPAGE_OPEN_BPS,
-} from "@/lib/constants";
+import { MARKETS, SLIPPAGE_OPEN_BPS } from "@/lib/constants";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 // ─── Types ────────────────────────────────────────────────
@@ -102,12 +100,13 @@ function OrderSummaryInner({
     const sizeUsd = calculatePositionSize(collateralUsd, leverage);
     // GMX V2: position fee BPS depends on whether the trade balances or
     // imbalances pool OI. We compute it from the current OI data.
-    const { feeBps, feeUsd: positionFee } = getPositionFee(
-      sizeUsd,
+    const feeBps = getPositionFeeBpsWithDelta(
       direction,
       false,
       marketInfo,
+      sizeUsd,
     );
+    const positionFee = calculatePositionFee(sizeUsd, feeBps);
 
     // Hypothetical entry: oracle worst-case (market) vs user limit (limit preview only)
     const fillPrice =
