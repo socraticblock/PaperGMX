@@ -338,7 +338,7 @@ function PriceChartInner({
         <div
           ref={wrapRef}
           className="w-full"
-          style={{ minHeight: "min(56vh, 620px)", height: "min(56vh, 620px)" }}
+          style={{ minHeight: "min(65vh, 720px)", height: "min(65vh, 720px)" }}
         />
       )}
     </Panel>
