@@ -200,8 +200,6 @@ function validateMarketInfo(raw: unknown): GmxMarketInfoResponse | null {
   const stringFields = [
     "openInterestLong",
     "openInterestShort",
-    "poolAmountLong",
-    "poolAmountShort",
     "fundingRateLong",
     "fundingRateShort",
     "borrowingRateLong",
@@ -329,19 +327,6 @@ export async function fetchMarketInfo(): Promise<
       0,
     );
 
-    // GMX V2 pool amounts are in token decimals.
-    // We use the TOKEN_INFO map to get decimals for longToken/shortToken.
-    const longTokenDecimals = TOKEN_INFO[validated.longToken.toLowerCase()]?.decimals ?? 18;
-    const shortTokenDecimals = TOKEN_INFO[validated.shortToken.toLowerCase()]?.decimals ?? 6;
-    
-    const poolAmountLong = parseGmxUsdValue(validated.poolAmountLong, longTokenDecimals);
-    const poolAmountShort = parseGmxUsdValue(validated.poolAmountShort, shortTokenDecimals);
-
-    // TODO: Fetch from DataStore/Reader contract. GMX API currently doesn't expose MaxOI.
-    // We use a large default or a multiple of current OI to avoid blocking trades in the sim.
-    const maxOpenInterestLongUsd = longOi * 2 || 100_000_000;
-    const maxOpenInterestShortUsd = shortOi * 2 || 100_000_000;
-
     const brL = parseGmxBorrowFundingRate(validated.borrowingRateLong);
     const brS = parseGmxBorrowFundingRate(validated.borrowingRateShort);
     const frL = parseGmxBorrowFundingRate(validated.fundingRateLong);
@@ -393,10 +378,6 @@ export async function fetchMarketInfo(): Promise<
       availableLiquidityLongUsd: availableLiquidityLong,
       availableLiquidityShortUsd: availableLiquidityShort,
       totalLiquidityUsd: usd(availableLiquidityLong + availableLiquidityShort),
-      poolAmountLongUsd: poolAmountLong,
-      poolAmountShortUsd: poolAmountShort,
-      maxOpenInterestLongUsd,
-      maxOpenInterestShortUsd,
       borrowRateLongPerSecond: borrowRateLong,
       borrowRateShortPerSecond: borrowRateShort,
       borrowRateLongAnnualized,

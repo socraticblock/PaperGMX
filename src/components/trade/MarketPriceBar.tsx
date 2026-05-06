@@ -104,17 +104,8 @@ and ${borrowAction} borrow fee of ${formatPercent(Math.abs(borrow1h), 4)} per ho
   const availLiq = useMemo(() => {
     if (!marketInfo) return { long: "—", short: "—" };
 
-    // GMX-style liquidity: min(poolAmount - reservedUsd, maxOpenInterestUsd - currentOpenInterestUsd)
-    // In our model, marketInfo.availableLiquidityLong/Short already reflects (poolAmount - reservedUsd) from the API.
-    // We then apply the Max OI constraint to match GMX's chart display logic.
-    const longLiq = Math.min(
-      marketInfo.availableLiquidityLong,
-      Math.max(0, marketInfo.maxOpenInterestLong - marketInfo.longOi)
-    );
-    const shortLiq = Math.min(
-      marketInfo.availableLiquidityShort,
-      Math.max(0, marketInfo.maxOpenInterestShort - marketInfo.shortOi)
-    );
+    const longLiq = marketInfo.availableLiquidityLong;
+    const shortLiq = marketInfo.availableLiquidityShort;
 
     return {
       long: longLiq > 0 ? formatUSDCompact(longLiq) : "—",
