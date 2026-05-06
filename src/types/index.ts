@@ -153,6 +153,10 @@ export interface MarketInfo {
   availableLiquidityLong: USD;
   availableLiquidityShort: USD;
   totalLiquidityUsd: USD;
+  poolAmountLong: USD;
+  poolAmountShort: USD;
+  maxOpenInterestLong: USD;
+  maxOpenInterestShort: USD;
   borrowRateLong: number; // per-second (for calculations)
   borrowRateShort: number; // per-second (for calculations)
   borrowRateLongAnnualized: number; // annualized % (for display)

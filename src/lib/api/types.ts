@@ -68,6 +68,10 @@ export interface ParsedMarketInfo {
   availableLiquidityLongUsd: number;
   availableLiquidityShortUsd: number;
   totalLiquidityUsd: number;
+  poolAmountLongUsd: number;
+  poolAmountShortUsd: number;
+  maxOpenInterestLongUsd: number;
+  maxOpenInterestShortUsd: number;
   borrowRateLongPerSecond: number;
   borrowRateShortPerSecond: number;
   borrowRateLongAnnualized: number; // annualized % for display (e.g., 45.2)
