@@ -43,7 +43,11 @@ export function formatUSDCompact(amount: number): string {
  */
 export function formatPercent(value: number, decimals: number = 2): string {
   const zeroThreshold = 0.5 * 10 ** -decimals;
-  if (Math.abs(value) < zeroThreshold) return `${(0).toFixed(decimals)}%`;
+
+  if (Math.abs(value) < zeroThreshold) {
+    return `${(0).toFixed(decimals)}%`;
+  }
+
   const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(decimals)}%`;
 }

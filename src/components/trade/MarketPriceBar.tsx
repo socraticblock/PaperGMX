@@ -8,6 +8,7 @@ import type { ApiConnectionStatus, MarketSlug, PriceData, MarketInfo } from "@/t
 import { formatPrice, formatUSDCompact, formatPercent } from "@/lib/format";
 import { MARKETS, MARKET_SLUGS } from "@/lib/constants";
 import { motion } from "framer-motion";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 export interface MarketPriceBarProps {
   market: MarketSlug;
@@ -27,12 +28,6 @@ const CONNECTION_DOT: Record<ApiConnectionStatus, string> = {
   degraded: "bg-yellow-primary",
   disconnected: "bg-red-primary",
 };
-
-/** Rough APR → average hourly % for display (GMX-style small 1H numbers). */
-function approxHourlyAprPercent(annualPercent: number): number {
-  if (!Number.isFinite(annualPercent)) return 0;
-  return annualPercent / (365 * 24);
-}
 
 function MarketPriceBarInner({
   market,
@@ -66,16 +61,43 @@ function MarketPriceBarInner({
     return "—";
   }, [priceData]);
 
-  const netHourly = useMemo(() => {
-    if (!marketInfo) return { long: "—", short: "—" };
-    // Calculate 1h net rate from funding minus borrowing (GMX-style display matching).
-    // In GMX V2, fundingRateAnnualized is positive if the side PAYS funding.
-    // So reward = -fundingRateAnnualized.
-    const l = approxHourlyAprPercent(-marketInfo.fundingRateLongAnnualized - marketInfo.borrowRateLongAnnualized);
-    const s = approxHourlyAprPercent(-marketInfo.fundingRateShortAnnualized - marketInfo.borrowRateShortAnnualized);
+  const netRates = useMemo(() => {
+    if (!marketInfo) return null;
+
+    // Calculate 1h net rate directly from funding and borrowing components (GMX-style).
+    // Formula: (FundingRate - BorrowRate) * 3600 * 100
+    // Note: We maintain sign fidelity so that Profit = Positive, Cost = Negative.
+    const longHourly = (-marketInfo.fundingRateLong - marketInfo.borrowRateLong) * 3600 * 100;
+    const shortHourly = (-marketInfo.fundingRateShort - marketInfo.borrowRateShort) * 3600 * 100;
+
+    const buildTooltip = (
+      side: "Long" | "Short",
+      net1h: number,
+      fundingPerSec: number,
+      borrowPerSec: number
+    ) => {
+      const funding1h = -fundingPerSec * 3600 * 100;
+      const borrow1h = -borrowPerSec * 3600 * 100;
+      
+      const fundingAction = funding1h >= 0 ? "receive" : "pay";
+      const borrowAction = borrow1h < 0 ? "pay" : "do not pay";
+
+      return `${side} positions Net rate:
+8h: ${formatPercent(net1h * 8, 4)}
+24h: ${formatPercent(net1h * 24, 4)}
+365d: ${formatPercent(net1h * 24 * 365, 2)}
+
+${side} positions ${fundingAction} funding fee of ${formatPercent(Math.abs(funding1h), 4)} per hour
+and ${borrowAction} borrow fee of ${formatPercent(Math.abs(borrow1h), 4)} per hour`;
+    };
+
+    const longTooltip = buildTooltip("Long", longHourly, marketInfo.fundingRateLong, marketInfo.borrowRateLong);
+    const shortTooltip = buildTooltip("Short", shortHourly, marketInfo.fundingRateShort, marketInfo.borrowRateShort);
+
     return {
-      long: formatPercent(l, 4),
-      short: formatPercent(s, 4),
+      long: formatPercent(longHourly, 4),
+      short: formatPercent(shortHourly, 4),
+      tooltip: `${longTooltip}\n\n${shortTooltip}`,
     };
   }, [marketInfo]);
 
@@ -200,15 +222,25 @@ function MarketPriceBarInner({
               </div>
 
               <div className="min-w-[180px]">
-                <p className="text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
-                  Net rate / 1h
-                </p>
+                <div className="flex items-center gap-1">
+                  <p className="text-[length:var(--text-trade-label)] uppercase tracking-wide text-text-muted">
+                    Net rate / 1h
+                  </p>
+                  {netRates && (
+                    <span title={netRates.tooltip} className="cursor-help">
+                      <InformationCircleIcon
+                        className="h-3 w-3 text-text-muted/60"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  )}
+                </div>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[length:var(--text-trade-stat)] font-medium">
                   <span className="text-green-primary tabular-nums">
-                    Long {netHourly.long}
+                    Long {netRates?.long ?? "—"}
                   </span>
                   <span className="text-red-primary tabular-nums">
-                    Short {netHourly.short}
+                    Short {netRates?.short ?? "—"}
                   </span>
                 </div>
               </div>
