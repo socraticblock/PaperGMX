@@ -68,8 +68,11 @@ function MarketPriceBarInner({
 
   const netHourly = useMemo(() => {
     if (!marketInfo) return { long: "—", short: "—" };
-    const l = approxHourlyAprPercent(marketInfo.netRateLongAnnualized);
-    const s = approxHourlyAprPercent(marketInfo.netRateShortAnnualized);
+    // Calculate 1h net rate from funding minus borrowing (GMX-style display matching).
+    // In GMX V2, fundingRateAnnualized is positive if the side PAYS funding.
+    // So reward = -fundingRateAnnualized.
+    const l = approxHourlyAprPercent(-marketInfo.fundingRateLongAnnualized - marketInfo.borrowRateLongAnnualized);
+    const s = approxHourlyAprPercent(-marketInfo.fundingRateShortAnnualized - marketInfo.borrowRateShortAnnualized);
     return {
       long: formatPercent(l, 4),
       short: formatPercent(s, 4),
